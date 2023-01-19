@@ -1,0 +1,33 @@
+version: "3.7"
+services:
+  app:
+    container_name: dezswap-api-app
+    volumes:
+      - ./:/app:ro
+    build:
+      context: .
+      target: build
+      args:
+        APP_TYPE: ${APP_TYPE:-indexer}
+    command: sh -c "GO111MODULE=off go get github.com/cortesi/modd/cmd/modd && make watch"
+    networks:
+      - local-app
+
+  db:
+    container_name: dezswap-api-db
+    image: postgres
+    volumes:
+      - ./db/data:/var/lib/postgres
+    ports:
+      - ${DB_PORT:-5432}:5432
+    environment:
+      POSTGRES_USER: ${DB_USERNAME:-app}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-appPW}
+      POSTGRES_DB: ${DB_DATABASE:-dezswap_api}
+      POSTGRES_INITDB_ARGS: ${DB_INIT_ARGS:-"--data-checksums"}
+    networks:
+      - local-app
+
+networks:
+  local-app:
+    driver: bridge
