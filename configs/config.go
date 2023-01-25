@@ -22,18 +22,18 @@ var (
 
 // Config aggregation
 type Config struct {
-	Log    LogConfig
-	Sentry SentryConfig
-	Rdb    RdbConfig
+	Log     LogConfig
+	Sentry  SentryConfig
+	Indexer IndexerConfig
 }
 
 // Init is explicit initializer for Config
 func New() Config {
 	v := initViper(fileName)
 	envConfig = Config{
-		Log:    logConfig(v),
-		Sentry: sentryConfig(v),
-		Rdb:    rdbConfig(v),
+		Log:     logConfig(v),
+		Sentry:  sentryConfig(v),
+		Indexer: indexerConfig(v),
 	}
 	return envConfig
 }
@@ -41,9 +41,9 @@ func New() Config {
 func NewWithFileName(fileName string) Config {
 	v := initViper(fileName)
 	envConfig = Config{
-		Log:    logConfig(v),
-		Sentry: sentryConfig(v),
-		Rdb:    rdbConfig(v),
+		Log:     logConfig(v),
+		Sentry:  sentryConfig(v),
+		Indexer: indexerConfig(v),
 	}
 	return envConfig
 }

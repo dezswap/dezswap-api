@@ -17,7 +17,7 @@ import (
 
 func main() {
 	rollBack := os.Args[1:]
-	c := configs.New().Rdb
+	c := configs.New().Indexer.IndexerDb
 
 	url := fmt.Sprintf("postgres://%s:%s@%s:%d/%s?sslmode=disable", c.Username, c.Password, c.Host, c.Port, c.Database)
 	m, err := migrate.New("file://db/migrations", url)
