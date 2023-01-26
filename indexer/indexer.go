@@ -13,7 +13,7 @@ func NewDexIndexer(repo Repo) Indexer {
 }
 
 // UpdatePools implements Indexer
-func (d *dexIndexer) UpdatePools() error {
+func (d *dexIndexer) UpdateLatestPools() error {
 	panic("unimplemented")
 
 }
@@ -22,11 +22,11 @@ func (d *dexIndexer) UpdatePools() error {
 func (d *dexIndexer) UpdateTokens() error {
 	pairs, err := d.repo.Pairs()
 	if err != nil {
-		return errors.Wrap(err, "dexIndexer.UpdatePools")
+		return errors.Wrap(err, "dexIndexer.UpdateTokens")
 	}
 	tokens, err := d.repo.Tokens()
 	if err != nil {
-		return errors.Wrap(err, "dexIndexer.UpdatePools")
+		return errors.Wrap(err, "dexIndexer.UpdateTokens")
 	}
 	tokenMap := make(map[string]*Token)
 	for _, t := range tokens {
@@ -41,7 +41,7 @@ func (d *dexIndexer) UpdateTokens() error {
 
 			t, err := d.repo.Token(addr)
 			if err != nil {
-				return errors.Wrap(err, "dexIndexer.UpdatePools")
+				return errors.Wrap(err, "dexIndexer.UpdateTokens")
 			}
 			tokenMap[addr] = t
 		}

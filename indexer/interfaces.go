@@ -19,5 +19,5 @@ type Repo interface {
 
 type Indexer interface {
 	UpdateTokens() error
-	UpdatePools() error
+	UpdateLatestPools() error
 }
