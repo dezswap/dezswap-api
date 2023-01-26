@@ -1,4 +1,4 @@
-package db
+package indexer
 
 import (
 	"gorm.io/gorm"
@@ -18,6 +18,4 @@ type Token struct {
 	Decimals uint8  `json:"decimals"`
 	Icon     string `json:"icon"`
 	Verified bool   `json:"verified"`
-
-	Meta Meta `json:"meta"`
 }

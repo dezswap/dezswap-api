@@ -1,11 +1,8 @@
 package configs
 
 import (
-	"path/filepath"
-	"runtime"
 	"strings"
 
-	"github.com/pkg/errors"
 	"github.com/spf13/viper"
 )
 
@@ -15,10 +12,6 @@ const (
 )
 
 var envConfig Config
-var (
-	_, b, _, _ = runtime.Caller(0)
-	basepath   = filepath.Dir(b)
-)
 
 // Config aggregation
 type Config struct {
@@ -56,10 +49,6 @@ func Get() Config {
 func initViper(configName string) *viper.Viper {
 	v := viper.New()
 	v.SetConfigName(configName)
-
-	if basepath == "" {
-		panic(errors.New("package root path is not initialized"))
-	}
 	v.AddConfigPath(".") // optionally look for config in the working directory
 
 	if err := v.ReadInConfig(); err != nil {

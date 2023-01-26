@@ -2,7 +2,7 @@ UNAME_S = $(shell uname -s)
 
 
 .PHONY: all
-all: test aggregator collector indexer
+all: test indexer
 
 # Start the minimum requirements for the service, i.e. db
 .PHONY: up
@@ -20,7 +20,7 @@ deps:
 	go mod download
 
 .PHONY: build-all indexer
-build-all: indexer collector indexer
+build-all: indexer
 
 indexer:
 	go install -mod=readonly ./cmd/indexer
@@ -91,18 +91,17 @@ image:
 .PHONY: indexer-migrate-test indexer-migrate-up indexer-migrate-down indexer-generate-migration
 
 indexer-migrate-test:
-	go test -count=1 -tags=mig,faker ./db/migrations/indexer
+	go test -count=1 -tags=mig ./db/migration/indexer
 
 indexer-migrate-up:
-	go run db/migrations/indexer/main.go
+	go run -tags=mig db/migration/indexer/*
 
  indexer-migrate-down:
-	go run db/migrations/indexer/main.go down
+	go run -tags=mig db/migration/indexer/* down
 
 # Create a new empty migration file.
 indexer-generate-migration:
-	$(eval VERSION := $(shell date +"%Y%m%d%H%M%S"))
-	$(eval PATH := db/migrations/indexer)
+	$(eval VERSION := $(shell date +"%Y%m%d_%H%M%S"))
+	$(eval PATH := db/migration/indexer)
 	mkdir -p $(PATH)
-	cp $(PATH)/template.txt $(PATH)/$(VERSION)_SUMMARY_OF_MIGRATION.up.sql
-	cp $(PATH)/template.txt $(PATH)/$(VERSION)_SUMMARY_OF_MIGRATION.down.sql
+	$(shell sed 's/DATE_TIME/$(VERSION)/g' $(PATH)/template.txt > $(PATH)/$(VERSION)_SUMMARY.go)

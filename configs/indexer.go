@@ -5,13 +5,13 @@ import (
 )
 
 type IndexerConfig struct {
-	SrcDb     RdbConfig
-	IndexerDb RdbConfig
+	SrcDb RdbConfig
+	Db    RdbConfig
 }
 
 func indexerConfig(v *viper.Viper) IndexerConfig {
 	return IndexerConfig{
-		SrcDb:     rdbConfig(v.Sub("indexer.srcDb")),
-		IndexerDb: rdbConfig(v.Sub("indexer.indexerDb")),
+		SrcDb: rdbConfig(v.Sub("indexer.src_db")),
+		Db:    rdbConfig(v.Sub("indexer.db")),
 	}
 }

@@ -17,11 +17,11 @@ type RdbConfig struct {
 
 func rdbConfig(v *viper.Viper) RdbConfig {
 	return RdbConfig{
-		Host:     v.GetString("rdb.host"),
-		Port:     v.GetInt("rdb.port"),
-		Database: v.GetString("rdb.database"),
-		Username: v.GetString("rdb.username"),
-		Password: v.GetString("rdb.password"),
+		Host:     v.GetString("host"),
+		Port:     v.GetInt("port"),
+		Database: v.GetString("database"),
+		Username: v.GetString("username"),
+		Password: v.GetString("password"),
 	}
 }
 

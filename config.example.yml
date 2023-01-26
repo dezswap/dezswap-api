@@ -5,7 +5,7 @@ indexer:
     database: dezswap_api
     username: app
     password: appPW
-  indexer_db:
+  db:
     host: localhost
     port: 5432
     database: indexer
