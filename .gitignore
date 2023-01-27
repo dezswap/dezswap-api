@@ -21,3 +21,5 @@ config*.yml
 
 # vscode
 .vscode
+
+db/data

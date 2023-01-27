@@ -1,6 +1,10 @@
 package configs
 
 import (
+	"errors"
+	"fmt"
+	"path/filepath"
+	"runtime"
 	"strings"
 
 	"github.com/spf13/viper"
@@ -11,6 +15,10 @@ const (
 	envPrefix = "app"
 )
 
+var (
+	_, b, _, _ = runtime.Caller(0)
+	basepath   = filepath.Dir(b)
+)
 var envConfig Config
 
 // Config aggregation
@@ -49,6 +57,10 @@ func Get() Config {
 func initViper(configName string) *viper.Viper {
 	v := viper.New()
 	v.SetConfigName(configName)
+	if basepath == "" {
+		panic(errors.New("package root path is not initialized"))
+	}
+	v.AddConfigPath(fmt.Sprintf("%s/../", basepath))
 	v.AddConfigPath(".") // optionally look for config in the working directory
 
 	if err := v.ReadInConfig(); err != nil {
@@ -56,8 +68,8 @@ func initViper(configName string) *viper.Viper {
 	}
 
 	v.SetEnvPrefix(envPrefix)
-	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
-	// All env vars starts with APP_
 	v.AutomaticEnv()
+	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
+
 	return v
 }

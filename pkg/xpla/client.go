@@ -2,7 +2,7 @@ package xpla
 
 import (
 	"encoding/json"
-	"io/ioutil"
+	"io"
 	"net/http"
 
 	"github.com/pkg/errors"
@@ -48,7 +48,7 @@ func get[T unmarshalable](c *http.Client, url string) (*T, error) {
 	}
 	defer res.Body.Close()
 
-	body, err := ioutil.ReadAll(res.Body)
+	body, err := io.ReadAll(res.Body)
 	if err != nil {
 		return nil, errors.Wrap(err, "xpla.get")
 	}
