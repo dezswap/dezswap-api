@@ -5,11 +5,8 @@ import (
 )
 
 type GrpcConfig struct {
-	Host     string
-	Port     int
-	Database string
-	Username string
-	Password string
+	Host string
+	Port int
 }
 
 func grpcConfig(v *viper.Viper) GrpcConfig {

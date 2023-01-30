@@ -19,3 +19,13 @@ func Test_QueryContract(t *testing.T) {
 	assert.NotNil(res)
 	assert.NoError(err)
 }
+
+func Test_SyncedHeight(t *testing.T) {
+	cf := configs.New().Indexer.SrcNode
+	assert := assert.New(t)
+	c, err := NewGrpcClient(fmt.Sprintf("%s:%d", cf.Host, cf.Port))
+	assert.NoError(err)
+	res, err := c.SyncedHeight()
+	assert.NotNil(res)
+	assert.NoError(err)
+}
