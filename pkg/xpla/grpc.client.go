@@ -24,8 +24,8 @@ type grpcClient struct {
 
 var _ GrpcClient = &grpcClient{}
 
-func NewGrpcClient(host string) (GrpcClient, error) {
-	conn, err := grpc.Dial(host, grpc.WithTransportCredentials(insecure.NewCredentials()))
+func NewGrpcClient(target string) (GrpcClient, error) {
+	conn, err := grpc.Dial(target, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		return nil, errors.Wrap(err, "NewGrpcClient: failed to dial")
 	}
