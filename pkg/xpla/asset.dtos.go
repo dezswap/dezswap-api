@@ -12,12 +12,12 @@ type TokensRes struct {
 type TokenResMap map[string]TokenRes
 
 type TokenRes struct {
-	Protocol string `json:"protocol"`
-	Symbol   string `json:"symbol"`
-	Name     string `json:"name"`
-	Token    string `json:"token"`
-	Icon     string `json:"icon"`
-	Decimals uint8  `json:"decimals"`
+	Protocol *string `json:"protocol,omitempty"`
+	Symbol   *string `json:"symbol,omitempty"`
+	Name     *string `json:"name,omitempty"`
+	Token    *string `json:"token,omitempty"`
+	Icon     *string `json:"icon,omitempty"`
+	Decimals *uint8  `json:"decimals,omitempty"`
 }
 
 type IbcsRes struct {
@@ -28,10 +28,10 @@ type IbcsRes struct {
 type IbcResMap map[string]IbcRes
 
 type IbcRes struct {
-	Denom     string `json:"denom"`
-	Path      string `json:"path"`
-	BaseDenom string `json:"base_denom"`
-	Symbol    string `json:"symbol"`
-	Name      string `json:"name"`
-	Icon      string `json:"icon"`
+	Denom     *string `json:"denom,omitempty"`
+	Path      *string `json:"path,omitempty"`
+	BaseDenom *string `json:"base_denom,omitempty"`
+	Symbol    *string `json:"symbol,omitempty"`
+	Name      *string `json:"name,omitempty"`
+	Icon      *string `json:"icon,omitempty"`
 }
