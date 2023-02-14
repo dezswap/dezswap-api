@@ -1,8 +1,6 @@
 package repo
 
 import (
-	"fmt"
-
 	"github.com/dezswap/dezswap-api/configs"
 	"github.com/dezswap/dezswap-api/indexer"
 	"github.com/dezswap/dezswap-api/pkg/dezswap"
@@ -18,14 +16,8 @@ type nodeRepoImpl struct {
 
 var _ indexer.NodeRepo = &nodeRepoImpl{}
 
-func NewNodeRepo(chainId string, c configs.IndexerConfig) (indexer.NodeRepo, error) {
-	target := fmt.Sprintf("%s:%d", c.SrcNode.Host, c.SrcNode.Port)
-	grpcCli, err := xpla.NewGrpcClient(target)
-	if err != nil {
-		return nil, errors.Wrap(err, "NewNodeRepo")
-	}
-
-	return &nodeRepoImpl{grpcCli, &nodeMapperImpl{}, chainId}, nil
+func NewNodeRepo(client xpla.GrpcClient, c configs.IndexerConfig) (indexer.NodeRepo, error) {
+	return &nodeRepoImpl{client, &nodeMapperImpl{}, c.ChainId}, nil
 }
 
 // LatestHeightFromNode implements NodeRepo
@@ -55,12 +47,12 @@ func (r *nodeRepoImpl) PoolFromNode(addr string, height uint64) (*indexer.PoolIn
 func (r *nodeRepoImpl) TokenFromNode(addr string) (*indexer.Token, error) {
 	res, err := r.QueryContract(addr, dezswap.QUERY_TOKEN, xpla.LATEST_HEIGHT_INDICATOR)
 	if err != nil {
-		return nil, errors.Wrap(err, "nodeRepoImpl.PoolFromNode")
+		return nil, errors.Wrap(err, "nodeRepoImpl.TokenFromNode")
 	}
 
 	token, err := r.resToToken(res)
 	if err != nil {
-		return nil, errors.Wrap(err, "nodeRepoImpl.PoolFromNode")
+		return nil, errors.Wrap(err, "nodeRepoImpl.TokenFromNode")
 	}
 	return token, nil
 }

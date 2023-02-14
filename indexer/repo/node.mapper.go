@@ -34,5 +34,13 @@ func (*nodeMapperImpl) resToPoolInfo(addr string, height uint64, data []byte) (*
 
 // resToToken implements nodeMapper
 func (*nodeMapperImpl) resToToken(data []byte) (*indexer.Token, error) {
-	panic("unimplemented")
+	res := dezswap.TokenInfoRes{}
+	if err := json.Unmarshal(data, &res); err != nil {
+		return nil, errors.Wrap(err, "nodeMapperImpl.resToToken")
+	}
+	return &indexer.Token{
+		Name:     res.Name,
+		Symbol:   res.Symbol,
+		Decimals: uint8(res.Decimals),
+	}, nil
 }
