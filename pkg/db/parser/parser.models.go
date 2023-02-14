@@ -1,4 +1,4 @@
-package db
+package parser
 
 // source models from parser and aggregator
 import (

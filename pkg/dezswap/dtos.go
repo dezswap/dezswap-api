@@ -13,11 +13,15 @@ type PoolRes struct {
 }
 
 type AssetInfo struct {
-	Token *struct {
-		ContractAddress string `json:"contract_address"`
-	} `json:"token"`
-	NativeToken *struct {
-		Denom string `json:"denom"`
-	}
-	Amount string `json:"amount"`
+	Token       *TokenAsset `json:"token"`
+	NativeToken *DenomAsset `json:"native_token"`
+	Amount      string      `json:"amount"`
+}
+
+type TokenAsset struct {
+	ContractAddress string `json:"contract_address"`
+}
+
+type DenomAsset struct {
+	Denom string `json:"denom"`
 }

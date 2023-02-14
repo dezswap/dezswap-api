@@ -52,6 +52,7 @@ func (c *grpcClient) QueryContract(addr string, query []byte, height uint64) ([]
 	client := cosmwasm_types.NewQueryClient(c)
 	ctx := context.Background()
 	if height > 0 {
+		//nolint:staticcheck
 		ctx = context.WithValue(ctx, cosmos_types.GRPCBlockHeightHeader, strconv.FormatUint(height, 10))
 	}
 
