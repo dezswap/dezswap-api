@@ -1,5 +1,7 @@
 package indexer
 
+import "github.com/dezswap/dezswap-api/pkg/db"
+
 type AssetRepo interface {
 	VerifiedTokens(chainId string) ([]Token, error)
 }
@@ -12,8 +14,8 @@ type NodeRepo interface {
 
 type DbRepo interface {
 	SyncedHeight() (uint64, error)
-	Pairs() ([]Pair, error)
-	Tokens() ([]Token, error)
+	Pairs(db.LastIdLimitCondition) ([]Pair, error)
+	Tokens(db.LastIdLimitCondition) ([]Token, error)
 	Pools(height uint64) ([]PoolInfo, error)
 	ParsedTxs() ([]ParsedTx, error)
 

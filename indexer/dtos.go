@@ -30,6 +30,21 @@ type Token struct {
 	Verified bool   `json:"verified"`
 }
 
+// Equal implements comparable
+func (lhs *Token) Equal(rhs comparable) bool {
+	t, ok := rhs.(*Token)
+	if !ok {
+		return false
+	}
+	return lhs.Address == t.Address &&
+		lhs.Protocol == t.Protocol &&
+		lhs.Symbol == t.Symbol &&
+		lhs.Name == t.Name &&
+		lhs.Decimals == t.Decimals &&
+		lhs.Icon == t.Icon &&
+		lhs.Verified == t.Verified
+}
+
 type PoolInfo struct {
 	Height       uint64 `json:"height"`
 	Address      string `json:"address"`
