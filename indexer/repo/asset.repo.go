@@ -6,15 +6,15 @@ import (
 	"github.com/pkg/errors"
 )
 
-type assetRepo struct {
+type assetRepoImpl struct {
 	xpla.Client
 	assetMapper
 }
 
-var _ indexer.AssetRepo = &assetRepo{}
+var _ indexer.AssetRepo = &assetRepoImpl{}
 
 // VerifiedTokens implements indexer.AssetRepo
-func (r *assetRepo) VerifiedTokens(chainId string) ([]indexer.Token, error) {
+func (r *assetRepoImpl) VerifiedTokens(chainId string) ([]indexer.Token, error) {
 	if !xpla.IsMainnetOrTestnet(chainId) {
 		return nil, errors.New("assetRepo.VerifiedTokens: invalid chainId")
 	}
