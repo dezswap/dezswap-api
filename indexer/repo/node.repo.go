@@ -1,8 +1,6 @@
 package repo
 
 import (
-	"strings"
-
 	"github.com/dezswap/dezswap-api/configs"
 	"github.com/dezswap/dezswap-api/indexer"
 	"github.com/dezswap/dezswap-api/pkg/dezswap"
@@ -50,9 +48,9 @@ func (r *nodeRepoImpl) TokenFromNode(addr string) (*indexer.Token, error) {
 	var token *indexer.Token
 	var err error
 
-	if strings.HasPrefix("ibc/", addr) {
+	if xpla.IsIbcToken(addr) {
 		token, err = r.ibcFromNode(addr)
-	} else if strings.HasPrefix(xpla.ADDR_PREFIX, addr) {
+	} else if xpla.IsCw20(addr) {
 		token, err = r.cw20FromNode(addr)
 	} else {
 		// currently, query denom is supported (no metadata)

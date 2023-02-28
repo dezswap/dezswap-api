@@ -5,6 +5,7 @@ const (
 	TESTNET_CHAIN_PREFIX = "cube"
 
 	ADDR_PREFIX = "xpla1"
+	IBC_PREFIX  = "ibc/"
 
 	LATEST_HEIGHT_INDICATOR = 0
 )
