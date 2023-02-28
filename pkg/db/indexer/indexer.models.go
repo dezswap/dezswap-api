@@ -19,3 +19,12 @@ type Token struct {
 	Icon     string `json:"icon"`
 	Verified bool   `json:"verified"`
 }
+
+type LatestPool struct {
+	gorm.Model
+	ChainModel
+	Height       uint64 `json:"height"`
+	Asset0Amount string `json:"asset0Amount"`
+	Asset1Amount string `json:"asset1Amount"`
+	LpAmount     string `json:"lpAmount"`
+}

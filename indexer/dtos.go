@@ -47,6 +47,7 @@ func (lhs *Token) Equal(rhs comparable) bool {
 
 type PoolInfo struct {
 	Height       uint64 `json:"height"`
+	ChainId      string `json:"chainId"`
 	Address      string `json:"address"`
 	Asset0Amount string `json:"asset0Amount"`
 	Asset1Amount string `json:"asset1Amount"`
