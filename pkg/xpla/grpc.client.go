@@ -8,6 +8,7 @@ import (
 	cosmwasm_types "github.com/CosmWasm/wasmd/x/wasm/types"
 	"github.com/cosmos/cosmos-sdk/client/grpc/tmservice"
 	cosmos_types "github.com/cosmos/cosmos-sdk/types/grpc"
+	ibc_types "github.com/cosmos/ibc-go/v3/modules/apps/transfer/types"
 	"github.com/pkg/errors"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -16,6 +17,7 @@ import (
 type GrpcClient interface {
 	SyncedHeight() (uint64, error)
 	QueryContract(addr string, query []byte, height uint64) ([]byte, error)
+	QueryIbcDenomTrace(hash string) (*ibc_types.DenomTrace, error)
 }
 
 type grpcClient struct {
@@ -62,4 +64,17 @@ func (c *grpcClient) QueryContract(addr string, query []byte, height uint64) ([]
 	}
 
 	return res.Data, nil
+}
+
+// QueryIbcDenomTrace implements GrpcClient
+func (c *grpcClient) QueryIbcDenomTrace(addr string) (*ibc_types.DenomTrace, error) {
+	client := ibc_types.NewQueryClient(c)
+	ctx := context.Background()
+
+	res, err := client.DenomTrace(ctx, &ibc_types.QueryDenomTraceRequest{Hash: addr})
+	if err != nil {
+		return nil, errors.Wrapf(err, "QueryContract(%s)", addr)
+	}
+
+	return res.GetDenomTrace(), nil
 }
