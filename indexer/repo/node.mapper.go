@@ -3,14 +3,18 @@ package repo
 import (
 	"encoding/json"
 
+	ibc_types "github.com/cosmos/ibc-go/v3/modules/apps/transfer/types"
 	"github.com/dezswap/dezswap-api/indexer"
 	"github.com/dezswap/dezswap-api/pkg/dezswap"
+
 	"github.com/pkg/errors"
 )
 
 type nodeMapper interface {
 	resToToken(data []byte) (*indexer.Token, error)
 	resToPoolInfo(addr string, height uint64, data []byte) (*indexer.PoolInfo, error)
+
+	denomTraceToToken(*ibc_types.DenomTrace) (*indexer.Token, error)
 }
 
 var _ nodeMapper = &nodeMapperImpl{}
@@ -42,5 +46,15 @@ func (*nodeMapperImpl) resToToken(data []byte) (*indexer.Token, error) {
 		Name:     res.Name,
 		Symbol:   res.Symbol,
 		Decimals: uint8(res.Decimals),
+	}, nil
+}
+
+// denomTraceToToken implements nodeMapper
+func (*nodeMapperImpl) denomTraceToToken(trace *ibc_types.DenomTrace) (*indexer.Token, error) {
+	return &indexer.Token{
+		Name:   trace.BaseDenom,
+		Symbol: trace.BaseDenom,
+
+		Decimals: 18,
 	}, nil
 }

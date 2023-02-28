@@ -1,6 +1,8 @@
 package repo
 
 import (
+	"strings"
+
 	"github.com/dezswap/dezswap-api/configs"
 	"github.com/dezswap/dezswap-api/indexer"
 	"github.com/dezswap/dezswap-api/pkg/dezswap"
@@ -45,14 +47,55 @@ func (r *nodeRepoImpl) PoolFromNode(addr string, height uint64) (*indexer.PoolIn
 
 // TokenFromNode implements NodeRepo
 func (r *nodeRepoImpl) TokenFromNode(addr string) (*indexer.Token, error) {
+	var token *indexer.Token
+	var err error
+
+	if strings.HasPrefix("ibc/", addr) {
+		token, err = r.ibcFromNode(addr)
+	} else if strings.HasPrefix(xpla.ADDR_PREFIX, addr) {
+		token, err = r.cw20FromNode(addr)
+	} else {
+		// currently, query denom is supported (no metadata)
+		token, err = r.denomFromNode(addr)
+	}
+
+	if err != nil {
+		return nil, errors.Wrap(err, "TokenFromNode")
+	}
+
+	return token, nil
+}
+
+func (r *nodeRepoImpl) denomFromNode(addr string) (*indexer.Token, error) {
+	return nil, errors.New("metadata of denom is not supported")
+}
+
+func (r *nodeRepoImpl) ibcFromNode(addr string) (*indexer.Token, error) {
+	trace, err := r.QueryIbcDenomTrace(addr)
+	if err != nil {
+		return nil, errors.Wrap(err, "nodeRepoImpl.cw20FromNode")
+	}
+
+	if trace == nil {
+		return nil, errors.New("denom trace is nil")
+	}
+
+	token, err := r.denomTraceToToken(trace)
+	if err != nil {
+		return nil, errors.Wrap(err, "nodeRepoImpl.cw20FromNode")
+	}
+	return token, nil
+}
+
+func (r *nodeRepoImpl) cw20FromNode(addr string) (*indexer.Token, error) {
 	res, err := r.QueryContract(addr, dezswap.QUERY_TOKEN, xpla.LATEST_HEIGHT_INDICATOR)
 	if err != nil {
-		return nil, errors.Wrap(err, "nodeRepoImpl.TokenFromNode")
+		return nil, errors.Wrap(err, "nodeRepoImpl.cw20FromNode")
 	}
 
 	token, err := r.resToToken(res)
 	if err != nil {
-		return nil, errors.Wrap(err, "nodeRepoImpl.TokenFromNode")
+		return nil, errors.Wrap(err, "nodeRepoImpl.cw20FromNode")
 	}
 	return token, nil
 }
