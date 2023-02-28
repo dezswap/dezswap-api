@@ -2,6 +2,7 @@ package indexer
 
 import (
 	"github.com/dezswap/dezswap-api/pkg/db"
+	"github.com/dezswap/dezswap-api/pkg/xpla"
 	"github.com/pkg/errors"
 )
 
@@ -64,10 +65,20 @@ func (d *dexIndexer) UpdateTokens() error {
 			if _, ok := tokenMap[addr]; ok {
 				continue
 			}
-			t, err := d.repo.TokenFromNode(addr)
+
+			var t *Token
+			var err error
+			// TODO: remove this after xpla supports denom metadata query
+			if xpla.IsCw20(addr) || xpla.IsIbcToken(addr) {
+				t, err = d.repo.TokenFromNode(addr)
+			} else {
+				t, err = d.repo.Token(addr)
+			}
+
 			if err != nil {
 				return errors.Wrap(err, "dexIndexer.UpdateTokens")
 			}
+
 			newTokens = append(newTokens, *t)
 			tokenMap[addr] = t
 		}

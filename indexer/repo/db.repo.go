@@ -39,18 +39,18 @@ func New(chainId string, c configs.RdbConfig) indexer.DbRepo {
 }
 
 // Pair implements indexer.DbRepo
-func (r *dbRepoImpl) Pair(addr string) (indexer.Pair, error) {
+func (r *dbRepoImpl) Pair(addr string) (*indexer.Pair, error) {
 	sourcePair := parser.Pair{}
 	if err := r.Where("address = ? and chain_id= ?", addr, r.chainId).Omit("CreatedAt", "UpdatedAt", "DeletedAt").First(&sourcePair).Error; err != nil {
-		return indexer.Pair{}, errors.Wrap(err, "dbRepoImpl.Pair")
+		return nil, errors.Wrap(err, "dbRepoImpl.Pair")
 	}
 
 	pair, err := r.parserPairToPair(sourcePair)
 	if err != nil {
-		return indexer.Pair{}, errors.Wrap(err, "dbRepoImpl.Pair")
+		return nil, errors.Wrap(err, "dbRepoImpl.Pair")
 	}
 
-	return pair, nil
+	return &pair, nil
 }
 
 // Pairs implements indexer.DbRepo
@@ -97,19 +97,19 @@ func (r *dbRepoImpl) ParsedTxs(height uint64) ([]indexer.ParsedTx, error) {
 }
 
 // Pool implements indexer.DbRepo
-func (r *dbRepoImpl) Pool(addr string, height uint64) (indexer.PoolInfo, error) {
+func (r *dbRepoImpl) Pool(addr string, height uint64) (*indexer.PoolInfo, error) {
 	//gorm pool
 	sourcePool := parser.PoolInfo{}
 	if err := r.Where("address = ? and height = ?", addr, height).Omit("CreatedAt", "UpdatedAt", "DeletedAt").First(&sourcePool).Error; err != nil {
-		return indexer.PoolInfo{}, errors.Wrap(err, "dbRepoImpl.Pool")
+		return nil, errors.Wrap(err, "dbRepoImpl.Pool")
 	}
 
 	pool, err := r.parserPoolInfoToPoolInfo(sourcePool)
 	if err != nil {
-		return indexer.PoolInfo{}, errors.Wrap(err, "dbRepoImpl.Pool")
+		return nil, errors.Wrap(err, "dbRepoImpl.Pool")
 	}
 
-	return pool, nil
+	return &pool, nil
 }
 
 // Pools implements indexer.DbRepo
@@ -177,18 +177,18 @@ func (r *dbRepoImpl) SyncedHeight() (uint64, error) {
 }
 
 // Token implements indexer.DbRepo
-func (r *dbRepoImpl) Token(addr string) (indexer.Token, error) {
+func (r *dbRepoImpl) Token(addr string) (*indexer.Token, error) {
 	tokenModel := indexer_db.Token{}
 	if err := r.Where("address = ?", addr).Omit("CreatedAt", "UpdatedAt", "DeletedAt").First(&tokenModel).Error; err != nil {
-		return indexer.Token{}, errors.Wrap(err, "dbRepoImpl.Token")
+		return nil, errors.Wrap(err, "dbRepoImpl.Token")
 	}
 
 	token, err := r.tokenModelToToken(tokenModel)
 	if err != nil {
-		return indexer.Token{}, errors.Wrap(err, "dbRepoImpl.Token")
+		return nil, errors.Wrap(err, "dbRepoImpl.Token")
 	}
 
-	return token, nil
+	return &token, nil
 }
 
 // Tokens implements indexer.DbRepo

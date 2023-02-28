@@ -15,13 +15,13 @@ type NodeRepo interface {
 type DbRepo interface {
 	SyncedHeight() (uint64, error)
 
-	Pair(addr string) (Pair, error)
+	Pair(addr string) (*Pair, error)
 	Pairs(db.LastIdLimitCondition) ([]Pair, error)
 
-	Token(addr string) (Token, error)
+	Token(addr string) (*Token, error)
 	Tokens(db.LastIdLimitCondition) ([]Token, error)
 
-	Pool(addr string, height uint64) (PoolInfo, error)
+	Pool(addr string, height uint64) (*PoolInfo, error)
 	Pools(height uint64) ([]PoolInfo, error)
 
 	ParsedTxs(height uint64) ([]ParsedTx, error)
