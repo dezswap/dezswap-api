@@ -26,7 +26,7 @@ type DbRepo interface {
 
 	ParsedTxs(height uint64) ([]ParsedTx, error)
 
-	SavePools(pools []PoolInfo, height uint64) error
+	SaveLatestPools(pools []PoolInfo, height uint64) error
 	SaveTokens([]Token) error
 }
 

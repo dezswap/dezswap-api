@@ -38,7 +38,7 @@ func (d *dexIndexer) UpdateLatestPools() error {
 		poolInfos = append(poolInfos, *poolInfo)
 	}
 
-	if err := d.repo.SavePools(poolInfos, height); err != nil {
+	if err := d.repo.SaveLatestPools(poolInfos, height); err != nil {
 		return errors.Wrap(err, "dexIndexer.UpdateLatestPools")
 	}
 	return nil

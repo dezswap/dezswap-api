@@ -39,7 +39,7 @@ var (
 var M20230125_175830 = &gormigrate.Migration{
 	ID: "20230125_175830",
 	Migrate: func(tx *gorm.DB) error {
-		if err := tx.AutoMigrate(&indexer.Token{}); err != nil {
+		if err := tx.AutoMigrate(&indexer.Token{}, &indexer.LatestPool{}); err != nil {
 			return err
 		}
 		if err := tx.Save([]indexer.Token{MainnetToken, TestnetToken}).Error; err != nil {
@@ -48,6 +48,6 @@ var M20230125_175830 = &gormigrate.Migration{
 		return nil
 	},
 	Rollback: func(tx *gorm.DB) error {
-		return tx.Migrator().DropTable(&indexer.Token{})
+		return tx.Migrator().DropTable(&indexer.Token{}, &indexer.LatestPool{})
 	},
 }

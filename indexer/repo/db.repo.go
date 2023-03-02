@@ -132,7 +132,7 @@ func (r *dbRepoImpl) Pools(height uint64) ([]indexer.PoolInfo, error) {
 }
 
 // SavePools implements indexer.DbRepo
-func (r *dbRepoImpl) SavePools(pools []indexer.PoolInfo, height uint64) error {
+func (r *dbRepoImpl) SaveLatestPools(pools []indexer.PoolInfo, height uint64) error {
 	if len(pools) == 0 {
 		return nil
 	}
@@ -142,7 +142,7 @@ func (r *dbRepoImpl) SavePools(pools []indexer.PoolInfo, height uint64) error {
 		return errors.Wrap(err, "dbRepoImpl.SavePools")
 	}
 
-	if err := r.Create(poolModels).Error; err != nil {
+	if err := r.Save(poolModels).Error; err != nil {
 		return errors.Wrap(err, "dbRepoImpl.SavePools")
 	}
 
