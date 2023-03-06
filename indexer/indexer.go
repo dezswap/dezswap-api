@@ -30,12 +30,26 @@ func (d *dexIndexer) UpdateLatestPools() error {
 		return errors.Wrap(err, "dexIndexer.UpdateTokens")
 	}
 
+	pools, err := d.repo.LatestPools()
+	if err != nil {
+		return errors.Wrap(err, "dexIndexer.UpdateTokens")
+	}
+
+	poolMap := make(map[string]PoolInfo)
+	for _, p := range pools {
+		poolMap[p.Address] = p
+	}
+
 	for _, p := range pairs {
 		poolInfo, err := d.repo.PoolFromNode(p.Address, height)
 		if err != nil {
 			return errors.Wrap(err, "dexIndexer.UpdateLatestPools")
 		}
-		poolInfos = append(poolInfos, *poolInfo)
+
+		pool, ok := poolMap[p.Address]
+		if !ok || !isEqual(&pool, poolInfo) {
+			poolInfos = append(poolInfos, *poolInfo)
+		}
 	}
 
 	if err := d.repo.SaveLatestPools(poolInfos, height); err != nil {
@@ -112,6 +126,7 @@ func (d *dexIndexer) UpdateVerifiedTokens() error {
 		if !ok || !isEqual(&t, &vt) {
 			vt.ID = t.ID
 			updatableTokens = append(updatableTokens, vt)
+			tokenMap[vt.Address] = vt
 		}
 	}
 

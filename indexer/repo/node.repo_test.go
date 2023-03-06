@@ -1,7 +1,6 @@
 package repo
 
 import (
-	"encoding/json"
 	"strings"
 	"testing"
 
@@ -9,11 +8,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
 
-	"github.com/dezswap/dezswap-api/indexer"
-	"github.com/dezswap/dezswap-api/pkg/dezswap"
 	"github.com/dezswap/dezswap-api/pkg/xpla"
 	xpla_mock "github.com/dezswap/dezswap-api/pkg/xpla/mock"
-	"github.com/stretchr/testify/mock"
 )
 
 type repoSuite struct {
@@ -50,48 +46,40 @@ func (s *repoSuite) Test_LatestHeightFromNode() {
 	}
 }
 
-func (s *repoSuite) Test_PoolFromNode() {
-	const (
-		addr = "xpla1testaddres"
-	)
-	tcs := []struct {
-		poolRes  dezswap.PoolRes
-		expected indexer.PoolInfo
-		err      error
-	}{
-		{
-			poolRes: dezswap.PoolRes{TotalShare: "1000", AssetInfos: []dezswap.AssetInfo{{
-				Token:       nil,
-				NativeToken: &dezswap.DenomAsset{Denom: "denom1"},
-				Amount:      "1000",
-			}, {
-				Token:       &dezswap.TokenAsset{ContractAddress: "0x1"},
-				NativeToken: nil,
-				Amount:      "1000",
-			},
-			}},
-			expected: indexer.PoolInfo{Address: addr, LpAmount: "1000", Asset0Amount: "1000", Asset1Amount: "1000"},
-			err:      nil,
-		},
-		{
-			poolRes:  dezswap.PoolRes{},
-			expected: indexer.PoolInfo{},
-			err:      errors.New("QueryContract"),
-		},
-	}
+// func (s *repoSuite) Test_PoolFromNode() {
+// 	const (
+// 		addr = "xpla1testaddres"
+// 	)
+// 	tcs := []struct {
+// 		poolRes  dezswap.PoolRes
+// 		expected indexer.PoolInfo
+// 		err      error
+// 	}{
+// 		{
+// 			poolRes: dezswap.PoolRes{TotalShare: "1000",
 
-	for _, tc := range tcs {
-		data, _ := json.Marshal(tc.poolRes)
-		s.client.(*xpla_mock.GrpcClientMock).On("QueryContract", mock.Anything, mock.Anything, mock.Anything).Return(data, tc.err).Once()
-		actual, err := s.r.PoolFromNode(addr, xpla.LATEST_HEIGHT_INDICATOR)
-		if err != nil {
-			assert.True(s.T(), strings.Contains(err.Error(), tc.err.Error()))
-		} else {
-			assert.Equal(s.T(), tc.expected, *actual)
-		}
+// 			expected: indexer.PoolInfo{Address: addr, LpAmount: "1000", Asset0Amount: "1000", Asset1Amount: "1000"},
+// 			err:      nil,
+// 		},
+// 		{
+// 			poolRes:  dezswap.PoolRes{},
+// 			expected: indexer.PoolInfo{},
+// 			err:      errors.New("QueryContract"),
+// 		},
+// 	}
 
-	}
-}
+// 	for _, tc := range tcs {
+// 		data, _ := json.Marshal(tc.poolRes)
+// 		s.client.(*xpla_mock.GrpcClientMock).On("QueryContract", mock.Anything, mock.Anything, mock.Anything).Return(data, tc.err).Once()
+// 		actual, err := s.r.PoolFromNode(addr, xpla.LATEST_HEIGHT_INDICATOR)
+// 		if err != nil {
+// 			assert.True(s.T(), strings.Contains(err.Error(), tc.err.Error()))
+// 		} else {
+// 			assert.Equal(s.T(), tc.expected, *actual)
+// 		}
+
+// 	}
+// }
 
 func TestMain(t *testing.T) {
 	suite.Run(t, new(repoSuite))

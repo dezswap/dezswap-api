@@ -56,6 +56,20 @@ type PoolInfo struct {
 	LpAmount     string `json:"lpAmount"`
 }
 
+// Equal implements comparable
+func (lhs *PoolInfo) Equal(rhs comparable) bool {
+	p, ok := rhs.(*PoolInfo)
+	if !ok {
+		return false
+	}
+	//!NOTE: doesn't have to compare height if amount of the token is the same
+	return lhs.Address == p.Address &&
+		lhs.Asset0Amount == p.Asset0Amount &&
+		lhs.Asset1Amount == p.Asset1Amount &&
+		lhs.LpAmount == p.LpAmount &&
+		lhs.ChainId == p.ChainId
+}
+
 type ParsedTx struct {
 	ID                uint64
 	ChainId           string  `json:"chainId"`

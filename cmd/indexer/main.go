@@ -29,10 +29,13 @@ type repeatableJob struct {
 
 func runJob(j *repeatableJob, logger logging.Logger) {
 	fName := runtime.FuncForPC(reflect.ValueOf(j.each).Pointer()).Name()
-	msg := fmt.Sprintf("job(%s) start(%d)", fName, time.Now().Unix())
-	logger.Info(msg)
+	logger.Info(fmt.Sprintf("job(%s) datetime(%s)", fName, time.Now().String()))
 
+	start := time.Now()
 	err := j.each()
+	elapsed := time.Since(start)
+	logger.Debugf(fmt.Sprintf("Binomial took %ds, delay: %ds", elapsed/time.Second, j.delay/time.Second))
+
 	if err != nil {
 		j.errCount++
 		logger.Error(err)
@@ -78,9 +81,9 @@ func main() {
 	app := indexer.NewDexIndexer(indexerRepo, c.Indexer.ChainId)
 
 	jobs := []*repeatableJob{
-		{each: app.UpdateTokens, errorHandler: nil, delay: xpla.BLOCK_SECOND, errCount: 0, tolerance: 3, exponential: true},
-		{each: app.UpdateVerifiedTokens, errorHandler: nil, delay: xpla.BLOCK_SECOND, errCount: 0, tolerance: 3, exponential: true},
-		// {each: app.UpdateLatestPools, errorHandler: nil, delay: xpla.BLOCK_SECOND, errCount: 0, tolerance: 3, exponential: true},
+		{each: app.UpdateTokens, errorHandler: nil, delay: xpla.BLOCK_SECOND * time.Second, errCount: 0, tolerance: 3, exponential: true},
+		{each: app.UpdateVerifiedTokens, errorHandler: nil, delay: xpla.BLOCK_SECOND * time.Second, errCount: 0, tolerance: 3, exponential: true},
+		{each: app.UpdateLatestPools, errorHandler: nil, delay: xpla.BLOCK_SECOND * time.Second, errCount: 0, tolerance: 3, exponential: true},
 	}
 
 	logger.Info("Starting indexer...")

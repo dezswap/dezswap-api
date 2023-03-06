@@ -36,7 +36,7 @@ func (r *nodeRepoImpl) PoolFromNode(addr string, height uint64) (*indexer.PoolIn
 		return nil, errors.Wrap(err, "nodeRepoImpl.PoolFromNode")
 	}
 
-	poolInfo, err := r.resToPoolInfo(addr, height, res)
+	poolInfo, err := r.resToPoolInfo(addr, r.chainId, height, res)
 	if err != nil {
 		return nil, errors.Wrap(err, "nodeRepoImpl.PoolFromNode")
 	}
@@ -78,7 +78,7 @@ func (r *nodeRepoImpl) ibcFromNode(addr string) (*indexer.Token, error) {
 		return nil, errors.New("denom trace is nil")
 	}
 
-	token, err := r.denomTraceToToken(trace)
+	token, err := r.denomTraceToToken(addr, r.chainId, trace)
 	if err != nil {
 		return nil, errors.Wrap(err, "nodeRepoImpl.cw20FromNode")
 	}
@@ -91,7 +91,9 @@ func (r *nodeRepoImpl) cw20FromNode(addr string) (*indexer.Token, error) {
 		return nil, errors.Wrap(err, "nodeRepoImpl.cw20FromNode")
 	}
 
-	token, err := r.resToToken(res)
+	token, err := r.resToToken(addr, r.chainId, res)
+	token.Address = addr
+	token.ChainId = r.chainId
 	if err != nil {
 		return nil, errors.Wrap(err, "nodeRepoImpl.cw20FromNode")
 	}

@@ -32,7 +32,7 @@ type Pair struct {
 }
 
 type PoolInfo struct {
-	ChainId      string `json:"chainId"`
+	ChainId      string `json:"chainId" gorm:"index:idx_chain_id,unique"`
 	Height       uint64 `json:"height"`
 	Contract     string `json:"contract"`
 	Asset0Amount string `json:"asset0Amount"`

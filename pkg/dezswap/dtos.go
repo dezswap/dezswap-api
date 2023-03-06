@@ -8,20 +8,16 @@ type TokenInfoRes struct {
 }
 
 type PoolRes struct {
-	AssetInfos []AssetInfo
+	Assets []struct {
+		Info struct {
+			Token *struct {
+				ContractAddress string `json:"contract_addr"`
+			} `json:"token"`
+			Denom *struct {
+				Denom string `json:"denom"`
+			} `json:"native_token"`
+		} `json:"info"`
+		Amount string `json:"amount"`
+	} `json:"assets"`
 	TotalShare string `json:"total_share"`
-}
-
-type AssetInfo struct {
-	Token       *TokenAsset `json:"token"`
-	NativeToken *DenomAsset `json:"native_token"`
-	Amount      string      `json:"amount"`
-}
-
-type TokenAsset struct {
-	ContractAddress string `json:"contract_address"`
-}
-
-type DenomAsset struct {
-	Denom string `json:"denom"`
 }

@@ -18,6 +18,9 @@ type dbMapper interface {
 	parserPoolInfoToPoolInfo(p parser.PoolInfo) (indexer.PoolInfo, error)
 	parserPoolInfosToPoolInfos(p []parser.PoolInfo) ([]indexer.PoolInfo, error)
 
+	latestPoolInfoToPoolInfo(p indexer_db.LatestPool) (indexer.PoolInfo, error)
+	latestPoolInfosToPoolInfos(p []indexer_db.LatestPool) ([]indexer.PoolInfo, error)
+
 	tokenModelToToken(token indexer_db.Token) (indexer.Token, error)
 	tokenModelsToTokens(tokens []indexer_db.Token) ([]indexer.Token, error)
 
@@ -137,6 +140,31 @@ func (*dbMapperImpl) parserPoolInfosToPoolInfos(p []parser.PoolInfo) ([]indexer.
 	poolInfos := make([]indexer.PoolInfo, len(p))
 	for idx, pi := range p {
 		poolInfo, err := (*dbMapperImpl).parserPoolInfoToPoolInfo(&dbMapperImpl{}, pi)
+		if err != nil {
+			return nil, errors.Wrap(err, "parserPoolInfosToPoolInfos")
+		}
+		poolInfos[idx] = poolInfo
+	}
+	return poolInfos, nil
+}
+
+// parserPoolInfoToPoolInfo implements dbMapper
+func (*dbMapperImpl) latestPoolInfoToPoolInfo(p indexer_db.LatestPool) (indexer.PoolInfo, error) {
+	return indexer.PoolInfo{
+		Height:       p.Height,
+		ChainId:      p.ChainId,
+		Address:      p.Address,
+		Asset0Amount: p.Asset0Amount,
+		Asset1Amount: p.Asset1Amount,
+		LpAmount:     p.LpAmount,
+	}, nil
+}
+
+// parserPoolInfosToPoolInfos implements dbMapper
+func (*dbMapperImpl) latestPoolInfosToPoolInfos(p []indexer_db.LatestPool) ([]indexer.PoolInfo, error) {
+	poolInfos := make([]indexer.PoolInfo, len(p))
+	for idx, pi := range p {
+		poolInfo, err := (*dbMapperImpl).latestPoolInfoToPoolInfo(&dbMapperImpl{}, pi)
 		if err != nil {
 			return nil, errors.Wrap(err, "parserPoolInfosToPoolInfos")
 		}

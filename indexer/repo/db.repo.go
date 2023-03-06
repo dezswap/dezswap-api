@@ -1,6 +1,7 @@
 package repo
 
 import (
+	"database/sql"
 	"fmt"
 
 	"github.com/dezswap/dezswap-api/configs"
@@ -11,6 +12,7 @@ import (
 	"github.com/pkg/errors"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 	"gorm.io/gorm/schema"
 )
 
@@ -143,6 +145,23 @@ func (r *dbRepoImpl) Pools(height uint64) ([]indexer.PoolInfo, error) {
 	return pools, nil
 }
 
+// Pools implements indexer.DbRepo
+func (r *dbRepoImpl) LatestPools() ([]indexer.PoolInfo, error) {
+
+	condition := r.Where("chain_id = ?", r.chainId).Omit("CreatedAt", "UpdatedAt", "DeletedAt")
+	sourcePools := []indexer_db.LatestPool{}
+	if err := condition.Find(&sourcePools).Error; err != nil {
+		return nil, errors.Wrap(err, "dbRepoImpl.Pools")
+	}
+
+	pools, err := r.latestPoolInfosToPoolInfos(sourcePools)
+	if err != nil {
+		return nil, errors.Wrap(err, "dbRepoImpl.Pools")
+	}
+
+	return pools, nil
+}
+
 // SavePools implements indexer.DbRepo
 func (r *dbRepoImpl) SaveLatestPools(pools []indexer.PoolInfo, height uint64) error {
 	if len(pools) == 0 {
@@ -156,7 +175,10 @@ func (r *dbRepoImpl) SaveLatestPools(pools []indexer.PoolInfo, height uint64) er
 
 	tx := r.dest.Begin()
 	for _, m := range poolModels {
-		if err := tx.Model(&m).Save(&m).Error; err != nil {
+		if err := tx.Model(&m).Clauses(clause.OnConflict{
+			UpdateAll: true,
+			Columns:   []clause.Column{{Name: "address"}, {Name: "chain_id"}},
+		}).Create(&m).Error; err != nil {
 			return errors.Wrap(err, "dbRepoImpl.SavePools")
 		}
 	}
@@ -179,7 +201,7 @@ func (r *dbRepoImpl) SaveTokens(tokens []indexer.Token) error {
 		return errors.Wrap(err, "dbRepoImpl.SaveTokens")
 	}
 
-	tx := r.dest.Begin()
+	tx := r.dest.Begin(&sql.TxOptions{Isolation: sql.LevelSerializable})
 	for _, m := range models {
 		if err := tx.Model(&m).Save(&m).Error; err != nil {
 			return errors.Wrap(err, "dbRepoImpl.SaveTokens")

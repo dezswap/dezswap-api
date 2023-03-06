@@ -25,6 +25,8 @@ type DbRepo interface {
 	Pool(addr string, height uint64) (*PoolInfo, error)
 	Pools(height uint64) ([]PoolInfo, error)
 
+	LatestPools() ([]PoolInfo, error)
+
 	ParsedTxs(height uint64) ([]ParsedTx, error)
 
 	SaveLatestPools(pools []PoolInfo, height uint64) error
