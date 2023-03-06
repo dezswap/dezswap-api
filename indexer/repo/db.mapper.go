@@ -5,6 +5,7 @@ import (
 	indexer_db "github.com/dezswap/dezswap-api/pkg/db/indexer"
 	"github.com/dezswap/dezswap-api/pkg/db/parser"
 	"github.com/pkg/errors"
+	"gorm.io/gorm"
 )
 
 type dbMapper interface {
@@ -32,21 +33,40 @@ var _ dbMapper = &dbMapperImpl{}
 type dbMapperImpl struct{}
 
 // tokenToModel implements dbMapper
-func (*dbMapperImpl) tokenToModel(token indexer.Token) (indexer_db.Token, error) {
-	return indexer_db.Token{
-
+func (m *dbMapperImpl) tokenToModel(token indexer.Token) (indexer_db.Token, error) {
+	t := indexer_db.Token{
+		Model: gorm.Model{
+			ID: token.ID,
+		},
 		Protocol: token.Protocol,
 		Symbol:   token.Symbol,
-	}, nil
+		Name:     token.Name,
+		Icon:     token.Icon,
+		Verified: token.Verified,
+		Decimals: token.Decimals,
+		ChainModel: indexer_db.ChainModel{
+			ChainId: token.ChainId,
+			Address: token.Address,
+		},
+	}
+	return t, nil
 }
 
 // tokensToModels implements dbMapper
-func (*dbMapperImpl) tokensToModels(tokens []indexer.Token) ([]indexer_db.Token, error) {
-	panic("unimplemented")
+func (m *dbMapperImpl) tokensToModels(tokens []indexer.Token) ([]indexer_db.Token, error) {
+	tokenModels := make([]indexer_db.Token, len(tokens))
+	for idx, t := range tokens {
+		tokenModel, err := (*dbMapperImpl).tokenToModel(&dbMapperImpl{}, t)
+		if err != nil {
+			return nil, errors.Wrap(err, "tokensToModels")
+		}
+		tokenModels[idx] = tokenModel
+	}
+	return tokenModels, nil
 }
 
 // poolToPoolModel implements dbMapper
-func (*dbMapperImpl) poolToPoolModel(p indexer.PoolInfo, height uint64) (indexer_db.LatestPool, error) {
+func (m *dbMapperImpl) poolToPoolModel(p indexer.PoolInfo, height uint64) (indexer_db.LatestPool, error) {
 	return indexer_db.LatestPool{
 		Height: height,
 		ChainModel: indexer_db.ChainModel{
@@ -60,10 +80,10 @@ func (*dbMapperImpl) poolToPoolModel(p indexer.PoolInfo, height uint64) (indexer
 }
 
 // poolsToPoolModels implements dbMapper
-func (*dbMapperImpl) poolsToPoolModels(ps []indexer.PoolInfo, height uint64) ([]indexer_db.LatestPool, error) {
+func (m *dbMapperImpl) poolsToPoolModels(ps []indexer.PoolInfo, height uint64) ([]indexer_db.LatestPool, error) {
 	poolModels := make([]indexer_db.LatestPool, len(ps))
 	for idx, p := range ps {
-		poolModel, err := (*dbMapperImpl).poolToPoolModel(&dbMapperImpl{}, p, height)
+		poolModel, err := m.poolToPoolModel(p, height)
 		if err != nil {
 			return nil, errors.Wrap(err, "poolsToPoolModels")
 		}
@@ -75,12 +95,15 @@ func (*dbMapperImpl) poolsToPoolModels(ps []indexer.PoolInfo, height uint64) ([]
 // tokenModelToToken implements dbMapper
 func (*dbMapperImpl) tokenModelToToken(token indexer_db.Token) (indexer.Token, error) {
 	return indexer.Token{
+		ID:       token.ID,
 		Address:  token.Address,
+		ChainId:  token.ChainId,
 		Protocol: token.Protocol,
 		Symbol:   token.Symbol,
 		Name:     token.Name,
 		Decimals: token.Decimals,
 		Icon:     token.Icon,
+		Verified: token.Verified,
 	}, nil
 }
 

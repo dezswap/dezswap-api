@@ -19,23 +19,35 @@ var _ indexer.DbRepo = &dbRepoImpl{}
 type dbRepoImpl struct {
 	dbMapper
 	*gorm.DB
+	dest    *gorm.DB
 	chainId string
 }
 
-func New(chainId string, c configs.RdbConfig) indexer.DbRepo {
-	dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%d sslmode=disable",
-		c.Host, c.Username, c.Password, c.Database, c.Port)
+func NewDbRepo(chainId string, srcC configs.RdbConfig, destC configs.RdbConfig) (indexer.DbRepo, error) {
+	openDb := func(c configs.RdbConfig) (*gorm.DB, error) {
+		dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%d sslmode=disable",
+			c.Host, c.Username, c.Password, c.Database, c.Port)
 
-	gormDB, err := gorm.Open(postgres.New(postgres.Config{
-		DSN: dsn,
-	}), &gorm.Config{
-		NamingStrategy: schema.NamingStrategy{},
-	})
+		gormDB, err := gorm.Open(postgres.New(postgres.Config{
+			DSN: dsn,
+		}), &gorm.Config{
+			NamingStrategy: schema.NamingStrategy{},
+		})
+		if err != nil {
+			return nil, err
+		}
+		return gormDB, nil
+	}
+	srcDb, err := openDb(srcC)
 	if err != nil {
-		panic(err)
+		return nil, errors.Wrap(err, "dbRepoImpl.NewDbRepo")
+	}
+	destDb, err := openDb(destC)
+	if err != nil {
+		return nil, errors.Wrap(err, "dbRepoImpl.NewDbRepo")
 	}
 
-	return &dbRepoImpl{&dbMapperImpl{}, gormDB, chainId}
+	return &dbRepoImpl{&dbMapperImpl{}, srcDb, destDb, chainId}, nil
 }
 
 // Pair implements indexer.DbRepo
@@ -82,7 +94,7 @@ func (r *dbRepoImpl) ParsedTxs(height uint64) ([]indexer.ParsedTx, error) {
 	if height == 0 {
 		return nil, nil
 	}
-	condition := r.Where("height = ?", height).Omit("CreatedAt", "UpdatedAt", "DeletedAt")
+	condition := r.Where("height = ? and chain_id = ?", height, r.chainId).Omit("CreatedAt", "UpdatedAt", "DeletedAt")
 	sourceTxs := []parser.ParsedTx{}
 	if err := condition.Find(&sourceTxs).Error; err != nil {
 		return nil, errors.Wrap(err, "dbRepoImpl.ParsedTxs")
@@ -100,7 +112,7 @@ func (r *dbRepoImpl) ParsedTxs(height uint64) ([]indexer.ParsedTx, error) {
 func (r *dbRepoImpl) Pool(addr string, height uint64) (*indexer.PoolInfo, error) {
 	//gorm pool
 	sourcePool := parser.PoolInfo{}
-	if err := r.Where("address = ? and height = ?", addr, height).Omit("CreatedAt", "UpdatedAt", "DeletedAt").First(&sourcePool).Error; err != nil {
+	if err := r.Where("address = ? and height = ? and chain_id = ?", addr, height, r.chainId).Omit("CreatedAt", "UpdatedAt", "DeletedAt").First(&sourcePool).Error; err != nil {
 		return nil, errors.Wrap(err, "dbRepoImpl.Pool")
 	}
 
@@ -117,7 +129,7 @@ func (r *dbRepoImpl) Pools(height uint64) ([]indexer.PoolInfo, error) {
 	if height == 0 {
 		return nil, nil
 	}
-	condition := r.Where("height = ?", height).Omit("CreatedAt", "UpdatedAt", "DeletedAt")
+	condition := r.Where("height = ? and chain_id = ?", height, r.chainId).Omit("CreatedAt", "UpdatedAt", "DeletedAt")
 	sourcePools := []parser.PoolInfo{}
 	if err := condition.Find(&sourcePools).Error; err != nil {
 		return nil, errors.Wrap(err, "dbRepoImpl.Pools")
@@ -142,7 +154,14 @@ func (r *dbRepoImpl) SaveLatestPools(pools []indexer.PoolInfo, height uint64) er
 		return errors.Wrap(err, "dbRepoImpl.SavePools")
 	}
 
-	if err := r.Save(poolModels).Error; err != nil {
+	tx := r.dest.Begin()
+	for _, m := range poolModels {
+		if err := tx.Model(&m).Save(&m).Error; err != nil {
+			return errors.Wrap(err, "dbRepoImpl.SavePools")
+		}
+	}
+	err = tx.Commit().Error
+	if err != nil {
 		return errors.Wrap(err, "dbRepoImpl.SavePools")
 	}
 
@@ -160,7 +179,14 @@ func (r *dbRepoImpl) SaveTokens(tokens []indexer.Token) error {
 		return errors.Wrap(err, "dbRepoImpl.SaveTokens")
 	}
 
-	if err := r.Save(models).Error; err != nil {
+	tx := r.dest.Begin()
+	for _, m := range models {
+		if err := tx.Model(&m).Save(&m).Error; err != nil {
+			return errors.Wrap(err, "dbRepoImpl.SaveTokens")
+		}
+	}
+	err = tx.Commit().Error
+	if err != nil {
 		return errors.Wrap(err, "dbRepoImpl.SaveTokens")
 	}
 
@@ -201,7 +227,7 @@ func (r *dbRepoImpl) Tokens(c db.LastIdLimitCondition) ([]indexer.Token, error) 
 		orderBy = "id DESC"
 	}
 
-	condition := r.Where("id > ?", c.LastId).Order(orderBy).Limit(c.Limit).Omit("CreatedAt", "UpdatedAt", "DeletedAt")
+	condition := r.Where("id > ? and chain_id = ?", c.LastId, r.chainId).Order(orderBy).Limit(c.Limit).Omit("CreatedAt", "UpdatedAt", "DeletedAt")
 	tokenModels := []indexer_db.Token{}
 	if err := condition.Find(&tokenModels).Error; err != nil {
 		return nil, errors.Wrap(err, "dbRepoImpl.Tokens")
@@ -213,4 +239,22 @@ func (r *dbRepoImpl) Tokens(c db.LastIdLimitCondition) ([]indexer.Token, error) 
 	}
 
 	return tokens, nil
+}
+
+func (r *dbRepoImpl) TokenAddresses(c db.LastIdLimitCondition) ([]string, error) {
+	if c.Limit <= 0 {
+		c.Limit = -1
+	}
+	orderBy := "id"
+	if c.DescOrder {
+		orderBy = "id DESC"
+	}
+
+	condition := r.Model(&indexer_db.Token{}).Where("id > ? and chain_id = ?", c.LastId, r.chainId).Select("address").Order(orderBy).Limit(c.Limit)
+	tokenAddresses := []string{}
+	if err := condition.Find(&tokenAddresses).Error; err != nil {
+		return nil, errors.Wrap(err, "dbRepoImpl.TokenAddresses")
+	}
+
+	return tokenAddresses, nil
 }

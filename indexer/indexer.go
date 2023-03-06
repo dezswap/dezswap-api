@@ -50,13 +50,13 @@ func (d *dexIndexer) UpdateTokens() error {
 	if err != nil {
 		return errors.Wrap(err, "dexIndexer.UpdateTokens")
 	}
-	tokens, err := d.repo.Tokens(db.LastIdLimitCondition{})
+	tokens, err := d.repo.TokenAddresses(db.LastIdLimitCondition{})
 	if err != nil {
 		return errors.Wrap(err, "dexIndexer.UpdateTokens")
 	}
-	tokenMap := make(map[string]*Token)
+	tokenMap := make(map[string]bool)
 	for _, t := range tokens {
-		tokenMap[t.Address] = &t
+		tokenMap[t] = true
 	}
 
 	newTokens := []Token{}
@@ -80,7 +80,7 @@ func (d *dexIndexer) UpdateTokens() error {
 			}
 
 			newTokens = append(newTokens, *t)
-			tokenMap[addr] = t
+			tokenMap[addr] = true
 		}
 	}
 
@@ -101,15 +101,16 @@ func (d *dexIndexer) UpdateVerifiedTokens() error {
 	if err != nil {
 		return errors.Wrap(err, "dexIndexer.UpdateTokens")
 	}
-	tokenMap := make(map[string]*Token)
+	tokenMap := make(map[string]Token)
 	for _, t := range tokens {
-		tokenMap[t.Address] = &t
+		tokenMap[t.Address] = t
 	}
 
 	updatableTokens := []Token{}
 	for _, vt := range verifiedTokens {
 		t, ok := tokenMap[vt.Address]
-		if !ok || !isEqual(t, &vt) {
+		if !ok || !isEqual(&t, &vt) {
+			vt.ID = t.ID
 			updatableTokens = append(updatableTokens, vt)
 		}
 	}

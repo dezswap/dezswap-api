@@ -11,7 +11,7 @@ import (
 
 func Test_Pairs(t *testing.T) {
 	c := configs.New()
-	r := New(c.Indexer.ChainId, c.Indexer.SrcDb)
+	r, _ := NewDbRepo(c.Indexer.ChainId, c.Indexer.SrcDb, c.Indexer.Db)
 	pairs, err := r.Pairs(db.LastIdLimitCondition{})
 	assert.NoError(t, err)
 	assert.NotEmpty(t, pairs)

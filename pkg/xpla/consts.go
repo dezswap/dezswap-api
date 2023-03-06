@@ -8,4 +8,6 @@ const (
 	IBC_PREFIX  = "ibc/"
 
 	LATEST_HEIGHT_INDICATOR = 0
+
+	BLOCK_SECOND = 5
 )

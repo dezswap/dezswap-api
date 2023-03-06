@@ -8,8 +8,8 @@ import (
 )
 
 type assetMapper interface {
-	TokenResToTokens(res *xpla.TokenResMap) []indexer.Token
-	IbcsResToTokens(es *xpla.IbcResMap) []indexer.Token
+	TokenResToTokens(res *xpla.TokenResMap, chainId string) []indexer.Token
+	IbcsResToTokens(es *xpla.IbcResMap, chainId string) []indexer.Token
 }
 
 type assetMapperImpl struct{}
@@ -17,11 +17,12 @@ type assetMapperImpl struct{}
 var _ assetMapper = &assetMapperImpl{}
 
 // TokenResToTokens implements assetMapper
-func (*assetMapperImpl) TokenResToTokens(res *xpla.TokenResMap) []indexer.Token {
+func (*assetMapperImpl) TokenResToTokens(res *xpla.TokenResMap, chainId string) []indexer.Token {
 	tokens := []indexer.Token{}
 	for k, v := range *res {
 		token := indexer.Token{
 			Address:  k,
+			ChainId:  chainId,
 			Verified: true,
 		}
 		if v.Protocol != nil {
@@ -45,11 +46,12 @@ func (*assetMapperImpl) TokenResToTokens(res *xpla.TokenResMap) []indexer.Token 
 }
 
 // IbcsResToTokens implements assetMapper
-func (*assetMapperImpl) IbcsResToTokens(res *xpla.IbcResMap) []indexer.Token {
+func (*assetMapperImpl) IbcsResToTokens(res *xpla.IbcResMap, chainId string) []indexer.Token {
 	tokens := []indexer.Token{}
 	for k, v := range *res {
 		token := indexer.Token{
 			Address:  fmt.Sprintf("ibc/%s", k),
+			ChainId:  chainId,
 			Verified: true,
 		}
 		if v.Icon != nil {

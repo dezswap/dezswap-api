@@ -20,6 +20,7 @@ type DbRepo interface {
 
 	Token(addr string) (*Token, error)
 	Tokens(db.LastIdLimitCondition) ([]Token, error)
+	TokenAddresses(db.LastIdLimitCondition) ([]string, error)
 
 	Pool(addr string, height uint64) (*PoolInfo, error)
 	Pools(height uint64) ([]PoolInfo, error)

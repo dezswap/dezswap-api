@@ -21,7 +21,9 @@ type Pair struct {
 }
 
 type Token struct {
+	ID       uint   `json:"id"`
 	Address  string `json:"address"`
+	ChainId  string `json:"chainId"`
 	Protocol string `json:"protocol"`
 	Symbol   string `json:"symbol"`
 	Name     string `json:"name"`

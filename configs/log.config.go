@@ -25,8 +25,8 @@ func logConfig(v *viper.Viper) LogConfig {
 
 	return LogConfig{
 		Level:       level,
-		FormatJSON:  v.GetBool("log.formatJson"),
+		FormatJSON:  v.GetBool("log.format_json"),
 		Environment: v.GetString("log.env"),
-		ChainId:     v.GetString("log.chainId"),
+		ChainId:     v.GetString("log.chain_id"),
 	}
 }

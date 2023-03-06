@@ -13,6 +13,10 @@ type assetRepoImpl struct {
 
 var _ indexer.AssetRepo = &assetRepoImpl{}
 
+func NewAssetRepo(client xpla.Client) indexer.AssetRepo {
+	return &assetRepoImpl{client, &assetMapperImpl{}}
+}
+
 // VerifiedTokens implements indexer.AssetRepo
 func (r *assetRepoImpl) VerifiedTokens(chainId string) ([]indexer.Token, error) {
 	if !xpla.IsMainnetOrTestnet(chainId) {
@@ -26,9 +30,9 @@ func (r *assetRepoImpl) VerifiedTokens(chainId string) ([]indexer.Token, error) 
 	}
 	var tokens []indexer.Token
 	if isMainnet {
-		tokens = r.TokenResToTokens(&cw20s.Mainnet)
+		tokens = r.TokenResToTokens(&cw20s.Mainnet, chainId)
 	} else {
-		tokens = r.TokenResToTokens(&cw20s.Testnet)
+		tokens = r.TokenResToTokens(&cw20s.Testnet, chainId)
 	}
 
 	ibcs, err := r.VerifiedIbcs()
@@ -37,9 +41,9 @@ func (r *assetRepoImpl) VerifiedTokens(chainId string) ([]indexer.Token, error) 
 	}
 
 	if isMainnet {
-		tokens = append(tokens, r.IbcsResToTokens(&ibcs.Mainnet)...)
+		tokens = append(tokens, r.IbcsResToTokens(&ibcs.Mainnet, chainId)...)
 	} else {
-		tokens = append(tokens, r.IbcsResToTokens(&ibcs.Testnet)...)
+		tokens = append(tokens, r.IbcsResToTokens(&ibcs.Testnet, chainId)...)
 	}
 	return tokens, nil
 }
