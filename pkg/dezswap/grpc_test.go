@@ -1,4 +1,4 @@
-package xpla
+package dezswap
 
 import (
 	"fmt"
@@ -6,16 +6,16 @@ import (
 
 	"github.com/dezswap/dezswap-api/configs"
 
-	"github.com/dezswap/dezswap-api/pkg/dezswap"
+	"github.com/dezswap/dezswap-api/pkg/xpla"
 	"github.com/stretchr/testify/assert"
 )
 
 func Test_QueryContract(t *testing.T) {
 	cf := configs.New().Indexer.SrcNode
 	assert := assert.New(t)
-	c, err := NewGrpcClient(fmt.Sprintf("%s:%d", cf.Host, cf.Port))
+	c, err := xpla.NewGrpcClient(fmt.Sprintf("%s:%d", cf.Host, cf.Port))
 	assert.NoError(err)
-	res, err := c.QueryContract(dezswap.TESTNET_FACTORY, []byte(`{"pairs": {}}`), LATEST_HEIGHT_INDICATOR)
+	res, err := c.QueryContract(TESTNET_FACTORY, []byte(`{"pairs": {}}`), xpla.LATEST_HEIGHT_INDICATOR)
 	assert.NotNil(res)
 	assert.NoError(err)
 }
@@ -23,7 +23,7 @@ func Test_QueryContract(t *testing.T) {
 func Test_SyncedHeight(t *testing.T) {
 	cf := configs.New().Indexer.SrcNode
 	assert := assert.New(t)
-	c, err := NewGrpcClient(fmt.Sprintf("%s:%d", cf.Host, cf.Port))
+	c, err := xpla.NewGrpcClient(fmt.Sprintf("%s:%d", cf.Host, cf.Port))
 	assert.NoError(err)
 	res, err := c.SyncedHeight()
 	assert.NotNil(res)
