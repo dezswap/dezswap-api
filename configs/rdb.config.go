@@ -1,15 +1,13 @@
 package configs
 
 import (
-	"strconv"
-
 	"github.com/spf13/viper"
 )
 
 // db contains configs for other services
 type RdbConfig struct {
 	Host     string
-	Port     int
+	Port     string
 	Database string
 	Username string
 	Password string
@@ -18,7 +16,7 @@ type RdbConfig struct {
 func rdbConfig(v *viper.Viper) RdbConfig {
 	return RdbConfig{
 		Host:     v.GetString("host"),
-		Port:     v.GetInt("port"),
+		Port:     v.GetString("port"),
 		Database: v.GetString("database"),
 		Username: v.GetString("username"),
 		Password: v.GetString("password"),
@@ -26,5 +24,5 @@ func rdbConfig(v *viper.Viper) RdbConfig {
 }
 
 func (c RdbConfig) Endpoint() string {
-	return c.Host + ":" + strconv.Itoa(c.Port)
+	return c.Host + ":" + c.Port
 }

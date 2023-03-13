@@ -23,6 +23,7 @@ var envConfig Config
 
 // Config aggregation
 type Config struct {
+	Api     ApiConfig
 	Log     LogConfig
 	Sentry  SentryConfig
 	Indexer IndexerConfig
@@ -32,6 +33,7 @@ type Config struct {
 func New() Config {
 	v := initViper(fileName)
 	envConfig = Config{
+		Api:     apiConfig(v),
 		Log:     logConfig(v),
 		Sentry:  sentryConfig(v),
 		Indexer: indexerConfig(v),

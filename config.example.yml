@@ -25,3 +25,19 @@ log:
 
 sentry:
   dsn:
+
+api:
+  server:
+    name: terraswap-service
+    host: 0.0.0.0
+    port: 8000
+    swagger: false
+    mod: release # test, debug, release
+    version:
+    chain_id:
+  db:
+    host: localhost
+    port: 5432
+    database: indexer
+    username: app
+    password: appPW

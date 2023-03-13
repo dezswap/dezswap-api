@@ -51,7 +51,9 @@ type PoolInfo struct {
 	Height       uint64 `json:"height"`
 	ChainId      string `json:"chainId"`
 	Address      string `json:"address"`
+	Asset0       string `json:"asset0"`
 	Asset0Amount string `json:"asset0Amount"`
+	Asset1       string `json:"asset1"`
 	Asset1Amount string `json:"asset1Amount"`
 	LpAmount     string `json:"lpAmount"`
 }

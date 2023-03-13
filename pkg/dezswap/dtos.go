@@ -8,16 +8,31 @@ type TokenInfoRes struct {
 }
 
 type PoolRes struct {
-	Assets []struct {
-		Info struct {
-			Token *struct {
-				ContractAddress string `json:"contract_addr"`
-			} `json:"token"`
-			Denom *struct {
-				Denom string `json:"denom"`
-			} `json:"native_token"`
-		} `json:"info"`
-		Amount string `json:"amount"`
-	} `json:"assets"`
-	TotalShare string `json:"total_share"`
+	Assets     []AssetInfoRes `json:"assets"`
+	TotalShare string         `json:"total_share"`
+}
+
+type NativeTokenAssetInfoRes struct {
+	Denom string `json:"denom"`
+}
+
+type TokenAssetInfoRes struct {
+	ContractAddress string `json:"contract_addr"`
+}
+
+type AssetInfoRes struct {
+	Info   AssetInfoTokenRes `json:"info"`
+	Amount string            `json:"amount"`
+}
+
+type AssetInfoTokenRes struct {
+	Token       *TokenAssetInfoRes       `json:"token,omitempty"`
+	NativeToken *NativeTokenAssetInfoRes `json:"native_token,omitempty"`
+}
+
+func (p *PoolRes) GetAsset(idx uint) string {
+	if p.Assets[idx].Info.Token != nil {
+		return p.Assets[idx].Info.Token.ContractAddress
+	}
+	return p.Assets[idx].Info.NativeToken.Denom
 }

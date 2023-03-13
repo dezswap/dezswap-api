@@ -27,7 +27,7 @@ type dbRepoImpl struct {
 
 func NewDbRepo(chainId string, srcC configs.RdbConfig, destC configs.RdbConfig) (indexer.DbRepo, error) {
 	openDb := func(c configs.RdbConfig) (*gorm.DB, error) {
-		dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%d sslmode=disable",
+		dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=disable",
 			c.Host, c.Username, c.Password, c.Database, c.Port)
 
 		gormDB, err := gorm.Open(postgres.New(postgres.Config{

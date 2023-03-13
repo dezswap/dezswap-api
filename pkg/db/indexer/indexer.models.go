@@ -10,7 +10,7 @@ type ChainModel struct {
 }
 
 type Token struct {
-	gorm.Model
+	*gorm.Model
 	ChainModel
 	Protocol string `json:"protocol"`
 	Symbol   string `json:"symbol"`
@@ -21,10 +21,12 @@ type Token struct {
 }
 
 type LatestPool struct {
-	gorm.Model
+	*gorm.Model
 	ChainModel
 	Height       uint64 `json:"height"`
+	Asset0       string `json:"asset0"`
 	Asset0Amount string `json:"asset0Amount"`
+	Asset1       string `json:"asset1"`
 	Asset1Amount string `json:"asset1Amount"`
 	LpAmount     string `json:"lpAmount"`
 }

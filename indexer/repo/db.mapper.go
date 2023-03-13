@@ -38,7 +38,7 @@ type dbMapperImpl struct{}
 // tokenToModel implements dbMapper
 func (m *dbMapperImpl) tokenToModel(token indexer.Token) (indexer_db.Token, error) {
 	t := indexer_db.Token{
-		Model: gorm.Model{
+		Model: &gorm.Model{
 			ID: token.ID,
 		},
 		Protocol: token.Protocol,
@@ -76,7 +76,9 @@ func (m *dbMapperImpl) poolToPoolModel(p indexer.PoolInfo, height uint64) (index
 			ChainId: p.ChainId,
 			Address: p.Address,
 		},
+		Asset0:       p.Asset0,
 		Asset0Amount: p.Asset0Amount,
+		Asset1:       p.Asset1,
 		Asset1Amount: p.Asset1Amount,
 		LpAmount:     p.LpAmount,
 	}, nil

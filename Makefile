@@ -105,3 +105,9 @@ indexer-generate-migration:
 	$(eval PATH := db/migration/indexer)
 	mkdir -p $(PATH)
 	$(shell sed 's/DATE_TIME/$(VERSION)/g' $(PATH)/template.txt > $(PATH)/$(VERSION)_SUMMARY.go)
+
+api-prepare-swagger:
+	go install github.com/swaggo/swag/cmd/swag@latest
+
+api-generate-swagger:
+	swag init -g api/app.go --output api/docs

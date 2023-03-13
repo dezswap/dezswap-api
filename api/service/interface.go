@@ -1,9 +1,10 @@
 package service
 
 type Gettable interface {
+	Pool | Token | Pair
 }
 
-type GetterService[T Gettable] interface {
-	Get() (T, error)
+type Getter[T Gettable] interface {
+	Get(key string) (T, error)
 	GetAll() ([]T, error)
 }

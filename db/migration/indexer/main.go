@@ -21,7 +21,7 @@ func main() {
 	rollback := os.Args[len(os.Args)-1]
 	c := configs.New().Indexer.Db
 
-	url := fmt.Sprintf("user=%s password=%s host=%s port=%d dbname=%s sslmode=disable", c.Username, c.Password, c.Host, c.Port, c.Database)
+	url := fmt.Sprintf("user=%s password=%s host=%s port=%s dbname=%s sslmode=disable", c.Username, c.Password, c.Host, c.Port, c.Database)
 	db, err := gorm.Open(postgres.New(postgres.Config{
 		DSN: url,
 	}))
