@@ -67,7 +67,7 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	target := fmt.Sprintf("%s:%d", c.Indexer.SrcNode.Host, c.Indexer.SrcNode.Port)
+	target := fmt.Sprintf("%s:%s", c.Indexer.SrcNode.Host, c.Indexer.SrcNode.Port)
 	grpcCli, err := xpla.NewGrpcClient(target)
 	if err != nil {
 		panic(err)
