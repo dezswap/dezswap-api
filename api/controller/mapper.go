@@ -5,7 +5,9 @@ import (
 	"github.com/dezswap/dezswap-api/pkg/dezswap"
 )
 
+type pairMapper struct{}
 type poolMapper struct{}
+type tokenMapper struct{}
 
 func (m *poolMapper) poolToRes(pool service.Pool) PoolRes {
 	res := PoolRes{

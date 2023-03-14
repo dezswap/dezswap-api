@@ -5,16 +5,18 @@ import (
 
 	"github.com/dezswap/dezswap-api/api/service"
 	"github.com/dezswap/dezswap-api/pkg/httputil"
+	"github.com/dezswap/dezswap-api/pkg/logging"
 	"github.com/gin-gonic/gin"
 )
 
 type poolController struct {
 	service.Getter[service.Pool]
+	logging.Logger
 	poolMapper
 }
 
-func InitPoolController(s service.Getter[service.Pool], route *gin.RouterGroup) PoolController {
-	c := poolController{s, poolMapper{}}
+func InitPoolController(s service.Getter[service.Pool], route *gin.RouterGroup, logger logging.Logger) PoolController {
+	c := poolController{s, logger, poolMapper{}}
 	c.register(route)
 	return &c
 }

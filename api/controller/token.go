@@ -5,15 +5,18 @@ import (
 
 	"github.com/dezswap/dezswap-api/api/service"
 	"github.com/dezswap/dezswap-api/pkg/httputil"
+	"github.com/dezswap/dezswap-api/pkg/logging"
 	"github.com/gin-gonic/gin"
 )
 
 type tokenController struct {
 	service.Getter[service.Token]
+	logging.Logger
+	tokenMapper
 }
 
-func InitTokenController(s service.Getter[service.Token], route *gin.RouterGroup) TokenController {
-	c := tokenController{s}
+func InitTokenController(s service.Getter[service.Token], route *gin.RouterGroup, logger logging.Logger) TokenController {
+	c := tokenController{s, logger, tokenMapper{}}
 	c.register(route)
 	return &c
 }

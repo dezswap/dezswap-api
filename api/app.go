@@ -70,7 +70,7 @@ func (app *app) run() {
 func (app *app) setMiddlewares() {
 	app.engine.Use(gin.CustomRecovery(func(c *gin.Context, err any) {
 		app.logger.WithError(err.(error)).Error("Panic occurred")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.(error).Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
 	}))
 
 	allowedOrigins := []string{`\.dezswap\.io$`, `dezswap\.netlify\.app$`, `localhost$`, `127\.0\.0\.1$`}
@@ -109,9 +109,9 @@ func (app *app) initApis(c configs.ApiConfig) {
 
 	version := c.Server.Version
 	router := app.engine.Group(version)
-	controller.InitPairController(pairService, router)
-	controller.InitPoolController(poolService, router)
-	controller.InitTokenController(tokenService, router)
+	controller.InitPairController(pairService, router, app.logger)
+	controller.InitPoolController(poolService, router, app.logger)
+	controller.InitTokenController(tokenService, router, app.logger)
 }
 
 func (app *app) configureReporter(dsn string) error {
