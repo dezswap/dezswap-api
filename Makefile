@@ -19,11 +19,15 @@ down:
 deps:
 	go mod download
 
-.PHONY: build-all indexer
-build-all: indexer
+.PHONY: build-all indexer api
+build-all: indexer api
 
 indexer:
-	go install -mod=readonly ./cmd/indexer
+	go build -mod=readonly -o ./main ./cmd/indexer
+
+api:
+	go build -mod=readonly -o ./main ./cmd/api
+
 
 # This is a specialized build for running the executable inside a minimal scratch container
 .PHONY: build-app
@@ -96,7 +100,7 @@ indexer-migrate-test:
 indexer-migrate-up:
 	go run -tags=mig db/migration/indexer/*
 
- indexer-migrate-down:
+indexer-migrate-down:
 	go run -tags=mig db/migration/indexer/* down
 
 # Create a new empty migration file.
