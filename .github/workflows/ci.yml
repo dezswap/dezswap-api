@@ -1,0 +1,56 @@
+name: CI
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "*" ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    services:
+      cosmwasm-etl-db:
+        image: postgres
+        env:
+          POSTGRES_USER: app
+          POSTGRES_PASSWORD: appPW
+          POSTGRES_DB: dezswap_api
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Set up Go
+      uses: actions/setup-go@v3
+      with:
+        go-version: 1.18
+
+    - name: golangci-lint
+      uses: golangci/golangci-lint-action@v3
+      with:
+        args: --timeout=5m --enable=unparam --enable=misspell --enable=prealloc --tests=false
+
+    - name: Tests
+      shell: bash
+      env:
+        TEST_CONFIG: ${{ secrets.TEST_CONFIG }}
+      run: |
+        echo "$TEST_CONFIG" > config.yml
+        make test
+
+    - name: Migration Tests
+      run: |
+        make indexer-migrate-up
+        make indexer-migrate-test
+        make indexer-migrate-down
+      # Add if more needed
+
+    - name: Build all
+      run: make build-all

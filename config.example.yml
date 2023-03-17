@@ -13,7 +13,7 @@ indexer:
   db:
     host: localhost
     port: 5432
-    database: indexer
+    database: dezswap_api
     username: app
     password: appPW
 
@@ -28,7 +28,7 @@ sentry:
 
 api:
   server:
-    name: terraswap-service
+    name: dezswap-api
     host: 0.0.0.0
     port: 8000
     swagger: false
@@ -38,6 +38,6 @@ api:
   db:
     host: localhost
     port: 5432
-    database: indexer
+    database: dezswap_api
     username: app
     password: appPW

@@ -1,0 +1,150 @@
+name: Deploy Dezswap API
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    branches: [main]
+    types:
+      - completed
+    paths-ignore:
+      - "indexer/**"
+      - "README.md"
+
+env:
+  AWS_REGION: ${{ secrets.AWS_REGION }}
+  ECR_REPOSITORY: dezswap-api
+  ECS_CLUSTER: dezswap-api
+
+  DIMENSION_ECS_SERVICE: dimension-dezswap-api
+  DIMENSION_TASK_DEFINITION: dimension-dezswap-api
+  DIMENSION_CONTAINER_NAME: dimension-dezswap-api
+
+  CUBE_ECS_SERVICE: cube-dezswap-api
+  CUBE_TASK_DEFINITION: cube-dezswap-api
+  CUBE_CONTAINER_NAME: cube-dezswap-api
+
+jobs:
+  build:
+    name: build dezswap-api api image
+    runs-on: ubuntu-latest
+    environment: production
+    outputs:
+      dimension-tag: ${{ steps.build-image.outputs.dimension-tag }}
+      cube-tag: ${{ steps.build-image.outputs.cube-tag }}
+
+    steps:
+      - name: checkout
+        uses: actions/checkout@v3
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1.7.0
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1.5.1
+
+      - name: Test, build, tag, and push image to Amazon ECR
+        id: build-image
+        working-directory: .
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          DIMENSION_CONFIG: ${{ secrets.DIMENSION_CONFIG }}
+          CUBE_CONFIG: ${{ secrets.CUBE_CONFIG }}
+        run: |
+          make test
+          IMAGE_TAG=`git rev-parse --short HEAD`
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:latest -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+
+          echo "FROM $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          COPY config.yaml /app/config.yaml" > Dockerfile.final
+
+          configs=("$DIMENSION_CONFIG" "$CUBE_CONFIG")
+          networks=("dimension" "cube")
+          for i in "${!configs[@]}"; do
+            echo "${configs[i]}" > config.yaml
+            docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:${networks[i]}-$IMAGE_TAG -f Dockerfile.final .
+            echo "${networks[i]}-tag=${networks[i]}-$IMAGE_TAG" >> $GITHUB_OUTPUT
+          done
+          docker image push -a $ECR_REGISTRY/$ECR_REPOSITORY
+
+  deploy-dimension:
+    name: Deploy dimension
+    runs-on: ubuntu-latest
+    needs: build
+    environment: production
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1.7.0
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1.5.1
+
+      - name: Download Task Definition
+        id: download-task-definition
+        working-directory: .
+        run: |
+          aws ecs describe-task-definition --task-definition ${{ env.DIMENSION_TASK_DEFINITION }} | jq '.taskDefinition' > ${{ env.DIMENSION_TASK_DEFINITION }}.json
+
+      - name: Fill in the new image ID in the Amazon ECS task definition
+        id: task-def
+        uses: aws-actions/amazon-ecs-render-task-definition@v1.1.1
+        with:
+          task-definition: ./${{ env.DIMENSION_TASK_DEFINITION }}.json
+          container-name: ${{ env.DIMENSION_CONTAINER_NAME }}
+          image: ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY}}:${{ needs.build.outputs.dimension-tag }}
+
+      - name: Deploy Amazon ECS task definition
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v1.4.10
+        with:
+          task-definition: ${{ steps.task-def.outputs.task-definition }}
+          service: ${{ env.DIMENSION_ECS_SERVICE }}
+          cluster: ${{ env.ECS_CLUSTER }}
+          wait-for-service-stability: true
+
+  deploy-cube:
+    name: Deploy cube
+    runs-on: ubuntu-latest
+    needs: build
+    environment: production
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1.7.0
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1.5.1
+
+      - name: Download Task Definition
+        id: download-task-definition
+        working-directory: .
+        run: |
+          aws ecs describe-task-definition --task-definition ${{ env.CUBE_TASK_DEFINITION }} | jq '.taskDefinition' > ${{ env.CUBE_TASK_DEFINITION }}.json
+
+      - name: Fill in the new image ID in the Amazon ECS task definition
+        id: task-def
+        uses: aws-actions/amazon-ecs-render-task-definition@v1.1.1
+        with:
+          task-definition: ./${{ env.CUBE_TASK_DEFINITION }}.json
+          container-name: ${{ env.CUBE_CONTAINER_NAME }}
+          image: ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY}}:${{ needs.build.outputs.cube-tag }}
+
+      - name: Deploy Amazon ECS task definition
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v1.4.10
+        with:
+          task-definition: ${{ steps.task-def.outputs.task-definition }}
+          service: ${{ env.CUBE_ECS_SERVICE }}
+          cluster: ${{ env.ECS_CLUSTER }}
+          wait-for-service-stability: true
