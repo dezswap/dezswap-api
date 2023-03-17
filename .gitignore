@@ -16,7 +16,7 @@ main
 # vendor/
 
 # env
-.env
+.env*
 config*.yml
 !config.example.yml
 
