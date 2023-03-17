@@ -14,7 +14,7 @@ type IndexerConfig struct {
 func indexerConfig(v *viper.Viper) IndexerConfig {
 	chainId := v.GetString("indexer.chain_id")
 	envChainId := v.GetString("INDEXER_CHAIN_ID")
-	if envChainId == "" {
+	if envChainId != "" {
 		chainId = envChainId
 	}
 

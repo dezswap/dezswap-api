@@ -15,13 +15,13 @@ env:
   ECR_REPOSITORY: dezswap-api
   ECS_CLUSTER: dezswap-api
 
-  DIMENSION_ECS_SERVICE: dimension-dezswap-indexer
-  DIMENSION_TASK_DEFINITION: dimension-dezswap-indexer
-  DIMENSION_CONTAINER_NAME: dimension-dezswap-indexer
+  DIMENSION_ECS_SERVICE: dimension-dezswap-api-indexer
+  DIMENSION_TASK_DEFINITION: dimension-dezswap-api-indexer
+  DIMENSION_CONTAINER_NAME: dimension-dezswap-api-indexer
 
-  CUBE_ECS_SERVICE: cube-dezswap-indexer
-  CUBE_TASK_DEFINITION: cube-dezswap-indexer
-  CUBE_CONTAINER_NAME: cube-dezswap-indexer
+  CUBE_ECS_SERVICE: cube-dezswap-api-indexer
+  CUBE_TASK_DEFINITION: cube-dezswap-api-indexer
+  CUBE_CONTAINER_NAME: cube-dezswap-api-indexer
 
 jobs:
   build:
@@ -58,15 +58,16 @@ jobs:
         run: |
           make test
           IMAGE_TAG=`git rev-parse --short HEAD`
+          touch config.yml
           docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:latest -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
 
           echo "FROM $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-          COPY config.yaml /app/config.yaml" > Dockerfile.final
+          COPY config.yml /app/config.yml" > Dockerfile.final
 
           configs=("$DIMENSION_CONFIG" "$CUBE_CONFIG")
           networks=("dimension" "cube")
           for i in "${!configs[@]}"; do
-            echo "${configs[i]}" > config.yaml
+            echo "${configs[i]}" > config.yml
             docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:${networks[i]}-$IMAGE_TAG -f Dockerfile.final .
             echo "${networks[i]}-tag=${networks[i]}-$IMAGE_TAG" >> $GITHUB_OUTPUT
           done

@@ -21,7 +21,6 @@ log:
   level: debug
   format_json: true
   env:
-  chain_id:
 
 sentry:
   dsn:

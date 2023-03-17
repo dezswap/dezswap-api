@@ -59,6 +59,7 @@ func runJob(j *repeatableJob, logger logging.Logger) {
 
 func main() {
 	c := configs.New()
+	c.Log.ChainId = c.Indexer.ChainId
 	logger := setLogger(c)
 	defer catch(logger)
 

@@ -7,5 +7,6 @@ import (
 
 func main() {
 	c := configs.New()
+	c.Log.ChainId = c.Api.Server.ChainId
 	api.RunServer(c)
 }
