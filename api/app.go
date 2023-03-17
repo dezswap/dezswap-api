@@ -40,7 +40,9 @@ func RunServer(c configs.Config) *app {
 
 	app.initApis(c.Api)
 	if c.Sentry.DSN != "" {
-		app.configureReporter(c.Sentry.DSN)
+		if err := app.configureReporter(c.Sentry.DSN); err != nil {
+			panic(err)
+		}
 	}
 	app.setMiddlewares()
 
@@ -64,7 +66,9 @@ func (app *app) run() {
 	app.engine.NoRoute(func(c *gin.Context) {
 		c.JSON(http.StatusNotFound, NotFound{Code: http.StatusNotFound, Message: "Not Found"})
 	})
-	app.engine.Run(fmt.Sprintf(":%s", app.config.Server.Port))
+	if err := app.engine.Run(fmt.Sprintf(":%s", app.config.Server.Port)); err != nil {
+		panic(err)
+	}
 }
 
 func (app *app) setMiddlewares() {

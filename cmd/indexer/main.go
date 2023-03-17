@@ -92,7 +92,10 @@ func main() {
 	s.SingletonModeAll()
 
 	for _, j := range jobs {
-		s.Every(j.delay).Do(runJob, j, logger)
+		_, err := s.Every(j.delay).Do(runJob, j, logger)
+		if err != nil {
+			panic(err)
+		}
 	}
 
 	s.StartBlocking()

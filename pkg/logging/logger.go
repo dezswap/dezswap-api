@@ -1,7 +1,7 @@
 package logging
 
 import (
-	"io/ioutil"
+	"io"
 	"os"
 
 	"github.com/dezswap/dezswap-api/configs"
@@ -54,6 +54,6 @@ var Discard Logger
 
 func init() {
 	logger := logrus.New()
-	logger.Out = ioutil.Discard
+	logger.Out = io.Discard
 	Discard = logger
 }
