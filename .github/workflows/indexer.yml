@@ -11,6 +11,7 @@ on:
       - "README.md"
 
 env:
+  APP_TYPE: indexer
   AWS_REGION: ${{ secrets.AWS_REGION }}
   ECR_REPOSITORY: dezswap-api
   ECS_CLUSTER: dezswap-api
@@ -55,11 +56,12 @@ jobs:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           DIMENSION_CONFIG: ${{ secrets.DIMENSION_CONFIG }}
           CUBE_CONFIG: ${{ secrets.CUBE_CONFIG }}
+          APP_TYPE: ${{ env.APP_TYPE }}
         run: |
           make test
           IMAGE_TAG=`git rev-parse --short HEAD`
           touch config.yml
-          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:latest -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          docker build --build-arg APP_TYPE=$APP_TYPE -t $ECR_REGISTRY/$ECR_REPOSITORY:latest -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
 
           echo "FROM $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
           COPY config.yml /app/config.yml" > Dockerfile.final
@@ -68,8 +70,9 @@ jobs:
           networks=("dimension" "cube")
           for i in "${!configs[@]}"; do
             echo "${configs[i]}" > config.yml
-            docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:${networks[i]}-$IMAGE_TAG -f Dockerfile.final .
-            echo "${networks[i]}-tag=${networks[i]}-$IMAGE_TAG" >> $GITHUB_OUTPUT
+            imgTag=${networks[i]}-$APP_TYPE-$IMAGE_TAG
+            docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$imgTag -f Dockerfile.final .
+            echo "${networks[i]}-tag=$imgTag" >> $GITHUB_OUTPUT
           done
           docker image push -a $ECR_REGISTRY/$ECR_REPOSITORY
 
