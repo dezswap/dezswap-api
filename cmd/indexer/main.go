@@ -104,7 +104,9 @@ func setLogger(c configs.Config) logging.Logger {
 	c.Log.ChainId = c.Indexer.ChainId
 	logger := logging.New("dezswap-api", c.Log)
 	if c.Sentry.DSN != "" {
-		logging.ConfigureReporter(logger, c.Sentry.DSN)
+		if err := logging.ConfigureReporter(logger, c.Sentry.DSN); err != nil {
+			panic(err)
+		}
 	}
 	return logger
 }
