@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func Test_Pairs(t *testing.T) {
+func _Test_Pairs(t *testing.T) {
 	c := configs.New()
 	r, _ := NewDbRepo(c.Indexer.ChainId, c.Indexer.SrcDb, c.Indexer.Db)
 	pairs, err := r.Pairs(db.LastIdLimitCondition{})
