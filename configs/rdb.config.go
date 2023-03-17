@@ -36,7 +36,13 @@ func (lhs *RdbConfig) Override(rhs RdbConfig) {
 
 func rdbConfig(v *viper.Viper) RdbConfig {
 	if v == nil {
-		return RdbConfig{}
+		return RdbConfig{
+			Host:     "localhost",
+			Port:     "5432",
+			Database: "dezswap_api",
+			Username: "app",
+			Password: "appPW",
+		}
 	}
 	return RdbConfig{
 		Host:     v.GetString("host"),
