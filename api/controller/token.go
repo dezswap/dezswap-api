@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/dezswap/dezswap-api/api/service"
@@ -11,7 +12,7 @@ import (
 
 type tokenController struct {
 	service.Getter[service.Token]
-	logging.Logger
+	logger logging.Logger
 	tokenMapper
 }
 
@@ -39,11 +40,12 @@ func (c *tokenController) register(route *gin.RouterGroup) {
 //	@Failure		500	{object}	httputil.InternalServerError
 //	@Router			/tokens [get]
 func (c *tokenController) Tokens(ctx *gin.Context) {
-	res, err := c.GetAll()
+	pools, err := c.GetAll()
 	if err != nil {
 		httputil.NewError(ctx, http.StatusNotFound, err)
 		return
 	}
+	res := c.tokensToRes(pools)
 	ctx.JSON(http.StatusOK, res)
 }
 
@@ -61,10 +63,18 @@ func (c *tokenController) Tokens(ctx *gin.Context) {
 //	@Failure		500	{object}	httputil.InternalServerError
 //	@Router			/tokens/{address} [get]
 func (c *tokenController) Token(ctx *gin.Context) {
-	res := TokenRes{}
-	// if err != nil {
-	// 	httputil.NewError(ctx, http.StatusNotFound, err)
-	// 	return
-	// }
+	address := ctx.Param("address")
+	if address == "" {
+		httputil.NewError(ctx, http.StatusBadRequest, errors.New("invalid address"))
+		return
+	}
+
+	token, err := c.Get(address)
+	if err != nil {
+		c.logger.Warn(err)
+		httputil.NewError(ctx, http.StatusInternalServerError, errors.New("internal server error"))
+		return
+	}
+	res := c.tokenToRes(token)
 	ctx.JSON(http.StatusOK, res)
 }

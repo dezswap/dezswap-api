@@ -1,32 +1,74 @@
 definitions:
   controller.PairRes:
+    properties:
+      asset_decimals:
+        items:
+          type: integer
+        type: array
+      asset_infos:
+        items:
+          $ref: '#/definitions/dezswap.AssetInfoRes'
+        type: array
+      contract_addr:
+        type: string
+      liquidity_token:
+        type: string
     type: object
   controller.PoolRes:
     properties:
+      address:
+        type: string
       assets:
         items:
-          properties:
-            amount:
-              type: string
-            info:
-              properties:
-                native_token:
-                  properties:
-                    denom:
-                      type: string
-                  type: object
-                token:
-                  properties:
-                    contract_addr:
-                      type: string
-                  type: object
-              type: object
-          type: object
+          $ref: '#/definitions/dezswap.AssetInfoRes'
         type: array
       total_share:
         type: string
     type: object
   controller.TokenRes:
+    properties:
+      chainId:
+        type: string
+      decimals:
+        type: integer
+      icon:
+        type: string
+      name:
+        type: string
+      protocol:
+        type: string
+      symbol:
+        type: string
+      token:
+        type: string
+      total_supply:
+        type: string
+      verified:
+        type: boolean
+    type: object
+  dezswap.AssetInfoRes:
+    properties:
+      amount:
+        type: string
+      info:
+        $ref: '#/definitions/dezswap.AssetInfoTokenRes'
+    type: object
+  dezswap.AssetInfoTokenRes:
+    properties:
+      native_token:
+        $ref: '#/definitions/dezswap.NativeTokenAssetInfoRes'
+      token:
+        $ref: '#/definitions/dezswap.TokenAssetInfoRes'
+    type: object
+  dezswap.NativeTokenAssetInfoRes:
+    properties:
+      denom:
+        type: string
+    type: object
+  dezswap.TokenAssetInfoRes:
+    properties:
+      contract_addr:
+        type: string
     type: object
   httputil.BadRequestError:
     properties:
@@ -70,16 +112,12 @@ paths:
           description: OK
           schema:
             items:
-              $ref: '#/definitions/controller.TokenRes'
+              $ref: '#/definitions/controller.PairRes'
             type: array
         "400":
           description: Bad Request
           schema:
             $ref: '#/definitions/httputil.BadRequestError'
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/httputil.NotFoundError'
         "500":
           description: Internal Server Error
           schema:
@@ -109,15 +147,11 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/httputil.BadRequestError'
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/httputil.NotFoundError'
         "500":
           description: Internal Server Error
           schema:
             $ref: '#/definitions/httputil.InternalServerError'
-      summary: Get an Pair
+      summary: Get a pair
       tags:
       - pairs
   /pools:
@@ -179,7 +213,7 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/httputil.InternalServerError'
-      summary: Get an Pool
+      summary: Get a pool
       tags:
       - pools
   /tokens:
@@ -241,7 +275,7 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/httputil.InternalServerError'
-      summary: Get an Token
+      summary: Get a token
       tags:
       - tokens
 swagger: "2.0"

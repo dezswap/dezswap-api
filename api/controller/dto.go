@@ -1,7 +1,6 @@
 package controller
 
 import (
-	"github.com/dezswap/dezswap-api/api/service"
 	"github.com/dezswap/dezswap-api/pkg/dezswap"
 )
 
@@ -15,11 +14,19 @@ type PoolRes struct {
 type TokensRes []TokenRes
 
 type TokenRes struct {
-	*service.Token
+	ChainId     string `json:"chainId"`
+	Token       string `json:"token"`
+	Name        string `json:"name"`
+	Symbol      string `json:"symbol"`
+	Decimals    uint8  `json:"decimals"`
+	TotalSupply string `json:"total_supply" `
+	Icon        string `json:"icon"`
+	Protocol    string `json:"protocol"`
+	Verified    bool   `json:"verified"`
 }
 
-type PairsRes []TokenRes
+type PairsRes []PairRes
 
 type PairRes struct {
-	*service.Pair
+	*dezswap.PairRes
 }

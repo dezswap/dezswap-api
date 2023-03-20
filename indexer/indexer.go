@@ -48,6 +48,7 @@ func (d *dexIndexer) UpdateLatestPools() error {
 
 		pool, ok := poolMap[p.Address]
 		if !ok || !isEqual(&pool, poolInfo) {
+			poolInfo.Lp = p.Lp
 			poolInfos = append(poolInfos, *poolInfo)
 		}
 	}

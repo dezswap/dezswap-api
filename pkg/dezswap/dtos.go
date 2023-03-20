@@ -1,5 +1,12 @@
 package dezswap
 
+type PairRes struct {
+	AssetInfos     []AssetInfoRes `json:"asset_infos"`
+	ContractAddr   string         `json:"contract_addr"`
+	LiquidityToken string         `json:"liquidity_token"`
+	AssetDecimals  []uint         `json:"asset_decimals"`
+}
+
 type TokenInfoRes struct {
 	Name        string `json:"name"`
 	Symbol      string `json:"symbol"`

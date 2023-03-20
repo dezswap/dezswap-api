@@ -42,12 +42,6 @@ var M20230125_175830 = &gormigrate.Migration{
 		if err := tx.AutoMigrate(&indexer.Token{}, &indexer.LatestPool{}); err != nil {
 			return err
 		}
-		if err := tx.Exec("CREATE INDEX idx_chain_id ON latest_pools (chain_id)").Error; err != nil {
-			return err
-		}
-		if err := tx.Exec("CREATE INDEX idx_address ON latest_pools (address)").Error; err != nil {
-			return err
-		}
 		if err := tx.Save([]indexer.Token{MainnetToken, TestnetToken}).Error; err != nil {
 			return err
 		}

@@ -28,3 +28,48 @@ func (m *poolMapper) poolsToRes(pools []service.Pool) []PoolRes {
 	}
 	return res
 }
+
+func (m *pairMapper) pairToRes(pair service.Pair) PairRes {
+	res := PairRes{
+		PairRes: &dezswap.PairRes{
+			ContractAddr: pair.Address,
+			AssetInfos: []dezswap.AssetInfoRes{
+				dezswap.ToAssetInfoRes(pair.Asset0.Address, ""),
+				dezswap.ToAssetInfoRes(pair.Asset1.Address, ""),
+			},
+			LiquidityToken: pair.Lp.Address,
+			AssetDecimals:  []uint{uint(pair.Asset0.Decimals), uint(pair.Asset1.Decimals)},
+		},
+	}
+	return res
+}
+
+func (m *pairMapper) pairsToRes(pairs []service.Pair) []PairRes {
+	res := make([]PairRes, len(pairs))
+	for i, pair := range pairs {
+		res[i] = m.pairToRes(pair)
+	}
+	return res
+}
+
+func (m *tokenMapper) tokenToRes(token service.Token) TokenRes {
+	res := TokenRes{
+		ChainId:  token.ChainId,
+		Token:    token.Address,
+		Name:     token.Name,
+		Symbol:   token.Symbol,
+		Decimals: token.Decimals,
+		Icon:     token.Icon,
+		Protocol: token.Protocol,
+		Verified: token.Verified,
+	}
+	return res
+}
+
+func (m *tokenMapper) tokensToRes(tokens []service.Token) []TokenRes {
+	res := make([]TokenRes, len(tokens))
+	for i, token := range tokens {
+		res[i] = m.tokenToRes(token)
+	}
+	return res
+}

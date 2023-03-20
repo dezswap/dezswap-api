@@ -39,12 +39,13 @@ func (c *pairController) register(route *gin.RouterGroup) {
 //	@Failure		500	{object}	httputil.InternalServerError
 //	@Router			/pairs [get]
 func (c *pairController) Pairs(ctx *gin.Context) {
-	res, err := c.GetAll()
+	pairs, err := c.GetAll()
 	if err != nil {
 		c.logger.Warn(err)
 		httputil.NewError(ctx, http.StatusInternalServerError, errors.New("internal server error"))
 		return
 	}
+	res := c.pairsToRes(pairs)
 	ctx.JSON(http.StatusOK, res)
 }
 
@@ -62,11 +63,17 @@ func (c *pairController) Pairs(ctx *gin.Context) {
 //	@Router			/pairs/{address} [get]
 func (c *pairController) Pair(ctx *gin.Context) {
 	address := ctx.Param("address")
+	if address == "" {
+		httputil.NewError(ctx, http.StatusBadRequest, errors.New("invalid address"))
+		return
+	}
+
 	pair, err := c.Get(address)
 	if err != nil {
 		c.logger.Warn(err)
 		httputil.NewError(ctx, http.StatusInternalServerError, errors.New("internal server error"))
 		return
 	}
-	ctx.JSON(http.StatusOK, pair)
+	res := c.pairToRes(pair)
+	ctx.JSON(http.StatusOK, res)
 }

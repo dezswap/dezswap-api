@@ -5,8 +5,8 @@ import (
 )
 
 type ChainModel struct {
-	ChainId string `json:"chainId" gorm:"not null;index:,unique,composite:chain_id_address_key"`
-	Address string `json:"address" gorm:"not null;index:,unique,composite:chain_id_address_key"`
+	ChainId string `json:"chainId" gorm:"not null;index:;index:,unique,composite:chain_id_address_key"`
+	Address string `json:"address" gorm:"not null;index:;index:,unique,composite:chain_id_address_key"`
 }
 
 type Token struct {
@@ -24,9 +24,10 @@ type LatestPool struct {
 	*gorm.Model
 	ChainModel
 	Height       uint64 `json:"height"`
-	Asset0       string `json:"asset0"`
+	Asset0       string `json:"asset0" gorm:"index"`
 	Asset0Amount string `json:"asset0Amount"`
-	Asset1       string `json:"asset1"`
+	Asset1       string `json:"asset1" gorm:"index"`
 	Asset1Amount string `json:"asset1Amount"`
+	Lp           string `json:"lp" gorm:"index"`
 	LpAmount     string `json:"lpAmount"`
 }

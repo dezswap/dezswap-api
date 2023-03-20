@@ -55,6 +55,7 @@ type PoolInfo struct {
 	Asset0Amount string `json:"asset0Amount"`
 	Asset1       string `json:"asset1"`
 	Asset1Amount string `json:"asset1Amount"`
+	Lp           string `json:"lp"`
 	LpAmount     string `json:"lpAmount"`
 }
 

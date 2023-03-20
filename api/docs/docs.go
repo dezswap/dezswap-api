@@ -34,7 +34,7 @@ const docTemplate = `{
                         "schema": {
                             "type": "array",
                             "items": {
-                                "$ref": "#/definitions/controller.TokenRes"
+                                "$ref": "#/definitions/controller.PairRes"
                             }
                         }
                     },
@@ -42,12 +42,6 @@ const docTemplate = `{
                         "description": "Bad Request",
                         "schema": {
                             "$ref": "#/definitions/httputil.BadRequestError"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/httputil.NotFoundError"
                         }
                     },
                     "500": {
@@ -71,7 +65,7 @@ const docTemplate = `{
                 "tags": [
                     "pairs"
                 ],
-                "summary": "Get an Pair",
+                "summary": "Get a pair",
                 "parameters": [
                     {
                         "type": "string",
@@ -92,12 +86,6 @@ const docTemplate = `{
                         "description": "Bad Request",
                         "schema": {
                             "$ref": "#/definitions/httputil.BadRequestError"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/httputil.NotFoundError"
                         }
                     },
                     "500": {
@@ -165,7 +153,7 @@ const docTemplate = `{
                 "tags": [
                     "pools"
                 ],
-                "summary": "Get an Pool",
+                "summary": "Get a pool",
                 "parameters": [
                     {
                         "type": "string",
@@ -259,7 +247,7 @@ const docTemplate = `{
                 "tags": [
                     "tokens"
                 ],
-                "summary": "Get an Token",
+                "summary": "Get a token",
                 "parameters": [
                     {
                         "type": "string",
@@ -300,41 +288,38 @@ const docTemplate = `{
     },
     "definitions": {
         "controller.PairRes": {
-            "type": "object"
+            "type": "object",
+            "properties": {
+                "asset_decimals": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "asset_infos": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dezswap.AssetInfoRes"
+                    }
+                },
+                "contract_addr": {
+                    "type": "string"
+                },
+                "liquidity_token": {
+                    "type": "string"
+                }
+            }
         },
         "controller.PoolRes": {
             "type": "object",
             "properties": {
+                "address": {
+                    "type": "string"
+                },
                 "assets": {
                     "type": "array",
                     "items": {
-                        "type": "object",
-                        "properties": {
-                            "amount": {
-                                "type": "string"
-                            },
-                            "info": {
-                                "type": "object",
-                                "properties": {
-                                    "native_token": {
-                                        "type": "object",
-                                        "properties": {
-                                            "denom": {
-                                                "type": "string"
-                                            }
-                                        }
-                                    },
-                                    "token": {
-                                        "type": "object",
-                                        "properties": {
-                                            "contract_addr": {
-                                                "type": "string"
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
+                        "$ref": "#/definitions/dezswap.AssetInfoRes"
                     }
                 },
                 "total_share": {
@@ -343,7 +328,74 @@ const docTemplate = `{
             }
         },
         "controller.TokenRes": {
-            "type": "object"
+            "type": "object",
+            "properties": {
+                "chainId": {
+                    "type": "string"
+                },
+                "decimals": {
+                    "type": "integer"
+                },
+                "icon": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "protocol": {
+                    "type": "string"
+                },
+                "symbol": {
+                    "type": "string"
+                },
+                "token": {
+                    "type": "string"
+                },
+                "total_supply": {
+                    "type": "string"
+                },
+                "verified": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "dezswap.AssetInfoRes": {
+            "type": "object",
+            "properties": {
+                "amount": {
+                    "type": "string"
+                },
+                "info": {
+                    "$ref": "#/definitions/dezswap.AssetInfoTokenRes"
+                }
+            }
+        },
+        "dezswap.AssetInfoTokenRes": {
+            "type": "object",
+            "properties": {
+                "native_token": {
+                    "$ref": "#/definitions/dezswap.NativeTokenAssetInfoRes"
+                },
+                "token": {
+                    "$ref": "#/definitions/dezswap.TokenAssetInfoRes"
+                }
+            }
+        },
+        "dezswap.NativeTokenAssetInfoRes": {
+            "type": "object",
+            "properties": {
+                "denom": {
+                    "type": "string"
+                }
+            }
+        },
+        "dezswap.TokenAssetInfoRes": {
+            "type": "object",
+            "properties": {
+                "contract_addr": {
+                    "type": "string"
+                }
+            }
         },
         "httputil.BadRequestError": {
             "type": "object",
