@@ -18,10 +18,13 @@ func NewPoolService(chainId string, db *gorm.DB) Getter[Pool] {
 }
 
 // Get implements Getter
-func (s *poolService) Get(key string) (Pool, error) {
-	pool := indexer.LatestPool{}
-	if err := s.Model(&indexer.LatestPool{}).Where("chain_id = ? and contract = ?", s.chainId, key).Omit("id,created_at,updated_at,deleted_at").Find(&pool).Error; err != nil {
-		return pool, errors.Wrap(err, "PoolService.Get")
+func (s *poolService) Get(key string) (*Pool, error) {
+	pool := &indexer.LatestPool{}
+	if err := s.Model(&indexer.LatestPool{}).Where("chain_id = ? and address = ?", s.chainId, key).Omit("id,created_at,updated_at,deleted_at").Find(pool).Error; err != nil {
+		return nil, errors.Wrap(err, "PoolService.Get")
+	}
+	if pool.Address != key {
+		pool = nil
 	}
 	return pool, nil
 }

@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/dezswap/dezswap-api/api/service"
@@ -11,7 +12,7 @@ import (
 
 type poolController struct {
 	service.Getter[service.Pool]
-	logging.Logger
+	logger logging.Logger
 	poolMapper
 }
 
@@ -41,7 +42,8 @@ func (c *poolController) register(route *gin.RouterGroup) {
 func (c *poolController) Pools(ctx *gin.Context) {
 	pools, err := c.GetAll()
 	if err != nil {
-		httputil.NewError(ctx, http.StatusNotFound, err)
+		c.logger.Warn(err)
+		httputil.NewError(ctx, http.StatusInternalServerError, errors.New("internal server error"))
 		return
 	}
 	res := c.poolsToRes(pools)
@@ -65,9 +67,16 @@ func (c *poolController) Pool(ctx *gin.Context) {
 	address := ctx.Param("address")
 	pool, err := c.Get(address)
 	if err != nil {
-		httputil.NewError(ctx, http.StatusNotFound, err)
+		c.logger.Warn(err)
+		httputil.NewError(ctx, http.StatusInternalServerError, errors.New("internal server error"))
 		return
 	}
-	res := c.poolToRes(pool)
+
+	if pool == nil {
+		httputil.NewError(ctx, http.StatusNotFound, errors.New("pool not found"))
+		return
+	}
+
+	res := c.poolToRes(*pool)
 	ctx.JSON(http.StatusOK, res)
 }

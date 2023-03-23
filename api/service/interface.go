@@ -5,6 +5,6 @@ type Gettable interface {
 }
 
 type Getter[T Gettable] interface {
-	Get(key string) (T, error)
+	Get(key string) (*T, error)
 	GetAll() ([]T, error)
 }

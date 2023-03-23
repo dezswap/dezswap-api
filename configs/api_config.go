@@ -14,7 +14,7 @@ func apiConfig(v *viper.Viper) ApiConfig {
 
 	apiServerC.Override(envApiServerC)
 
-	dbC := rdbConfig(v.Sub("indexer.db"))
+	dbC := rdbConfig(v.Sub("api.db"))
 	envDbC := rdbConfigFromEnv(v, "API_DB")
 	dbC.Override(envDbC)
 

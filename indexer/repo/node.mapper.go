@@ -32,9 +32,9 @@ func (*nodeMapperImpl) resToPoolInfo(addr, chainId string, height uint64, data [
 		Height:       height,
 		Address:      addr,
 		Asset0:       res.GetAsset(0),
-		Asset0Amount: res.Assets[0].Amount,
+		Asset0Amount: *res.Assets[0].Amount,
 		Asset1:       res.GetAsset(1),
-		Asset1Amount: res.Assets[1].Amount,
+		Asset1Amount: *res.Assets[1].Amount,
 		LpAmount:     res.TotalShare,
 	}, nil
 }

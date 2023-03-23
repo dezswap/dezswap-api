@@ -1,10 +1,16 @@
 package dezswap
 
-import "github.com/dezswap/dezswap-api/pkg/xpla"
+import (
+	"github.com/dezswap/dezswap-api/pkg/xpla"
+)
 
 func ToAssetInfoRes(addr string, amount string) AssetInfoRes {
+	var assetAmount *string
+	if amount != "" {
+		assetAmount = &amount
+	}
 	res := AssetInfoRes{
-		Amount: amount,
+		Amount: assetAmount,
 		Info:   AssetInfoTokenRes{},
 	}
 	if xpla.IsCw20(addr) {

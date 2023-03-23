@@ -3,6 +3,7 @@ package controller
 import (
 	"errors"
 	"net/http"
+	"strings"
 
 	"github.com/dezswap/dezswap-api/api/service"
 	"github.com/dezswap/dezswap-api/pkg/httputil"
@@ -24,7 +25,7 @@ func InitTokenController(s service.Getter[service.Token], route *gin.RouterGroup
 
 func (c *tokenController) register(route *gin.RouterGroup) {
 	route.GET("/tokens", c.Tokens)
-	route.GET("/tokens/:address", c.Token)
+	route.GET("/tokens/*address", c.Token)
 }
 
 // Tokens godoc
@@ -40,12 +41,12 @@ func (c *tokenController) register(route *gin.RouterGroup) {
 //	@Failure		500	{object}	httputil.InternalServerError
 //	@Router			/tokens [get]
 func (c *tokenController) Tokens(ctx *gin.Context) {
-	pools, err := c.GetAll()
+	tokens, err := c.GetAll()
 	if err != nil {
 		httputil.NewError(ctx, http.StatusNotFound, err)
 		return
 	}
-	res := c.tokensToRes(pools)
+	res := c.tokensToRes(tokens)
 	ctx.JSON(http.StatusOK, res)
 }
 
@@ -69,12 +70,19 @@ func (c *tokenController) Token(ctx *gin.Context) {
 		return
 	}
 
+	address = strings.TrimPrefix(address, "/")
 	token, err := c.Get(address)
 	if err != nil {
 		c.logger.Warn(err)
 		httputil.NewError(ctx, http.StatusInternalServerError, errors.New("internal server error"))
 		return
 	}
-	res := c.tokenToRes(token)
+
+	if token == nil {
+		httputil.NewError(ctx, http.StatusNotFound, errors.New("token not found"))
+		return
+	}
+
+	res := c.tokenToRes(*token)
 	ctx.JSON(http.StatusOK, res)
 }

@@ -74,6 +74,12 @@ func (c *pairController) Pair(ctx *gin.Context) {
 		httputil.NewError(ctx, http.StatusInternalServerError, errors.New("internal server error"))
 		return
 	}
-	res := c.pairToRes(pair)
+
+	if pair == nil {
+		httputil.NewError(ctx, http.StatusNotFound, errors.New("pair not found"))
+		return
+	}
+
+	res := c.pairToRes(*pair)
 	ctx.JSON(http.StatusOK, res)
 }

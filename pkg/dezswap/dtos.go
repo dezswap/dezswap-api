@@ -29,7 +29,7 @@ type TokenAssetInfoRes struct {
 
 type AssetInfoRes struct {
 	Info   AssetInfoTokenRes `json:"info"`
-	Amount string            `json:"amount"`
+	Amount *string           `json:"amount,omitempty"`
 }
 
 type AssetInfoTokenRes struct {

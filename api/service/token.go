@@ -18,11 +18,16 @@ func NewTokenService(chainId string, db *gorm.DB) Getter[Token] {
 }
 
 // Get implements Getter
-func (s *tokenService) Get(key string) (Token, error) {
-	token := indexer.Token{}
-	if err := s.Model(&indexer.Token{}).Where("chain_id = ? and contract = ?", s.chainId, key).Omit("id,created_at,updated_at,deleted_at").Find(&token).Error; err != nil {
-		return token, errors.Wrap(err, "TokenService.Get")
+func (s *tokenService) Get(key string) (*Token, error) {
+	token := &indexer.Token{}
+	if err := s.Model(&indexer.Token{}).Where("chain_id = ? and address = ?", s.chainId, key).Omit("id,created_at,updated_at,deleted_at").Find(token).Error; err != nil {
+		return nil, errors.Wrap(err, "TokenService.Get")
 	}
+
+	if token.Address != key {
+		token = nil
+	}
+
 	return token, nil
 }
 
