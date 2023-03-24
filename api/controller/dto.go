@@ -25,7 +25,9 @@ type TokenRes struct {
 	Verified    bool   `json:"verified"`
 }
 
-type PairsRes []PairRes
+type PairsRes struct {
+	Pairs []PairRes `json:"pairs"`
+}
 
 type PairRes struct {
 	*dezswap.PairRes

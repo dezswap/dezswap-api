@@ -24,3 +24,17 @@ func ToAssetInfoRes(addr string, amount string) AssetInfoRes {
 	}
 	return res
 }
+
+func ToAssetInfoTokenRes(addr string) AssetInfoTokenRes {
+	res := AssetInfoTokenRes{}
+	if xpla.IsCw20(addr) {
+		res.Token = &TokenAssetInfoRes{
+			ContractAddress: addr,
+		}
+	} else {
+		res.NativeToken = &NativeTokenAssetInfoRes{
+			Denom: addr,
+		}
+	}
+	return res
+}

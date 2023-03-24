@@ -7,12 +7,12 @@ import (
 
 	"github.com/dezswap/dezswap-api/api/controller"
 	"github.com/dezswap/dezswap-api/api/docs"
+	"github.com/gin-contrib/cors"
 
 	"github.com/dezswap/dezswap-api/api/service"
 	"github.com/dezswap/dezswap-api/configs"
 	"github.com/dezswap/dezswap-api/pkg/logging"
 	"github.com/evalphobia/logrus_sentry"
-	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
 	swaggerFiles "github.com/swaggo/files"
@@ -37,14 +37,13 @@ func RunServer(c configs.Config) *app {
 	}
 	serverConfig := c.Api.Server
 	gin.SetMode(serverConfig.Mode)
-
+	app.setMiddlewares()
 	app.initApis(c.Api)
 	if c.Sentry.DSN != "" {
 		if err := app.configureReporter(c.Sentry.DSN); err != nil {
 			panic(err)
 		}
 	}
-	app.setMiddlewares()
 
 	if c.Api.Server.Swagger {
 		if c.Api.Server.Version != "" {
@@ -77,7 +76,7 @@ func (app *app) setMiddlewares() {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
 	}))
 
-	allowedOrigins := []string{`\.dezswap\.io$`, `dezswap\.netlify\.app$`, `localhost$`, `127\.0\.0\.1$`}
+	allowedOrigins := []string{`\.dezswap\.io$`, `dezswap\.netlify\.app$`, `^https?:\/\/localhost(:\d+)?$`}
 	conf := cors.DefaultConfig()
 	conf.AllowOriginFunc = func(origin string) bool {
 		for _, o := range allowedOrigins {

@@ -33,9 +33,9 @@ func (m *pairMapper) pairToRes(pair service.Pair) PairRes {
 	res := PairRes{
 		PairRes: &dezswap.PairRes{
 			ContractAddr: pair.Address,
-			AssetInfos: []dezswap.AssetInfoRes{
-				dezswap.ToAssetInfoRes(pair.Asset0.Address, ""),
-				dezswap.ToAssetInfoRes(pair.Asset1.Address, ""),
+			AssetInfos: []dezswap.AssetInfoTokenRes{
+				dezswap.ToAssetInfoTokenRes(pair.Asset0.Address),
+				dezswap.ToAssetInfoTokenRes(pair.Asset1.Address),
 			},
 			LiquidityToken: pair.Lp.Address,
 			AssetDecimals:  []uint{uint(pair.Asset0.Decimals), uint(pair.Asset1.Decimals)},
@@ -44,12 +44,12 @@ func (m *pairMapper) pairToRes(pair service.Pair) PairRes {
 	return res
 }
 
-func (m *pairMapper) pairsToRes(pairs []service.Pair) []PairRes {
+func (m *pairMapper) pairsToRes(pairs []service.Pair) PairsRes {
 	res := make([]PairRes, len(pairs))
 	for i, pair := range pairs {
 		res[i] = m.pairToRes(pair)
 	}
-	return res
+	return PairsRes{Pairs: res}
 }
 
 func (m *tokenMapper) tokenToRes(token service.Token) TokenRes {
