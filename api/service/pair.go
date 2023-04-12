@@ -64,6 +64,8 @@ func (s *pairService) GetAll() ([]Pair, error) {
 		"T0.address as asset0_address, T0.decimals as asset0_decimals, T0.verified as asset0_verified",
 		"T1.address as asset1_address, T1.decimals as asset1_decimals, T1.verified as asset1_verified",
 		"LP.address as lp_address, LP.decimals as lp_decimals, LP.verified as lp_verified",
+	).Order(
+		"P.id asc",
 	).Scan(&pairs).Error; err != nil {
 		return nil, errors.Wrap(err, "PairService.GetAll")
 	}

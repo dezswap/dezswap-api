@@ -32,7 +32,7 @@ func (s *poolService) Get(key string) (*Pool, error) {
 // GetAll implements Getter
 func (s *poolService) GetAll() ([]Pool, error) {
 	pools := []indexer.LatestPool{}
-	if err := s.Model(&indexer.LatestPool{}).Where("chain_id = ?", s.chainId).Omit("id,created_at,updated_at,deleted_at").Find(&pools).Error; err != nil {
+	if err := s.Model(&indexer.LatestPool{}).Where("chain_id = ?", s.chainId).Omit("id,created_at,updated_at,deleted_at").Order("id").Find(&pools).Error; err != nil {
 		return nil, errors.Wrap(err, "PoolService.GetAll")
 	}
 	return pools, nil
