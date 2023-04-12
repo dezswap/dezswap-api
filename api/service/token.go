@@ -34,7 +34,7 @@ func (s *tokenService) Get(key string) (*Token, error) {
 // GetAll implements Getter
 func (s *tokenService) GetAll() ([]Token, error) {
 	tokens := []indexer.Token{}
-	if err := s.Model(&indexer.Token{}).Where("chain_id = ?", s.chainId).Omit("id,created_at,updated_at,deleted_at").Find(&tokens).Error; err != nil {
+	if err := s.Model(&indexer.Token{}).Where("chain_id = ?", s.chainId).Omit("id,created_at,updated_at,deleted_at").Order("id").Find(&tokens).Error; err != nil {
 		return nil, errors.Wrap(err, "TokenService.GetAll")
 	}
 
