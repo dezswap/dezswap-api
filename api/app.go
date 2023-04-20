@@ -40,7 +40,11 @@ func RunServer(c configs.Config) *app {
 	app.setMiddlewares()
 	app.initApis(c.Api)
 	if c.Sentry.DSN != "" {
-		if err := app.configureReporter(c.Sentry.DSN); err != nil {
+		if err := app.configureReporter(c.Sentry.DSN, serverConfig.ChainId, map[string]string{
+			"x-app":      "dezswap-api",
+			"x-env":      c.Log.Environment,
+			"x-chain_id": c.Api.Server.ChainId,
+		}); err != nil {
 			panic(err)
 		}
 	}
@@ -72,7 +76,7 @@ func (app *app) run() {
 
 func (app *app) setMiddlewares() {
 	app.engine.Use(gin.CustomRecovery(func(c *gin.Context, err any) {
-		app.logger.WithError(err.(error)).Error("Panic occurred")
+		app.logger.Error(err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
 	}))
 
@@ -117,7 +121,7 @@ func (app *app) initApis(c configs.ApiConfig) {
 	controller.InitTokenController(tokenService, router, app.logger)
 }
 
-func (app *app) configureReporter(dsn string) error {
+func (app *app) configureReporter(dsn, env string, tags map[string]string) error {
 	hook, err := logrus_sentry.NewSentryHook(dsn, []logrus.Level{
 		logrus.WarnLevel,
 		logrus.PanicLevel,
@@ -128,6 +132,8 @@ func (app *app) configureReporter(dsn string) error {
 		return err
 	}
 	hook.StacktraceConfiguration.Enable = true
+	hook.SetTagsContext(tags)
+	hook.SetEnvironment(env)
 	logging.AddHookToLogger(app.logger, hook)
 	return nil
 }

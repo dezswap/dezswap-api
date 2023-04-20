@@ -8,8 +8,8 @@ type SentryConfig struct {
 
 func sentryConfig(v *viper.Viper) SentryConfig {
 	dsn := ""
-	if sub := v.Sub("sentry"); sub == nil {
-		dsn = v.GetString("sentry.dsn")
+	if sub := v.Sub("sentry"); sub != nil {
+		dsn = sub.GetString("dsn")
 	}
 	return SentryConfig{
 		DSN: dsn,

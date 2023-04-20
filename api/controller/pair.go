@@ -1,13 +1,13 @@
 package controller
 
 import (
-	"errors"
 	"net/http"
 
 	"github.com/dezswap/dezswap-api/api/service"
 	"github.com/dezswap/dezswap-api/pkg/httputil"
 	"github.com/dezswap/dezswap-api/pkg/logging"
 	"github.com/gin-gonic/gin"
+	"github.com/pkg/errors"
 )
 
 type pairController struct {
