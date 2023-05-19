@@ -52,6 +52,7 @@ func (*assetMapperImpl) IbcsResToTokens(res *xpla.IbcResMap, chainId string) []i
 		token := indexer.Token{
 			Address:  fmt.Sprintf("ibc/%s", k),
 			ChainId:  chainId,
+			Decimals: xpla.IBC_DEFAULT_TOKEN_DECIMALS,
 			Verified: true,
 		}
 		if v.Icon != nil {
@@ -62,6 +63,9 @@ func (*assetMapperImpl) IbcsResToTokens(res *xpla.IbcResMap, chainId string) []i
 		}
 		if v.Symbol != nil {
 			token.Symbol = *v.Symbol
+		}
+		if v.Decimals != nil {
+			token.Decimals = *v.Decimals
 		}
 		tokens = append(tokens, token)
 	}
