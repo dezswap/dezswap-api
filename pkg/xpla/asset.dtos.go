@@ -34,4 +34,5 @@ type IbcRes struct {
 	Symbol    *string `json:"symbol,omitempty"`
 	Name      *string `json:"name,omitempty"`
 	Icon      *string `json:"icon,omitempty"`
+	Decimals  *uint8  `json:"decimals,omitempty"`
 }
