@@ -1,7 +1,7 @@
 package service
 
 type Gettable interface {
-	Pool | Token | Pair
+	Pool | Token | Pair | Ticker
 }
 
 type Getter[T Gettable] interface {

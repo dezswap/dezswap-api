@@ -13,6 +13,19 @@ type Pair struct {
 	Lp      Token `gorm:"embedded;embeddedPrefix:lp_"`
 }
 
+type Ticker struct {
+	BaseCurrency         string
+	TargetCurrency       string
+	LastPrice            string
+	BaseVolume           string
+	TargetVolume         string
+	BaseDecimals         int
+	TargetDecimals       int
+	BaseLiquidityInPrice string
+	PoolId               string
+	Timestamp            float64
+}
+
 type Pool = indexer.LatestPool
 
 type Token = indexer.Token
