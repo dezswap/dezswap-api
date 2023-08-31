@@ -24,8 +24,27 @@ const (
 	priceInfoLength
 )
 
+type pairMapper struct{}
+
 type tickerMapper struct {
 	cachedPrices [][priceInfoLength]float64
+}
+
+func (m *pairMapper) pairToRes(pair coingeckoService.Pair) PairRes {
+	return PairRes{
+		TickerId: pair.TickerId,
+		Base:     pair.Base,
+		Target:   pair.Target,
+		PoolId:   pair.PoolId,
+	}
+}
+
+func (m *pairMapper) pairsToRes(pairs []coingeckoService.Pair) PairsRes {
+	res := make([]PairRes, len(pairs))
+	for i, ticker := range pairs {
+		res[i] = m.pairToRes(ticker)
+	}
+	return res
 }
 
 func (m *tickerMapper) tickerToRes(ticker coingeckoService.Ticker) (TickerRes, error) {

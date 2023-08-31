@@ -1,5 +1,14 @@
 package coingecko
 
+type PairsRes []PairRes
+
+type PairRes struct {
+	TickerId string `json:"ticker_id"`
+	Base     string `json:"base"`
+	Target   string `json:"target"`
+	PoolId   string `json:"pool_id"`
+}
+
 type TickersRes []TickerRes
 
 type TickerRes struct {

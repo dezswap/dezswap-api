@@ -72,7 +72,7 @@ func (c *tickerController) Tickers(ctx *gin.Context) {
 func (c *tickerController) Ticker(ctx *gin.Context) {
 	id := ctx.Param("id")
 	if id == "" {
-		httputil.NewError(ctx, http.StatusBadRequest, errors.New("invalid base address"))
+		httputil.NewError(ctx, http.StatusBadRequest, errors.New("invalid ticker address"))
 		return
 	}
 

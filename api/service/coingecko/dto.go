@@ -12,3 +12,10 @@ type Ticker struct {
 	PoolId               string
 	Timestamp            float64
 }
+
+type Pair struct {
+	TickerId string
+	Base     string
+	Target   string
+	PoolId   string
+}

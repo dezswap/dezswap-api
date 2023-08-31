@@ -124,7 +124,10 @@ func (app *app) initApis(c configs.ApiConfig) {
 
 	// coingecko endpoint
 	r := router.Group("/coingecko")
+	coingeckoPairService := coingecko.NewPairService(chainId, db)
 	tickerService := coingecko.NewTickerService(chainId, db)
+
+	geckoController.InitPairController(coingeckoPairService, r, app.logger)
 	geckoController.InitTickerController(tickerService, r, app.logger)
 }
 
