@@ -16,3 +16,21 @@ type Pair struct {
 type Pool = indexer.LatestPool
 
 type Token = indexer.Token
+
+type PairStat struct {
+	Address           string
+	VolumeInPrice     string
+	CommissionInPrice string
+	AprInPrice        string
+}
+
+type PeriodTypeIdx int
+
+const (
+	Period24h PeriodTypeIdx = 0 + iota
+	Period7d
+	Period1mon
+	CountOfPeriodType
+)
+
+type PairStats []PairStat

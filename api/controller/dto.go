@@ -32,3 +32,20 @@ type PairsRes struct {
 type PairRes struct {
 	*dezswap.PairRes
 }
+
+type StatsRes struct {
+	Stats24h  StatRes `json:"stats_24h"`
+	Stats7d   StatRes `json:"stats_7d"`
+	Stats1mon StatRes `json:"stats_1mon"`
+}
+
+type StatRes struct {
+	Volume []StatValueRes `json:"volume"`
+	Fee    []StatValueRes `json:"fee"`
+	Apr    []StatValueRes `json:"apr"`
+}
+
+type StatValueRes struct {
+	Address string `json:"address"`
+	Value   string `json:"value"`
+}
