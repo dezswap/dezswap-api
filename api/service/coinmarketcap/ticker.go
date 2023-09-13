@@ -78,7 +78,7 @@ func (s tickerService) Get(key string) (*Ticker, error) {
 		ticker.LastPrice = lastPrice
 	} else {
 		var err error
-		ticker, err = s.updateLastPrice(tokens[0], tokens[1])
+		ticker, err = s.lastPrice(tokens[0], tokens[1])
 		if err != nil {
 			return nil, err
 		}
@@ -87,7 +87,7 @@ func (s tickerService) Get(key string) (*Ticker, error) {
 	return ticker, nil
 }
 
-func (s *tickerService) updateLastPrice(base string, quote string) (*Ticker, error) {
+func (s *tickerService) lastPrice(base string, quote string) (*Ticker, error) {
 	var ticker Ticker
 	if tx := s.Table("pair_stats_30m ps").Joins(
 		"join (select pair_id, max(timestamp) latest_timestamp from pair_stats_30m group by pair_id) t on ps.pair_id = t.pair_id and ps.timestamp = t.latest_timestamp ",
@@ -95,7 +95,7 @@ func (s *tickerService) updateLastPrice(base string, quote string) (*Ticker, err
 		"ps.last_swap_price last_price," +
 			"extract(epoch from now()) * 1000 timestamp",
 	).Find(&ticker); tx.Error != nil {
-		return nil, errors.Wrap(tx.Error, "TickerService.updateLastPrice")
+		return nil, errors.Wrap(tx.Error, "TickerService.lastPrice")
 	}
 
 	return &ticker, nil
@@ -177,7 +177,7 @@ func (s tickerService) GetAll() ([]Ticker, error) {
 		poolIds = append(poolIds, t.PoolId)
 	}
 
-	inactiveTickers, err := s.updateInactivePools(poolIds)
+	inactiveTickers, err := s.inactivePools(poolIds)
 	if err != nil {
 		return nil, err
 	}
@@ -186,7 +186,7 @@ func (s tickerService) GetAll() ([]Ticker, error) {
 	return tickers, nil
 }
 
-func (s *tickerService) updateInactivePools(activePoolIds []string) ([]Ticker, error) {
+func (s *tickerService) inactivePools(activePoolIds []string) ([]Ticker, error) {
 	tickers := []Ticker{}
 
 	tx := s.Table("pair_stats_30m ps").Joins(
@@ -215,7 +215,7 @@ func (s *tickerService) updateInactivePools(activePoolIds []string) ([]Ticker, e
 	}
 
 	if tx := tx.Find(&tickers); tx.Error != nil {
-		return nil, errors.Wrap(tx.Error, "TickerService.updateInactivePools")
+		return nil, errors.Wrap(tx.Error, "TickerService.inactivePools")
 	}
 
 	return tickers, nil
