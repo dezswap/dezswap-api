@@ -1,20 +1,39 @@
 package coingecko
 
 import (
+	"context"
+	"encoding/json"
 	"github.com/cosmos/cosmos-sdk/types"
 	"github.com/dezswap/dezswap-api/api/service"
 	"github.com/pkg/errors"
 	"gorm.io/gorm"
+	"net/http"
+	"net/url"
+	"strconv"
 	"strings"
+	"time"
+)
+
+const priceTokenId = "axlusdc"
+const coinGeckoEndpoint = "https://api.coingecko.com/api/v3/coins/"
+const queryTimeout = 10 * time.Second
+
+type priceInfo int
+
+const (
+	priceTimestamp priceInfo = 0 + iota
+	priceValue
+	priceInfoLength
 )
 
 type tickerService struct {
 	chainId string
 	*gorm.DB
+	cachedPrices [][priceInfoLength]float64
 }
 
 func NewTickerService(chainId string, db *gorm.DB) service.Getter[Ticker] {
-	return &tickerService{chainId, db}
+	return &tickerService{chainId, db, [][priceInfoLength]float64{}}
 }
 
 // Get implements Getter
@@ -41,7 +60,7 @@ func (s *tickerService) Get(key string) (*Ticker, error) {
 			"p.contract pool_id," +
 			"ps.timestamp",
 	).Scan(&tickers); tx.Error != nil {
-		return nil, errors.Wrap(tx.Error, "TickerService.GetAll")
+		return nil, errors.Wrap(tx.Error, "TickerService.Get")
 	}
 
 	totalBaseVolume := types.ZeroDec()
@@ -50,11 +69,11 @@ func (s *tickerService) Get(key string) (*Ticker, error) {
 	for _, t := range tickers {
 		baseVolume, err := types.NewDecFromStr(t.BaseVolume)
 		if err != nil {
-			return nil, err
+			return nil, errors.Wrap(err, "TickerService.Get")
 		}
 		targetVolume, err := types.NewDecFromStr(t.TargetVolume)
 		if err != nil {
-			return nil, err
+			return nil, errors.Wrap(err, "TickerService.Get")
 		}
 
 		totalBaseVolume = totalBaseVolume.Add(baseVolume)
@@ -75,16 +94,22 @@ func (s *tickerService) Get(key string) (*Ticker, error) {
 		ticker.TargetVolume = totalTargetVolume.String()
 		ticker.LastPrice = lastPrice
 	} else {
-		err := s.updateLiquidity(tokens[0], tokens[1], ticker)
+		err := s.liquidity(tokens[0], tokens[1], ticker)
 		if err != nil {
-			return nil, err
+			return nil, errors.Wrap(err, "TickerService.Get")
 		}
 	}
+
+	baseLiquidityInUsd, err := s.liquidityInUsd(*ticker)
+	if err != nil {
+		return nil, errors.Wrap(err, "TickerService.GetAll")
+	}
+	ticker.BaseLiquidityInPrice = baseLiquidityInUsd
 
 	return ticker, nil
 }
 
-func (s *tickerService) updateLiquidity(base string, target string, ticker *Ticker) error {
+func (s *tickerService) liquidity(base string, target string, ticker *Ticker) error {
 	if tx := s.Table("pair_stats_30m ps").Joins(
 		"join (select pair_id, max(timestamp) latest_timestamp from pair_stats_30m group by pair_id) t on ps.pair_id = t.pair_id and ps.timestamp = t.latest_timestamp "+
 			"join pair p on ps.pair_id = p.id "+
@@ -155,15 +180,14 @@ func (s *tickerService) GetAll() ([]Ticker, error) {
 			lastPrice = baseVolume.Quo(targetVolume).Quo(decimalDiff).Abs()
 		}
 
+		t.LastPrice = lastPrice.String()
 		if lt, ok := tickerMap[t.PoolId]; ok {
-			lt.LastPrice = lastPrice.String()
 			tickerMap[t.PoolId] = tickerWithDec{
-				Ticker:       lt.Ticker,
+				Ticker:       t,
 				BaseVolume:   lt.BaseVolume.Add(baseVolume),
 				TargetVolume: lt.TargetVolume.Add(targetVolume),
 			}
 		} else {
-			t.LastPrice = lastPrice.String()
 			tickerMap[t.PoolId] = tickerWithDec{
 				Ticker:       t,
 				BaseVolume:   baseVolume,
@@ -182,16 +206,24 @@ func (s *tickerService) GetAll() ([]Ticker, error) {
 		poolIds = append(poolIds, t.PoolId)
 	}
 
-	inactiveTickers, err := s.updateInactivePools(poolIds)
+	inactiveTickers, err := s.inactivePools(poolIds)
 	if err != nil {
 		return nil, err
 	}
 	tickers = append(tickers, inactiveTickers...)
 
+	for i, t := range tickers {
+		baseLiquidityInUsd, err := s.liquidityInUsd(t)
+		if err != nil {
+			return nil, errors.Wrap(err, "TickerService.GetAll")
+		}
+		tickers[i].BaseLiquidityInPrice = baseLiquidityInUsd
+	}
+
 	return tickers, nil
 }
 
-func (s *tickerService) updateInactivePools(activePoolIds []string) ([]Ticker, error) {
+func (s *tickerService) inactivePools(activePoolIds []string) ([]Ticker, error) {
 	tickers := []Ticker{}
 
 	tx := s.Table("pair_stats_30m ps").Joins(
@@ -218,8 +250,89 @@ func (s *tickerService) updateInactivePools(activePoolIds []string) ([]Ticker, e
 	}
 
 	if tx := tx.Find(&tickers); tx.Error != nil {
-		return nil, errors.Wrap(tx.Error, "TickerService.updateInactivePools")
+		return nil, errors.Wrap(tx.Error, "TickerService.inactivePools")
 	}
 
 	return tickers, nil
+}
+
+func (s *tickerService) liquidityInUsd(ticker Ticker) (string, error) {
+	baseLiquidityInPrice, err := strconv.ParseFloat(ticker.BaseLiquidityInPrice, 64)
+	if err != nil {
+		return "", err
+	}
+	priceTokenInUsd := s.price(ticker.Timestamp*1000, false)
+	if priceTokenInUsd == 0 {
+		err = s.cachePriceInUsd(priceTokenId)
+		if err != nil {
+			return "", err
+		}
+		priceTokenInUsd = s.price(ticker.Timestamp*1000, true)
+	}
+
+	return strconv.FormatFloat(baseLiquidityInPrice*priceTokenInUsd, 'f', -1, 64), nil
+}
+
+// TODO: fixed endpoint and arguments
+func (s *tickerService) cachePriceInUsd(priceCoinId string) error {
+	timeoutCtx, cancel := context.WithTimeout(context.Background(), queryTimeout)
+	defer cancel()
+
+	endpoint, err := url.Parse(coinGeckoEndpoint + priceCoinId + "/market_chart")
+	if err != nil {
+		return err
+	}
+
+	query := endpoint.Query()
+	query.Add("vs_currency", "usd")
+	query.Add("days", "1")
+	endpoint.RawQuery = query.Encode()
+
+	request, err := http.NewRequestWithContext(timeoutCtx, http.MethodGet, endpoint.String(), nil)
+	if err != nil {
+		return err
+	}
+
+	client := http.Client{}
+	response, err := client.Do(request)
+	if err != nil {
+		return err
+	}
+	defer response.Body.Close()
+
+	if response.StatusCode != http.StatusOK {
+		code := response.StatusCode
+		return errors.New(strings.Join([]string{"Price endpoint returns http code [", http.StatusText(code), " ", strconv.Itoa(code), "]"}, ""))
+	}
+
+	type queryResponse struct {
+		Prices [][priceInfoLength]float64
+		///...
+	}
+
+	var decoded queryResponse
+	decoder := json.NewDecoder(response.Body)
+	err = decoder.Decode(&decoded)
+	if err != nil {
+		return err
+	}
+
+	s.cachedPrices = decoded.Prices
+
+	return nil
+}
+
+func (s *tickerService) price(targetTimestamp float64, force bool) float64 {
+	price := float64(0)
+	for _, p := range s.cachedPrices {
+		if p[priceTimestamp] > targetTimestamp {
+			return price
+		}
+		price = p[priceValue]
+	}
+
+	if force {
+		return price
+	}
+	return 0
 }
