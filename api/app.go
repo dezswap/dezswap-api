@@ -2,6 +2,8 @@ package api
 
 import (
 	"fmt"
+	geckoController "github.com/dezswap/dezswap-api/api/controller/coingecko"
+	"github.com/dezswap/dezswap-api/api/service/coingecko"
 	"net/http"
 	"regexp"
 
@@ -119,6 +121,14 @@ func (app *app) initApis(c configs.ApiConfig) {
 	controller.InitPairController(pairService, router, app.logger)
 	controller.InitPoolController(poolService, router, app.logger)
 	controller.InitTokenController(tokenService, router, app.logger)
+
+	// coingecko endpoint
+	r := router.Group("/coingecko")
+	coingeckoPairService := coingecko.NewPairService(chainId, db)
+	tickerService := coingecko.NewTickerService(chainId, db)
+
+	geckoController.InitPairController(coingeckoPairService, r, app.logger)
+	geckoController.InitTickerController(tickerService, r, app.logger)
 }
 
 func (app *app) configureReporter(dsn, env string, tags map[string]string) error {

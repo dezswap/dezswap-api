@@ -16,3 +16,8 @@ type TokenController interface {
 	Tokens(ctx *gin.Context)
 	Token(ctx *gin.Context)
 }
+
+type TickerController interface {
+	Tickers(ctx *gin.Context)
+	Ticker(ctx *gin.Context)
+}
