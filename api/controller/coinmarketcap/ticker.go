@@ -47,12 +47,7 @@ func (c *tickerController) Tickers(ctx *gin.Context) {
 		httputil.NewError(ctx, http.StatusInternalServerError, errors.New("internal server error"))
 		return
 	}
-	res, err := c.tickersToRes(tickers)
-	if err != nil {
-		c.logger.Warn(err)
-		httputil.NewError(ctx, http.StatusInternalServerError, errors.New("internal server error"))
-		return
-	}
+	res := c.tickersToRes(tickers)
 
 	ctx.JSON(http.StatusOK, res)
 }
@@ -87,13 +82,7 @@ func (c *tickerController) Ticker(ctx *gin.Context) {
 		httputil.NewError(ctx, http.StatusNotFound, errors.New("ticker not found"))
 		return
 	}
-
-	res, err := c.tickerToRes(*ticker)
-	if err != nil {
-		c.logger.Warn(err)
-		httputil.NewError(ctx, http.StatusInternalServerError, errors.New("internal server error"))
-		return
-	}
+	res := c.tickerToRes(*ticker)
 
 	ctx.JSON(http.StatusOK, res)
 }

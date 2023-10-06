@@ -6,7 +6,7 @@ import (
 
 type tickerMapper struct{}
 
-func (m *tickerMapper) tickerToRes(ticker coinMarketCapService.Ticker) (TickerRes, error) {
+func (m *tickerMapper) tickerToRes(ticker coinMarketCapService.Ticker) TickerRes {
 	return TickerRes{
 		BaseId:      ticker.BaseAddress,
 		BaseSymbol:  ticker.BaseSymbol,
@@ -16,18 +16,14 @@ func (m *tickerMapper) tickerToRes(ticker coinMarketCapService.Ticker) (TickerRe
 		LastPrice:   ticker.LastPrice,
 		BaseVolume:  ticker.BaseVolume,
 		QuoteVolume: ticker.QuoteVolume,
-	}, nil
+	}
 }
 
-func (m *tickerMapper) tickersToRes(tickers []coinMarketCapService.Ticker) (TickersRes, error) {
-	var err error
+func (m *tickerMapper) tickersToRes(tickers []coinMarketCapService.Ticker) TickersRes {
 	res := make(map[string]TickerRes, len(tickers))
 	for _, t := range tickers {
-		res[t.BaseAddress+"_"+t.QuoteAddress], err = m.tickerToRes(t)
-		if err != nil {
-			return nil, err
-		}
+		res[t.BaseAddress+"_"+t.QuoteAddress] = m.tickerToRes(t)
 	}
 
-	return res, nil
+	return res
 }
