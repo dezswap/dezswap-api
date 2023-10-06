@@ -241,7 +241,7 @@ func (s *tickerService) inactivePools(activePoolIds []string) ([]Ticker, error) 
 			"t1.decimals target_decimals," +
 			"liquidity0_in_price base_liquidity_in_price," +
 			"p.contract pool_id, " +
-			"extract(epoch from now()) * 1000 timestamp",
+			"extract(epoch from now()) * 1000 as timestamp",
 	)
 	if len(activePoolIds) > 0 {
 		tx = tx.Where("p.chain_id = ? and p.contract not in ?", s.chainId, activePoolIds)
