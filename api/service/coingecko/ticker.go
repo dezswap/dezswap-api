@@ -251,32 +251,33 @@ func (s *tickerService) GetAll() ([]Ticker, error) {
 }
 
 func (s *tickerService) inactivePools(activePoolIds []string) ([]Ticker, error) {
-	tickers := []Ticker{}
+	query := `
+select p.asset0 base_currency,
+       p.asset1 target_currency,
+       '0' base_volume,
+       '0' target_volume,
+       ps.last_swap_price last_price,
+       t0.decimals base_decimals,
+       t1.decimals target_decimals,
+       liquidity0_in_price base_liquidity_in_price,
+       p.contract pool_id, 
+       extract(epoch from now()) * 1000 as timestamp
+from pair_stats_30m ps
+	join (select pair_id, max(timestamp) latest_timestamp
+		from pair_stats_30m
+		group by pair_id) t on ps.pair_id = t.pair_id and ps.timestamp = t.latest_timestamp 
+	join pair p on ps.pair_id = p.id
+	join tokens t0 on p.chain_id = t0.chain_id and p.asset0 = t0.address
+	join tokens t1 on p.chain_id = t1.chain_id and p.asset1 = t1.address
+where p.chain_id = ?
+`
 
-	tx := s.Table("pair_stats_30m ps").Joins(
-		"join (select pair_id, max(timestamp) latest_timestamp from pair_stats_30m group by pair_id) t on ps.pair_id = t.pair_id and ps.timestamp = t.latest_timestamp " +
-			"join pair p on ps.pair_id = p.id " +
-			"join tokens t0 on p.chain_id = t0.chain_id and p.asset0 = t0.address " +
-			"join tokens t1 on p.chain_id = t1.chain_id and p.asset1 = t1.address",
-	).Select(
-		"p.asset0 base_currency," +
-			"p.asset1 target_currency," +
-			"'0' base_volume," +
-			"'0' target_volume," +
-			"ps.last_swap_price last_price," +
-			"t0.decimals base_decimals," +
-			"t1.decimals target_decimals," +
-			"liquidity0_in_price base_liquidity_in_price," +
-			"p.contract pool_id, " +
-			"extract(epoch from now()) * 1000 as timestamp",
-	)
 	if len(activePoolIds) > 0 {
-		tx = tx.Where("p.chain_id = ? and p.contract not in ?", s.chainId, activePoolIds)
-	} else {
-		tx = tx.Where("p.chain_id = ?", s.chainId)
+		query += " and p.contract not in (" + strings.Join(activePoolIds, ",") + ")"
 	}
 
-	if tx := tx.Find(&tickers); tx.Error != nil {
+	tickers := []Ticker{}
+	if tx := s.Raw(query, s.chainId).Find(&tickers); tx.Error != nil {
 		return nil, errors.Wrap(tx.Error, "TickerService.inactivePools")
 	}
 
