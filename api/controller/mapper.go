@@ -9,6 +9,8 @@ type pairMapper struct{}
 type poolMapper struct{}
 type tokenMapper struct{}
 
+type statMapper struct{}
+
 func (m *poolMapper) poolToRes(pool service.Pool) PoolRes {
 	res := PoolRes{
 		Address: pool.Address,
@@ -72,4 +74,26 @@ func (m *tokenMapper) tokensToRes(tokens []service.Token) []TokenRes {
 		res[i] = m.tokenToRes(token)
 	}
 	return res
+}
+
+func (m *statMapper) statToRes(stat service.PairStats) StatRes {
+	volumes := make([]StatValueRes, 0, len(stat))
+	fees := make([]StatValueRes, 0, len(stat))
+	aprs := make([]StatValueRes, 0, len(stat))
+
+	for _, s := range stat {
+		volumes = append(volumes, StatValueRes{Address: s.Address, Value: s.VolumeInPrice})
+		fees = append(fees, StatValueRes{Address: s.Address, Value: s.CommissionInPrice})
+		aprs = append(aprs, StatValueRes{Address: s.Address, Value: s.AprInPrice})
+	}
+
+	return StatRes{Volume: volumes, Fee: fees, Apr: aprs}
+}
+
+func (m *statMapper) statsToRes(stats []service.PairStats) StatsRes {
+	return StatsRes{
+		Stats24h:  m.statToRes(stats[service.Period24h]),
+		Stats7d:   m.statToRes(stats[service.Period7d]),
+		Stats1mon: m.statToRes(stats[service.Period1mon]),
+	}
 }

@@ -117,12 +117,14 @@ func (app *app) initApis(c configs.ApiConfig) {
 	pairService := service.NewPairService(chainId, db)
 	poolService := service.NewPoolService(chainId, db)
 	tokenService := service.NewTokenService(chainId, db)
+	statService := service.NewStatService(chainId, db)
 
 	version := c.Server.Version
 	router := app.engine.Group(version)
 	controller.InitPairController(pairService, router, app.logger)
 	controller.InitPoolController(poolService, router, app.logger)
 	controller.InitTokenController(tokenService, router, app.logger)
+	controller.InitStatController(statService, router, app.logger)
 
 	// CoinGecko endpoint
 	r := router.Group("/coingecko")

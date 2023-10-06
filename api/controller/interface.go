@@ -21,3 +21,8 @@ type TickerController interface {
 	Tickers(ctx *gin.Context)
 	Ticker(ctx *gin.Context)
 }
+
+type StatController interface {
+	Stats(ctx *gin.Context)
+	Stat(ctx *gin.Context)
+}

@@ -7,6 +7,7 @@ import (
 	"github.com/dezswap/dezswap-api/api/service"
 	"github.com/pkg/errors"
 	"gorm.io/gorm"
+	"math"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -97,6 +98,13 @@ func (s *tickerService) Get(key string) (*Ticker, error) {
 		err := s.liquidity(tokens[0], tokens[1], ticker)
 		if err != nil {
 			return nil, errors.Wrap(err, "TickerService.Get")
+		}
+	}
+
+	if p := s.price(ticker.Timestamp, false); p == 0 {
+		err := s.cachePriceInUsd(priceTokenId)
+		if err != nil {
+			return nil, err
 		}
 	}
 
@@ -198,12 +206,16 @@ func (s *tickerService) GetAll() ([]Ticker, error) {
 
 	tickers = make([]Ticker, 0, len(tickerMap))
 	poolIds := make([]string, 0, len(tickerMap))
+	latestTs := float64(0)
 	for _, v := range tickerMap {
 		t := v.Ticker
 		t.BaseVolume = v.BaseVolume.String()
 		t.TargetVolume = v.TargetVolume.String()
 		tickers = append(tickers, t)
 		poolIds = append(poolIds, t.PoolId)
+		if latestTs < v.Timestamp {
+			latestTs = v.Timestamp
+		}
 	}
 
 	inactiveTickers, err := s.inactivePools(poolIds)
@@ -211,6 +223,21 @@ func (s *tickerService) GetAll() ([]Ticker, error) {
 		return nil, err
 	}
 	tickers = append(tickers, inactiveTickers...)
+
+	if latestTs == 0 {
+		for _, t := range inactiveTickers {
+			if latestTs < t.Timestamp {
+				latestTs = t.Timestamp
+			}
+		}
+	}
+
+	if p := s.price(latestTs, false); p == 0 {
+		err := s.cachePriceInUsd(priceTokenId)
+		if err != nil {
+			return nil, err
+		}
+	}
 
 	for i, t := range tickers {
 		baseLiquidityInUsd, err := s.liquidityInUsd(t)
@@ -224,32 +251,33 @@ func (s *tickerService) GetAll() ([]Ticker, error) {
 }
 
 func (s *tickerService) inactivePools(activePoolIds []string) ([]Ticker, error) {
-	tickers := []Ticker{}
+	query := `
+select p.asset0 base_currency,
+       p.asset1 target_currency,
+       '0' base_volume,
+       '0' target_volume,
+       ps.last_swap_price last_price,
+       t0.decimals base_decimals,
+       t1.decimals target_decimals,
+       liquidity0_in_price base_liquidity_in_price,
+       p.contract pool_id, 
+       extract(epoch from now()) * 1000 as timestamp
+from pair_stats_30m ps
+	join (select pair_id, max(timestamp) latest_timestamp
+		from pair_stats_30m
+		group by pair_id) t on ps.pair_id = t.pair_id and ps.timestamp = t.latest_timestamp 
+	join pair p on ps.pair_id = p.id
+	join tokens t0 on p.chain_id = t0.chain_id and p.asset0 = t0.address
+	join tokens t1 on p.chain_id = t1.chain_id and p.asset1 = t1.address
+where p.chain_id = ?
+`
 
-	tx := s.Table("pair_stats_30m ps").Joins(
-		"join (select pair_id, max(timestamp) latest_timestamp from pair_stats_30m group by pair_id) t on ps.pair_id = t.pair_id and ps.timestamp = t.latest_timestamp " +
-			"join pair p on ps.pair_id = p.id " +
-			"join tokens t0 on p.chain_id = t0.chain_id and p.asset0 = t0.address " +
-			"join tokens t1 on p.chain_id = t1.chain_id and p.asset1 = t1.address",
-	).Select(
-		"p.asset0 base_currency," +
-			"p.asset1 target_currency," +
-			"'0' base_volume," +
-			"'0' target_volume," +
-			"ps.last_swap_price last_price," +
-			"t0.decimals base_decimals," +
-			"t1.decimals target_decimals," +
-			"liquidity0_in_price base_liquidity_in_price," +
-			"p.contract pool_id, " +
-			"extract(epoch from now()) * 1000 timestamp",
-	)
 	if len(activePoolIds) > 0 {
-		tx = tx.Where("p.chain_id = ? and p.contract not in ?", s.chainId, activePoolIds)
-	} else {
-		tx = tx.Where("p.chain_id = ?", s.chainId)
+		query += " and p.contract not in (" + strings.Join(activePoolIds, ",") + ")"
 	}
 
-	if tx := tx.Find(&tickers); tx.Error != nil {
+	tickers := []Ticker{}
+	if tx := s.Raw(query, s.chainId).Find(&tickers); tx.Error != nil {
 		return nil, errors.Wrap(tx.Error, "TickerService.inactivePools")
 	}
 
@@ -261,14 +289,7 @@ func (s *tickerService) liquidityInUsd(ticker Ticker) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	priceTokenInUsd := s.price(ticker.Timestamp*1000, false)
-	if priceTokenInUsd == 0 {
-		err = s.cachePriceInUsd(priceTokenId)
-		if err != nil {
-			return "", err
-		}
-		priceTokenInUsd = s.price(ticker.Timestamp*1000, true)
-	}
+	priceTokenInUsd := s.price(ticker.Timestamp, true)
 
 	return strconv.FormatFloat(baseLiquidityInPrice*priceTokenInUsd, 'f', -1, 64), nil
 }
@@ -325,7 +346,7 @@ func (s *tickerService) cachePriceInUsd(priceCoinId string) error {
 func (s *tickerService) price(targetTimestamp float64, force bool) float64 {
 	price := float64(0)
 	for _, p := range s.cachedPrices {
-		if p[priceTimestamp] > targetTimestamp {
+		if p[priceTimestamp] > math.Trunc(targetTimestamp) {
 			return price
 		}
 		price = p[priceValue]
