@@ -87,14 +87,32 @@ func (s tickerService) Get(key string) (*Ticker, error) {
 	return ticker, nil
 }
 
-func (s *tickerService) lastPrice(base string, quote string) (*Ticker, error) {
+func (s tickerService) lastPrice(base string, quote string) (*Ticker, error) {
+	query := `
+select t0.address base_address,
+	   t0.name base_name,
+	   t0.symbol base_symbol,
+	   t1.address quote_address,
+	   t1.name quote_name,
+	   t1.symbol quote_symbol,
+	   '0' base_volume,
+	   '0' quote_volume,
+       ps.last_swap_price last_price,
+       t1.decimals quote_decimals,
+	   t0.decimals base_decimals,
+       extract(epoch from now()) * 1000 as timestamp
+from pair_stats_30m ps
+     join (select pair_id, max(timestamp) latest_timestamp
+           from pair_stats_30m
+           group by pair_id) t on ps.pair_id = t.pair_id and ps.timestamp = t.latest_timestamp
+     join pair p on ps.pair_id = p.id
+     join tokens t0 on p.chain_id = t0.chain_id and p.asset0 = t0.address
+	 join tokens t1 on p.chain_id = t1.chain_id and p.asset1 = t1.address
+where p.chain_id = ? and p.asset0 = ? and p.asset1 = ?
+`
+
 	var ticker Ticker
-	if tx := s.Table("pair_stats_30m ps").Joins(
-		"join (select pair_id, max(timestamp) latest_timestamp from pair_stats_30m group by pair_id) t on ps.pair_id = t.pair_id and ps.timestamp = t.latest_timestamp ",
-	).Where("p.chain_id = ? and p.asset0 = ? and p.asset1 = ?", s.chainId, base, quote).Select(
-		"ps.last_swap_price last_price," +
-			"extract(epoch from now()) * 1000 timestamp",
-	).Find(&ticker); tx.Error != nil {
+	if tx := s.Raw(query, s.chainId, base, quote).Find(&ticker); tx.Error != nil {
 		return nil, errors.Wrap(tx.Error, "TickerService.lastPrice")
 	}
 
@@ -186,35 +204,35 @@ func (s tickerService) GetAll() ([]Ticker, error) {
 	return tickers, nil
 }
 
-func (s *tickerService) inactivePools(activePoolIds []string) ([]Ticker, error) {
-	tickers := []Ticker{}
-
-	tx := s.Table("pair_stats_30m ps").Joins(
-		"join (select pair_id, max(timestamp) latest_timestamp from pair_stats_30m group by pair_id) t on ps.pair_id = t.pair_id and ps.timestamp = t.latest_timestamp " +
-			"join pair p on ps.pair_id = p.id " +
-			"join tokens t0 on p.chain_id = t0.chain_id and p.asset0 = t0.address " +
-			"join tokens t1 on p.chain_id = t1.chain_id and p.asset1 = t1.address",
-	).Select(
-		"t0.address base_address," +
-			"t0.name base_name," +
-			"t0.symbol base_symbol," +
-			"t1.address quote_address," +
-			"t1.name quote_name," +
-			"t1.symbol quote_symbol," +
-			"'0' base_volume," +
-			"'0' quote_volume," +
-			"ps.last_swap_price last_price," +
-			"t0.decimals base_decimals," +
-			"t1.decimals quote_decimals," +
-			"extract(epoch from now()) * 1000 timestamp",
-	)
+func (s tickerService) inactivePools(activePoolIds []string) ([]Ticker, error) {
+	query := `
+select t0.address base_address,
+       t0.name base_name,
+       t0.symbol base_symbol,
+       t1.address quote_address,
+       t1.name quote_name,
+       t1.symbol quote_symbol,
+       '0' base_volume,
+       '0' quote_volume,
+       ps.last_swap_price last_price,
+       t1.decimals quote_decimals,
+       t0.decimals base_decimals,
+       extract(epoch from now()) * 1000 as timestamp
+from pair_stats_30m ps
+	join (select pair_id, max(timestamp) latest_timestamp
+	      from pair_stats_30m
+	      group by pair_id) t on ps.pair_id = t.pair_id and ps.timestamp = t.latest_timestamp
+	join pair p on ps.pair_id = p.id
+	join tokens t0 on p.chain_id = t0.chain_id and p.asset0 = t0.address
+	join tokens t1 on p.chain_id = t1.chain_id and p.asset1 = t1.address
+where p.chain_id = ?
+`
 	if len(activePoolIds) > 0 {
-		tx = tx.Where("p.chain_id = ? and p.contract not in ?", s.chainId, activePoolIds)
-	} else {
-		tx = tx.Where("p.chain_id = ?", s.chainId)
+		query += " and p.contract not in (" + strings.Join(activePoolIds, ",") + ")"
 	}
 
-	if tx := tx.Find(&tickers); tx.Error != nil {
+	tickers := []Ticker{}
+	if tx := s.Raw(query, s.chainId).Find(&tickers); tx.Error != nil {
 		return nil, errors.Wrap(tx.Error, "TickerService.inactivePools")
 	}
 
