@@ -59,7 +59,7 @@ func (c *tickerController) Tickers(ctx *gin.Context) {
 //	@Tags			tickers
 //	@Accept			json
 //	@Produce		json
-//	@Param			id	path		string	true
+//	@Param			id	path		string	true "Ticker ID"
 //	@Success		200		{object}	TickerRes
 //	@Failure		400	{object}	httputil.BadRequestError
 //	@Failure		500	{object}	httputil.InternalServerError

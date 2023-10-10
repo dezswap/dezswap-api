@@ -1,4 +1,59 @@
 definitions:
+  coingecko.PairRes:
+    properties:
+      base:
+        type: string
+      pool_id:
+        type: string
+      target:
+        type: string
+      ticker_id:
+        type: string
+    type: object
+  coingecko.TickerRes:
+    properties:
+      base_currency:
+        type: string
+      base_volume:
+        type: number
+      last_price:
+        type: number
+      liquidity_in_usd:
+        type: number
+      pool_id:
+        type: string
+      target_currency:
+        type: string
+      target_volume:
+        type: number
+      ticker_id:
+        type: string
+    type: object
+  coinmarketcap.TickerRes:
+    properties:
+      base_id:
+        type: string
+      base_name:
+        type: string
+      base_symbol:
+        type: string
+      base_volume:
+        type: string
+      last_price:
+        type: string
+      quote_id:
+        type: string
+      quote_name:
+        type: string
+      quote_symbol:
+        type: string
+      quote_volume:
+        type: string
+    type: object
+  coinmarketcap.TickersRes:
+    additionalProperties:
+      $ref: '#/definitions/coinmarketcap.TickerRes'
+    type: object
   controller.PairRes:
     properties:
       asset_decimals:
@@ -7,12 +62,19 @@ definitions:
         type: array
       asset_infos:
         items:
-          $ref: '#/definitions/dezswap.AssetInfoRes'
+          $ref: '#/definitions/dezswap.AssetInfoTokenRes'
         type: array
       contract_addr:
         type: string
       liquidity_token:
         type: string
+    type: object
+  controller.PairsRes:
+    properties:
+      pairs:
+        items:
+          $ref: '#/definitions/controller.PairRes'
+        type: array
     type: object
   controller.PoolRes:
     properties:
@@ -24,6 +86,37 @@ definitions:
         type: array
       total_share:
         type: string
+    type: object
+  controller.StatRes:
+    properties:
+      apr:
+        items:
+          $ref: '#/definitions/controller.StatValueRes'
+        type: array
+      fee:
+        items:
+          $ref: '#/definitions/controller.StatValueRes'
+        type: array
+      volume:
+        items:
+          $ref: '#/definitions/controller.StatValueRes'
+        type: array
+    type: object
+  controller.StatValueRes:
+    properties:
+      address:
+        type: string
+      value:
+        type: string
+    type: object
+  controller.StatsRes:
+    properties:
+      stats_1mon:
+        $ref: '#/definitions/controller.StatRes'
+      stats_7d:
+        $ref: '#/definitions/controller.StatRes'
+      stats_24h:
+        $ref: '#/definitions/controller.StatRes'
     type: object
   controller.TokenRes:
     properties:
@@ -100,7 +193,7 @@ definitions:
 info:
   contact: {}
 paths:
-  /pairs:
+  /coingecko/pairs:
     get:
       consumes:
       - application/json
@@ -112,8 +205,166 @@ paths:
           description: OK
           schema:
             items:
-              $ref: '#/definitions/controller.PairRes'
+              $ref: '#/definitions/coingecko.PairRes'
             type: array
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httputil.BadRequestError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httputil.InternalServerError'
+      summary: All Pairs
+      tags:
+      - pairs
+  /coingecko/pairs/{address}:
+    get:
+      consumes:
+      - application/json
+      description: get Pair by Address
+      parameters:
+      - description: Pair Address
+        in: path
+        name: address
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/coingecko.PairRes'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httputil.BadRequestError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httputil.InternalServerError'
+      summary: Get a pair
+      tags:
+      - pairs
+  /coingecko/tickers:
+    get:
+      consumes:
+      - application/json
+      description: get Tickers
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/coingecko.TickerRes'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httputil.BadRequestError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httputil.InternalServerError'
+      summary: All Tickers
+      tags:
+      - tickers
+  /coingecko/tickers/{id}:
+    get:
+      consumes:
+      - application/json
+      description: get Ticker by Id
+      parameters:
+      - description: Ticker ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/coingecko.TickerRes'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httputil.BadRequestError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httputil.InternalServerError'
+      summary: Get a ticker
+      tags:
+      - tickers
+  /coinmarketcap/tickers:
+    get:
+      consumes:
+      - application/json
+      description: get Tickers
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/coinmarketcap.TickersRes'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httputil.BadRequestError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httputil.InternalServerError'
+      summary: All Tickers
+      tags:
+      - tickers
+  /coinmarketcap/tickers/{id}:
+    get:
+      consumes:
+      - application/json
+      description: get Ticker by Id
+      parameters:
+      - description: Ticker ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/coinmarketcap.TickerRes'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httputil.BadRequestError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httputil.InternalServerError'
+      summary: Get a ticker
+      tags:
+      - tickers
+  /pairs:
+    get:
+      consumes:
+      - application/json
+      description: get Pairs
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/controller.PairsRes'
         "400":
           description: Bad Request
           schema:
@@ -216,6 +467,66 @@ paths:
       summary: Get a pool
       tags:
       - pools
+  /stats:
+    get:
+      consumes:
+      - application/json
+      description: get pair stats
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/controller.StatsRes'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httputil.BadRequestError'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/httputil.NotFoundError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httputil.InternalServerError'
+      summary: All pair stats
+      tags:
+      - stats
+  /stats/{period}:
+    get:
+      consumes:
+      - application/json
+      description: get a pair stat by period
+      parameters:
+      - description: period (24h/7d/1mon)
+        in: path
+        name: period
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/controller.StatRes'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httputil.BadRequestError'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/httputil.NotFoundError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httputil.InternalServerError'
+      summary: Get a stat
+      tags:
+      - stats
   /tokens:
     get:
       consumes:
