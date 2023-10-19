@@ -40,9 +40,10 @@ func (s *statService) Get(key string) (*PairStats, error) {
 
 	switch key {
 	case statPeriod24h:
-		err := s.sumPairStats24h(0, pairStatMap)
+		minTs := time.Now().Add(-24 * time.Hour)
+		err := s.sumPairStatsFrom(float64(minTs.UnixMicro())/1_000_000, pairStatMap)
 		if err != nil {
-			return nil, errors.Wrap(err, "statService.GetAll")
+			return nil, errors.Wrap(err, "statService.Get")
 		}
 		pairStats := s.mapToSlice(pairStatMap)
 
@@ -64,9 +65,9 @@ func (s *statService) Get(key string) (*PairStats, error) {
 			}
 		}
 
-		err = s.sumPairStats24h(latestTimestamp, pairStatMap)
+		err = s.sumPairStatsFrom(latestTimestamp+1, pairStatMap)
 		if err != nil {
-			return nil, errors.Wrap(err, "statService.GetAll")
+			return nil, errors.Wrap(err, "statService.Get")
 		}
 		pairStats := s.mapToSlice(pairStatMap)
 
@@ -87,7 +88,7 @@ func (s *statService) GetAll() ([]PairStats, error) {
 		return nil, errors.Wrap(err, "statService.GetAll")
 	}
 	if len(stats30m) > 0 {
-		err = s.sumPairStats24h(stats30m[len(stats30m)-1].Timestamp, pairStatMap)
+		err = s.sumPairStatsFrom(stats30m[len(stats30m)-1].Timestamp+1, pairStatMap)
 		if err != nil {
 			return nil, errors.Wrap(err, "statService.GetAll")
 		}
@@ -118,26 +119,29 @@ func (s *statService) GetAll() ([]PairStats, error) {
 	return pairStatsByPeriod, nil
 }
 
-func (s *statService) sumPairStats24h(minTimestamp float64, sumStatMap map[string][countOfStatType]types.Dec) error {
+func (s *statService) sumPairStatsFrom(minTimestamp float64, sumStatMap map[string][countOfStatType]types.Dec) error {
+	query := `
+select p.contract address,
+       ps.volume0_in_price,
+       ps.volume1_in_price,
+       ps.commission0_in_price,
+       ps.commission1_in_price,
+       ps.liquidity0_in_price,
+       ps.liquidity1_in_price,
+       ps.timestamp
+from pair_stats_recent ps
+     join pair p on p.id = ps.pair_id
+where ps.chain_id = ?
+  and ps.timestamp >= ?
+`
 	stats := []db.PairStat{}
-	if err := s.Table("pair_stats_in_24h ps").Joins(
-		"join pair p on p.id = ps.pair_id").Where(
-		"ps.chain_id = ? and ps.timestamp > ?", s.chainId, minTimestamp).Select(
-		"p.contract address," +
-			"ps.volume0_in_price," +
-			"ps.volume1_in_price," +
-			"ps.commission0_in_price," +
-			"ps.commission1_in_price," +
-			"ps.liquidity0_in_price," +
-			"ps.liquidity1_in_price," +
-			"ps.timestamp",
-	).Scan(&stats).Error; err != nil {
-		return err
+	if tx := s.Raw(query, s.chainId, minTimestamp).Find(&stats); tx.Error != nil {
+		return errors.Wrap(tx.Error, "statService.sumPairStatsFrom")
 	}
 	for _, stat := range stats {
 		err := s.sumPairStat(stat, sumStatMap)
 		if err != nil {
-			return err
+			return errors.Wrap(err, "statService.sumPairStatsFrom")
 		}
 	}
 
