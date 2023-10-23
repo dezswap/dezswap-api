@@ -139,6 +139,112 @@ definitions:
       verified:
         type: boolean
     type: object
+  dashboard.AddressCountRes:
+    properties:
+      addressCount:
+        type: integer
+      timestamp:
+        type: string
+    type: object
+  dashboard.FeeRes:
+    properties:
+      fee:
+        type: string
+      timestamp:
+        type: string
+    type: object
+  dashboard.PoolRes:
+    properties:
+      address:
+        type: string
+      apr:
+        type: string
+      fee:
+        type: string
+      tvl:
+        type: string
+      volume:
+        type: string
+    type: object
+  dashboard.RecentRes:
+    properties:
+      fee:
+        type: string
+      feeChangeRate:
+        type: number
+      tvl:
+        type: string
+      tvlChangeRate:
+        type: number
+      volume:
+        type: string
+      volumeChangeRate:
+        type: number
+    type: object
+  dashboard.StatisticRes:
+    properties:
+      addressCounts:
+        items:
+          $ref: '#/definitions/dashboard.AddressCountRes'
+        type: array
+      fees:
+        items:
+          $ref: '#/definitions/dashboard.FeeRes'
+        type: array
+      txCounts:
+        items:
+          $ref: '#/definitions/dashboard.TxCountRes'
+        type: array
+    type: object
+  dashboard.TVLRes:
+    properties:
+      timestamp:
+        type: string
+      tvl:
+        type: string
+    type: object
+  dashboard.TokenRes:
+    properties:
+      address:
+        type: string
+      price:
+        type: string
+      priceChange:
+        type: number
+      tvl:
+        type: string
+      volume:
+        type: string
+    type: object
+  dashboard.TxCountRes:
+    properties:
+      timestamp:
+        type: string
+      txCount:
+        type: integer
+    type: object
+  dashboard.TxRes:
+    properties:
+      action:
+        type: string
+      asset0amount:
+        type: string
+      asset1amount:
+        type: string
+      sender:
+        type: string
+      time:
+        type: string
+      totalValue:
+        type: string
+    type: object
+  dashboard.VolumeRes:
+    properties:
+      timestamp:
+        type: string
+      volume:
+        type: string
+    type: object
   dezswap.AssetInfoRes:
     properties:
       amount:
@@ -467,6 +573,32 @@ paths:
       summary: Get a pool
       tags:
       - pools
+  /recent:
+    get:
+      consumes:
+      - application/json
+      description: get Transactions data of dezswap (action, totalValue, asset0amount,
+        asset1amount, time)
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/dashboard.TxRes'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httputil.BadRequestError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httputil.InternalServerError'
+      summary: Dezswap's Transactions
+      tags:
+      - dashboard
   /stats:
     get:
       consumes:

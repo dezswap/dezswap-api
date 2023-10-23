@@ -420,6 +420,44 @@
                 }
             }
         },
+        "/recent": {
+            "get": {
+                "description": "get Transactions data of dezswap (action, totalValue, asset0amount, asset1amount, time)",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "dashboard"
+                ],
+                "summary": "Dezswap's Transactions",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/dashboard.TxRes"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.BadRequestError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.InternalServerError"
+                        }
+                    }
+                }
+            }
+        },
         "/stats": {
             "get": {
                 "description": "get pair stats",
@@ -819,6 +857,170 @@
                 },
                 "verified": {
                     "type": "boolean"
+                }
+            }
+        },
+        "dashboard.AddressCountRes": {
+            "type": "object",
+            "properties": {
+                "addressCount": {
+                    "type": "integer"
+                },
+                "timestamp": {
+                    "type": "string"
+                }
+            }
+        },
+        "dashboard.FeeRes": {
+            "type": "object",
+            "properties": {
+                "fee": {
+                    "type": "string"
+                },
+                "timestamp": {
+                    "type": "string"
+                }
+            }
+        },
+        "dashboard.PoolRes": {
+            "type": "object",
+            "properties": {
+                "address": {
+                    "type": "string"
+                },
+                "apr": {
+                    "type": "string"
+                },
+                "fee": {
+                    "type": "string"
+                },
+                "tvl": {
+                    "type": "string"
+                },
+                "volume": {
+                    "type": "string"
+                }
+            }
+        },
+        "dashboard.RecentRes": {
+            "type": "object",
+            "properties": {
+                "fee": {
+                    "type": "string"
+                },
+                "feeChangeRate": {
+                    "type": "number"
+                },
+                "tvl": {
+                    "type": "string"
+                },
+                "tvlChangeRate": {
+                    "type": "number"
+                },
+                "volume": {
+                    "type": "string"
+                },
+                "volumeChangeRate": {
+                    "type": "number"
+                }
+            }
+        },
+        "dashboard.StatisticRes": {
+            "type": "object",
+            "properties": {
+                "addressCounts": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dashboard.AddressCountRes"
+                    }
+                },
+                "fees": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dashboard.FeeRes"
+                    }
+                },
+                "txCounts": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dashboard.TxCountRes"
+                    }
+                }
+            }
+        },
+        "dashboard.TVLRes": {
+            "type": "object",
+            "properties": {
+                "timestamp": {
+                    "type": "string"
+                },
+                "tvl": {
+                    "type": "string"
+                }
+            }
+        },
+        "dashboard.TokenRes": {
+            "type": "object",
+            "properties": {
+                "address": {
+                    "type": "string"
+                },
+                "price": {
+                    "type": "string"
+                },
+                "priceChange": {
+                    "type": "number"
+                },
+                "tvl": {
+                    "type": "string"
+                },
+                "volume": {
+                    "type": "string"
+                }
+            }
+        },
+        "dashboard.TxCountRes": {
+            "type": "object",
+            "properties": {
+                "timestamp": {
+                    "type": "string"
+                },
+                "txCount": {
+                    "type": "integer"
+                }
+            }
+        },
+        "dashboard.TxRes": {
+            "type": "object",
+            "properties": {
+                "action": {
+                    "type": "string"
+                },
+                "asset0amount": {
+                    "type": "string"
+                },
+                "asset1amount": {
+                    "type": "string"
+                },
+                "sender": {
+                    "type": "string"
+                },
+                "time": {
+                    "type": "string"
+                },
+                "totalValue": {
+                    "type": "string"
+                }
+            }
+        },
+        "dashboard.VolumeRes": {
+            "type": "object",
+            "properties": {
+                "timestamp": {
+                    "type": "string"
+                },
+                "volume": {
+                    "type": "string"
                 }
             }
         },
