@@ -118,24 +118,28 @@ func (s *tickerService) Get(key string) (*Ticker, error) {
 }
 
 func (s *tickerService) liquidity(base string, target string, ticker *Ticker) error {
-	if tx := s.Table("pair_stats_30m ps").Joins(
-		"join (select pair_id, max(timestamp) latest_timestamp from pair_stats_30m group by pair_id) t on ps.pair_id = t.pair_id and ps.timestamp = t.latest_timestamp "+
-			"join pair p on ps.pair_id = p.id "+
-			"join tokens t0 on p.chain_id = t0.chain_id and p.asset0 = t0.address "+
-			"join tokens t1 on p.chain_id = t1.chain_id and p.asset1 = t1.address",
-	).Where("p.chain_id = ? and p.asset0 = ? and p.asset1 = ?", s.chainId, base, target).Select(
-		"p.asset0 base_currency," +
-			"p.asset1 target_currency," +
-			"'0' base_volume," +
-			"'0' target_volume," +
-			"ps.last_swap_price last_price," +
-			"t0.decimals base_decimals," +
-			"t1.decimals target_decimals," +
-			"liquidity0_in_price base_liquidity_in_price," +
-			"p.contract pool_id, " +
-			"extract(epoch from now()) * 1000 timestamp",
-	).Find(&ticker); tx.Error != nil {
-		return errors.Wrap(tx.Error, "TickerService.updateLiquidities")
+	query := `
+select p.asset0 base_currency,
+       p.asset1 target_currency,
+       '0' base_volume,
+       '0' target_volume,
+       ps.last_swap_price last_price,
+       t0.decimals base_decimals,
+       t1.decimals target_decimals,
+       liquidity0_in_price base_liquidity_in_price,
+       p.contract pool_id,
+       extract(epoch from now()) * 1000 as timestamp
+from pair_stats_30m ps
+	join (select pair_id, max(timestamp) latest_timestamp
+	      from pair_stats_30m
+	      group by pair_id) t on ps.pair_id = t.pair_id and ps.timestamp = t.latest_timestamp
+	join pair p on ps.pair_id = p.id
+	join tokens t0 on p.chain_id = t0.chain_id and p.asset0 = t0.address
+	join tokens t1 on p.chain_id = t1.chain_id and p.asset1 = t1.address
+where p.chain_id = ? and p.asset0 = ? and p.asset1 = ?
+`
+	if tx := s.Raw(query, s.chainId, base, target).Find(&ticker); tx.Error != nil {
+		return errors.Wrap(tx.Error, "TickerService.liquidity")
 	}
 
 	return nil

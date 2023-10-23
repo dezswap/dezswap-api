@@ -26,7 +26,7 @@ func InitPairController(s service.Getter[coingeckoService.Pair], route *gin.Rout
 
 func (c *pairController) register(route *gin.RouterGroup) {
 	route.GET("/pairs", c.Pairs)
-	route.GET("/pair/:address", c.Pair)
+	route.GET("/pairs/:address", c.Pair)
 }
 
 // Pairs godoc

@@ -86,32 +86,34 @@ func (s *statService) GetAll() ([]PairStats, error) {
 	if err != nil {
 		return nil, errors.Wrap(err, "statService.GetAll")
 	}
-	err = s.sumPairStats24h(stats30m[len(stats30m)-1].Timestamp, pairStatMap)
-	if err != nil {
-		return nil, errors.Wrap(err, "statService.GetAll")
-	}
-
-	tsBefore24h := now.AddDate(0, 0, -1).UnixMicro() * 1000
-	tsBefore7d := now.AddDate(0, 0, -7).UnixMicro() * 1000
-
-	done24h := false
-	done7d := false
-
-	for _, stat := range stats30m {
-		if stat.Timestamp > float64(tsBefore24h) && !done24h {
-			pairStatsByPeriod[Period24h] = s.mapToSlice(pairStatMap)
-			done24h = true
-		} else if stat.Timestamp > float64(tsBefore7d) && !done7d {
-			pairStatsByPeriod[Period7d] = s.mapToSlice(pairStatMap)
-			done7d = true
-		}
-
-		err := s.sumPairStat(stat, pairStatMap)
+	if len(stats30m) > 0 {
+		err = s.sumPairStats24h(stats30m[len(stats30m)-1].Timestamp, pairStatMap)
 		if err != nil {
 			return nil, errors.Wrap(err, "statService.GetAll")
 		}
+
+		tsBefore24h := now.AddDate(0, 0, -1).UnixMicro() * 1000
+		tsBefore7d := now.AddDate(0, 0, -7).UnixMicro() * 1000
+
+		done24h := false
+		done7d := false
+
+		for _, stat := range stats30m {
+			if stat.Timestamp > float64(tsBefore24h) && !done24h {
+				pairStatsByPeriod[Period24h] = s.mapToSlice(pairStatMap)
+				done24h = true
+			} else if stat.Timestamp > float64(tsBefore7d) && !done7d {
+				pairStatsByPeriod[Period7d] = s.mapToSlice(pairStatMap)
+				done7d = true
+			}
+
+			err := s.sumPairStat(stat, pairStatMap)
+			if err != nil {
+				return nil, errors.Wrap(err, "statService.GetAll")
+			}
+		}
+		pairStatsByPeriod[Period1mon] = s.mapToSlice(pairStatMap)
 	}
-	pairStatsByPeriod[Period1mon] = s.mapToSlice(pairStatMap)
 
 	return pairStatsByPeriod, nil
 }
@@ -143,20 +145,23 @@ func (s *statService) sumPairStats24h(minTimestamp float64, sumStatMap map[strin
 }
 
 func (s *statService) pairStats30m(period string) ([]db.PairStat, error) {
+	query := `
+select p.contract address,
+       ps.volume0_in_price,
+       ps.volume1_in_price,
+       ps.commission0_in_price,
+       ps.commission1_in_price,
+       ps.liquidity0_in_price,
+       ps.liquidity1_in_price,
+       ps.timestamp
+from pair_stats_30m ps
+     join pair p on p.id = ps.pair_id
+where ps.chain_id = ? and ps.timestamp > extract(epoch from now()-?::interval)
+`
+
 	stats := []db.PairStat{}
-	if err := s.Table("pair_stats_30m ps").Joins(
-		"join pair p on p.id = ps.pair_id").Where(
-		"ps.chain_id = ? and ps.timestamp > extract(epoch from now()-$2::interval)", s.chainId, period).Select(
-		"p.contract address," +
-			"ps.volume0_in_price," +
-			"ps.volume1_in_price," +
-			"ps.commission0_in_price," +
-			"ps.commission1_in_price," +
-			"ps.liquidity0_in_price," +
-			"ps.liquidity1_in_price," +
-			"ps.timestamp",
-	).Scan(&stats).Error; err != nil {
-		return nil, err
+	if tx := s.Raw(query, s.chainId, period).Find(&stats); tx.Error != nil {
+		return nil, errors.Wrap(tx.Error, "StatService.pairStats30m")
 	}
 
 	return stats, nil
