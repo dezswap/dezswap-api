@@ -232,7 +232,7 @@ from pair_stats_30m ps
 where p.chain_id = ?
 `
 	if len(activePoolIds) > 0 {
-		query += " and p.contract not in (" + strings.Join(activePoolIds, ",") + ")"
+		query += " and p.contract not in ('" + strings.Join(activePoolIds, "','") + "')"
 	}
 
 	tickers := []Ticker{}
