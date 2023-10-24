@@ -18,7 +18,7 @@ require (
 	github.com/stretchr/testify v1.8.1
 	github.com/swaggo/files v1.0.0
 	github.com/swaggo/gin-swagger v1.5.3
-	github.com/swaggo/swag v1.8.10
+	github.com/swaggo/swag v1.16.2
 	google.golang.org/grpc v1.52.3
 	gorm.io/driver/postgres v1.4.6
 	gorm.io/gorm v1.24.3
@@ -139,12 +139,12 @@ require (
 	go.etcd.io/bbolt v1.3.6 // indirect
 	golang.org/x/arch v0.0.0-20210923205945-b76863e36670 // indirect
 	golang.org/x/crypto v0.5.0 // indirect
-	golang.org/x/net v0.7.0 // indirect
+	golang.org/x/net v0.8.0 // indirect
 	golang.org/x/sync v0.1.0 // indirect
-	golang.org/x/sys v0.5.0 // indirect
-	golang.org/x/term v0.5.0 // indirect
-	golang.org/x/text v0.7.0 // indirect
-	golang.org/x/tools v0.1.12 // indirect
+	golang.org/x/sys v0.6.0 // indirect
+	golang.org/x/term v0.6.0 // indirect
+	golang.org/x/text v0.8.0 // indirect
+	golang.org/x/tools v0.7.0 // indirect
 	google.golang.org/genproto v0.0.0-20221118155620-16455021b5e6 // indirect
 	google.golang.org/protobuf v1.28.1 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect

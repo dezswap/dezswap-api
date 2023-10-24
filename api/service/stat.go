@@ -1,11 +1,12 @@
 package service
 
 import (
+	"time"
+
 	"github.com/cosmos/cosmos-sdk/types"
 	"github.com/dezswap/dezswap-api/pkg/db"
 	"github.com/pkg/errors"
 	"gorm.io/gorm"
-	"time"
 )
 
 type statTypeIdx int

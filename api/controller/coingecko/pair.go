@@ -1,8 +1,9 @@
 package coingecko
 
 import (
-	"github.com/dezswap/dezswap-api/api/controller"
 	"net/http"
+
+	"github.com/dezswap/dezswap-api/api/controller"
 
 	"github.com/dezswap/dezswap-api/api/service"
 	coingeckoService "github.com/dezswap/dezswap-api/api/service/coingecko"
@@ -29,11 +30,11 @@ func (c *pairController) register(route *gin.RouterGroup) {
 	route.GET("/pairs/:address", c.Pair)
 }
 
-// Pairs godoc
+// Coingecko godoc
 //
 //	@Summary		All Pairs
 //	@Description	get Pairs
-//	@Tags			pairs
+//	@Tags			coingecko
 //	@Accept			json
 //	@Produce		json
 //	@Success		200	{object}	PairsRes
@@ -51,17 +52,17 @@ func (c *pairController) Pairs(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, c.pairsToRes(pairs))
 }
 
-// Pair godoc
+// Coingecko godoc
 //
 //	@Summary		Get a pair
 //	@Description	get Pair by Address
-//	@Tags			pairs
+//	@Tags			coingecko
 //	@Accept			json
 //	@Produce		json
 //	@Param			address	path		string	true	"Pair Address"
 //	@Success		200		{object}	PairRes
-//	@Failure		400	{object}	httputil.BadRequestError
-//	@Failure		500	{object}	httputil.InternalServerError
+//	@Failure		400		{object}	httputil.BadRequestError
+//	@Failure		500		{object}	httputil.InternalServerError
 //	@Router			/coingecko/pairs/{address} [get]
 func (c *pairController) Pair(ctx *gin.Context) {
 	address := ctx.Param("address")

@@ -26,3 +26,5 @@ type StatController interface {
 	Stats(ctx *gin.Context)
 	Stat(ctx *gin.Context)
 }
+
+type DashboardController interface{}

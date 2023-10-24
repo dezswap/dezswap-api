@@ -31,12 +31,10 @@ func (c *poolController) register(route *gin.RouterGroup) {
 //
 //	@Summary		All Pools
 //	@Description	get Pools
-//	@Tags			pools
 //	@Accept			json
 //	@Produce		json
 //	@Success		200	{object}	PoolsRes
 //	@Failure		400	{object}	httputil.BadRequestError
-//	@Failure		404	{object}	httputil.NotFoundError
 //	@Failure		500	{object}	httputil.InternalServerError
 //	@Router			/pools [get]
 func (c *poolController) Pools(ctx *gin.Context) {
@@ -54,14 +52,13 @@ func (c *poolController) Pools(ctx *gin.Context) {
 //
 //	@Summary		Get a pool
 //	@Description	get Pool by Address
-//	@Tags			pools
 //	@Accept			json
 //	@Produce		json
 //	@Param			address	path		string	true	"Pool Address"
 //	@Success		200		{object}	PoolRes
-//	@Failure		400	{object}	httputil.BadRequestError
-//	@Failure		404	{object}	httputil.NotFoundError
-//	@Failure		500	{object}	httputil.InternalServerError
+//	@Failure		400		{object}	httputil.BadRequestError
+//	@Failure		404		{object}	httputil.NotFoundError
+//	@Failure		500		{object}	httputil.InternalServerError
 //	@Router			/pools/{address} [get]
 func (c *poolController) Pool(ctx *gin.Context) {
 	address := ctx.Param("address")
