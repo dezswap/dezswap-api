@@ -323,7 +323,7 @@ paths:
             $ref: '#/definitions/httputil.InternalServerError'
       summary: All Pairs
       tags:
-      - pairs
+      - coingecko
   /coingecko/pairs/{address}:
     get:
       consumes:
@@ -352,7 +352,7 @@ paths:
             $ref: '#/definitions/httputil.InternalServerError'
       summary: Get a pair
       tags:
-      - pairs
+      - coingecko
   /coingecko/tickers:
     get:
       consumes:
@@ -377,7 +377,7 @@ paths:
             $ref: '#/definitions/httputil.InternalServerError'
       summary: All Tickers
       tags:
-      - tickers
+      - coingecko
   /coingecko/tickers/{id}:
     get:
       consumes:
@@ -406,7 +406,7 @@ paths:
             $ref: '#/definitions/httputil.InternalServerError'
       summary: Get a ticker
       tags:
-      - tickers
+      - coingecko
   /coinmarketcap/tickers:
     get:
       consumes:
@@ -429,7 +429,7 @@ paths:
             $ref: '#/definitions/httputil.InternalServerError'
       summary: All Tickers
       tags:
-      - tickers
+      - coinmarketcap
   /coinmarketcap/tickers/{id}:
     get:
       consumes:
@@ -458,7 +458,198 @@ paths:
             $ref: '#/definitions/httputil.InternalServerError'
       summary: Get a ticker
       tags:
-      - tickers
+      - coinmarketcap
+  /dashboard/pools:
+    get:
+      consumes:
+      - application/json
+      description: get Pools data of dezswap (address, tvl, volume, fee, apr)
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/dashboard.PoolRes'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httputil.BadRequestError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httputil.InternalServerError'
+      summary: Dezswap's Pools
+      tags:
+      - dashboard
+  /dashboard/recent:
+    get:
+      consumes:
+      - application/json
+      description: get Recent
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dashboard.RecentRes'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httputil.BadRequestError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httputil.InternalServerError'
+      summary: Recent 24H data with it's change rate
+      tags:
+      - dashboard
+  /dashboard/statistics:
+    get:
+      consumes:
+      - application/json
+      description: get Statistic data of dezswap (address count, tx count, fee)
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dashboard.StatisticRes'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httputil.BadRequestError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httputil.InternalServerError'
+      summary: Dezswap's statistics
+      tags:
+      - dashboard
+  /dashboard/tokens:
+    get:
+      consumes:
+      - application/json
+      description: get Tokens data of dezswap (address, price, priceChange, volume,
+        tvl)
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/dashboard.TokenRes'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httputil.BadRequestError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httputil.InternalServerError'
+      summary: Dezswap's Tokens
+      tags:
+      - dashboard
+  /dashboard/tvls:
+    get:
+      consumes:
+      - application/json
+      description: get TVLs
+      parameters:
+      - description: default(empty) value is all
+        enum:
+        - year
+        - quarter
+        - month
+        in: query
+        name: duration
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/dashboard.TVLRes'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httputil.BadRequestError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httputil.InternalServerError'
+      summary: TVLs of dezswap selected duration
+      tags:
+      - dashboard
+  /dashboard/txs:
+    get:
+      consumes:
+      - application/json
+      description: get Transactions data of dezswap (action, totalValue, asset0amount,
+        asset1amount, time)
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/dashboard.TxRes'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httputil.BadRequestError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httputil.InternalServerError'
+      summary: Dezswap's Transactions
+      tags:
+      - dashboard
+  /dashboard/volumes:
+    get:
+      consumes:
+      - application/json
+      description: get Volumes
+      parameters:
+      - description: default(empty) value is all
+        enum:
+        - year
+        - quarter
+        - month
+        in: query
+        name: duration
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/dashboard.VolumeRes'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httputil.BadRequestError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httputil.InternalServerError'
+      summary: Volumes of user selected duration
+      tags:
+      - dashboard
   /pairs:
     get:
       consumes:
@@ -480,8 +671,6 @@ paths:
           schema:
             $ref: '#/definitions/httputil.InternalServerError'
       summary: All Pairs
-      tags:
-      - pairs
   /pairs/{address}:
     get:
       consumes:
@@ -504,13 +693,15 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/httputil.BadRequestError'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/httputil.NotFoundError'
         "500":
           description: Internal Server Error
           schema:
             $ref: '#/definitions/httputil.InternalServerError'
       summary: Get a pair
-      tags:
-      - pairs
   /pools:
     get:
       consumes:
@@ -529,17 +720,11 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/httputil.BadRequestError'
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/httputil.NotFoundError'
         "500":
           description: Internal Server Error
           schema:
             $ref: '#/definitions/httputil.InternalServerError'
       summary: All Pools
-      tags:
-      - pools
   /pools/{address}:
     get:
       consumes:
@@ -571,34 +756,6 @@ paths:
           schema:
             $ref: '#/definitions/httputil.InternalServerError'
       summary: Get a pool
-      tags:
-      - pools
-  /recent:
-    get:
-      consumes:
-      - application/json
-      description: get Transactions data of dezswap (action, totalValue, asset0amount,
-        asset1amount, time)
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            items:
-              $ref: '#/definitions/dashboard.TxRes'
-            type: array
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/httputil.BadRequestError'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/httputil.InternalServerError'
-      summary: Dezswap's Transactions
-      tags:
-      - dashboard
   /stats:
     get:
       consumes:
@@ -615,24 +772,22 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/httputil.BadRequestError'
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/httputil.NotFoundError'
         "500":
           description: Internal Server Error
           schema:
             $ref: '#/definitions/httputil.InternalServerError'
       summary: All pair stats
-      tags:
-      - stats
   /stats/{period}:
     get:
       consumes:
       - application/json
       description: get a pair stat by period
       parameters:
-      - description: period (24h/7d/1mon)
+      - description: period 24h,7d,1mon
+        enum:
+        - 24h
+        - 7d
+        - 1mon
         in: path
         name: period
         required: true
@@ -657,8 +812,6 @@ paths:
           schema:
             $ref: '#/definitions/httputil.InternalServerError'
       summary: Get a stat
-      tags:
-      - stats
   /tokens:
     get:
       consumes:
@@ -686,8 +839,6 @@ paths:
           schema:
             $ref: '#/definitions/httputil.InternalServerError'
       summary: All Tokens
-      tags:
-      - tokens
   /tokens/{address}:
     get:
       consumes:
@@ -719,6 +870,4 @@ paths:
           schema:
             $ref: '#/definitions/httputil.InternalServerError'
       summary: Get a token
-      tags:
-      - tokens
 swagger: "2.0"

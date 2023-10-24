@@ -2,12 +2,13 @@ package api
 
 import (
 	"fmt"
+	"net/http"
+	"regexp"
+
 	geckoController "github.com/dezswap/dezswap-api/api/controller/coingecko"
 	comarcapController "github.com/dezswap/dezswap-api/api/controller/coinmarketcap"
 	"github.com/dezswap/dezswap-api/api/service/coingecko"
 	"github.com/dezswap/dezswap-api/api/service/coinmarketcap"
-	"net/http"
-	"regexp"
 
 	"github.com/dezswap/dezswap-api/api/controller"
 	"github.com/dezswap/dezswap-api/api/docs"

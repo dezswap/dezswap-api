@@ -1,9 +1,10 @@
 package coinmarketcap
 
 import (
+	"net/http"
+
 	"github.com/dezswap/dezswap-api/api/controller"
 	coinMarketCapService "github.com/dezswap/dezswap-api/api/service/coinmarketcap"
-	"net/http"
 
 	"github.com/dezswap/dezswap-api/api/service"
 	"github.com/dezswap/dezswap-api/pkg/httputil"
@@ -29,11 +30,11 @@ func (c *tickerController) register(route *gin.RouterGroup) {
 	route.GET("/tickers/:id", c.Ticker)
 }
 
-// Tickers godoc
+// CoinMarketCap godoc
 //
 //	@Summary		All Tickers
 //	@Description	get Tickers
-//	@Tags			tickers
+//	@Tags			coinmarketcap
 //	@Accept			json
 //	@Produce		json
 //	@Success		200	{object}	TickersRes
@@ -52,15 +53,15 @@ func (c *tickerController) Tickers(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, res)
 }
 
-// Ticker godoc
+// CoinMarketCap godoc
 //
 //	@Summary		Get a ticker
 //	@Description	get Ticker by Id
-//	@Tags			tickers
+//	@Tags			coinmarketcap
 //	@Accept			json
 //	@Produce		json
-//	@Param			id	path		string	true "Ticker ID"
-//	@Success		200		{object}	TickerRes
+//	@Param			id	path		string	true	"Ticker ID"
+//	@Success		200	{object}	TickerRes
 //	@Failure		400	{object}	httputil.BadRequestError
 //	@Failure		500	{object}	httputil.InternalServerError
 //	@Router			/coinmarketcap/tickers/{id} [get]

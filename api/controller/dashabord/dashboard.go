@@ -20,37 +20,37 @@ type dashboardController struct {
 //	@Success		200	{object}	RecentRes
 //	@Failure		400	{object}	httputil.BadRequestError
 //	@Failure		500	{object}	httputil.InternalServerError
-//	@Router			/recent [get]
+//	@Router			/dashboard/recent [get]
 func (c *dashboardController) Recent(ctx *gin.Context) {
 }
 
 // Dashboard godoc
 //
-//		@Summary		Volumes of user selected duration
-//		@Description	get Volumes
-//		@Tags			dashboard
-//	 	@Param   duration  query     string     false  "string enums"       Enums(year, quarter, month, default: all)
-//		@Accept			json
-//		@Produce		json
-//		@Success		200	{object}	VolumesRes
-//		@Failure		400	{object}	httputil.BadRequestError
-//		@Failure		500	{object}	httputil.InternalServerError
-//		@Router			/recent [get]
+//	@Summary		Volumes of user selected duration
+//	@Description	get Volumes
+//	@Tags			dashboard
+//	@Param			duration	query	string	false	"default(empty) value is all"	Enums(year, quarter, month)
+//	@Accept			json
+//	@Produce		json
+//	@Success		200	{object}	VolumesRes
+//	@Failure		400	{object}	httputil.BadRequestError
+//	@Failure		500	{object}	httputil.InternalServerError
+//	@Router			/dashboard/volumes [get]
 func (c *dashboardController) Volumes(ctx *gin.Context) {
 }
 
 // Dashboard godoc
 //
-//		@Summary		TVLs of dezswap selected duration
-//		@Description	get TVLs
-//		@Tags			dashboard
-//	 	@Param   duration  query     string     false  "string enums"       Enums(year, quarter, month, default: all)
-//		@Accept			json
-//		@Produce		json
-//		@Success		200	{object}	TVLsRes
-//		@Failure		400	{object}	httputil.BadRequestError
-//		@Failure		500	{object}	httputil.InternalServerError
-//		@Router			/recent [get]
+//	@Summary		TVLs of dezswap selected duration
+//	@Description	get TVLs
+//	@Tags			dashboard
+//	@Param			duration	query	string	false	"default(empty) value is all"	Enums(year, quarter, month)
+//	@Accept			json
+//	@Produce		json
+//	@Success		200	{object}	TVLsRes
+//	@Failure		400	{object}	httputil.BadRequestError
+//	@Failure		500	{object}	httputil.InternalServerError
+//	@Router			/dashboard/tvls [get]
 func (c *dashboardController) TVLs(ctx *gin.Context) {
 }
 
@@ -64,7 +64,7 @@ func (c *dashboardController) TVLs(ctx *gin.Context) {
 //	@Success		200	{object}	StatisticRes
 //	@Failure		400	{object}	httputil.BadRequestError
 //	@Failure		500	{object}	httputil.InternalServerError
-//	@Router			/recent [get]
+//	@Router			/dashboard/statistics [get]
 func (c *dashboardController) Statistic(ctx *gin.Context) {
 }
 
@@ -78,7 +78,7 @@ func (c *dashboardController) Statistic(ctx *gin.Context) {
 //	@Success		200	{object}	PoolsRes
 //	@Failure		400	{object}	httputil.BadRequestError
 //	@Failure		500	{object}	httputil.InternalServerError
-//	@Router			/recent [get]
+//	@Router			/dashboard/pools [get]
 func (c *dashboardController) Pools(ctx *gin.Context) {
 }
 
@@ -92,7 +92,7 @@ func (c *dashboardController) Pools(ctx *gin.Context) {
 //	@Success		200	{object}	TokensRes
 //	@Failure		400	{object}	httputil.BadRequestError
 //	@Failure		500	{object}	httputil.InternalServerError
-//	@Router			/recent [get]
+//	@Router			/dashboard/tokens [get]
 func (c *dashboardController) Tokens(ctx *gin.Context) {
 }
 
@@ -106,6 +106,6 @@ func (c *dashboardController) Tokens(ctx *gin.Context) {
 //	@Success		200	{object}	TxReses
 //	@Failure		400	{object}	httputil.BadRequestError
 //	@Failure		500	{object}	httputil.InternalServerError
-//	@Router			/recent [get]
+//	@Router			/dashboard/txs [get]
 func (c *dashboardController) Txs(ctx *gin.Context) {
 }
