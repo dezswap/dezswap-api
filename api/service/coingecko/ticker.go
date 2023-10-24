@@ -354,7 +354,7 @@ func (s *tickerService) cachePriceInUsd(priceCoinId string) error {
 func (s *tickerService) price(targetTimestamp float64, force bool) float64 {
 	price := float64(0)
 	for _, p := range s.cachedPrices {
-		if p[priceTimestamp] > math.Trunc(targetTimestamp) {
+		if p[priceTimestamp] > math.Trunc(targetTimestamp)*1_000 {
 			return price
 		}
 		price = p[priceValue]
