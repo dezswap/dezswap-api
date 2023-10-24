@@ -1,9 +1,18 @@
 package dashboard
 
 import (
+	"github.com/dezswap/dezswap-api/api/controller"
 	"github.com/dezswap/dezswap-api/pkg/logging"
 	"github.com/gin-gonic/gin"
 )
+
+func InitDashboardController() controller.DashboardController {
+	c := dashboardController{}
+	c.logger.Debug("InitDashboardController")
+	// TODO: remove when implement this is temporary code for lint
+	c.mapper = mapper{}
+	return &c
+}
 
 type dashboardController struct {
 	logger logging.Logger
