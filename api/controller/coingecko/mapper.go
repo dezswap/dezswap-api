@@ -31,6 +31,7 @@ func (m *tickerMapper) tickerToRes(ticker coingeckoService.Ticker) (TickerRes, e
 	if err != nil {
 		return TickerRes{}, err
 	}
+
 	baseVolume, err := strconv.ParseFloat(ticker.BaseVolume, 64)
 	if err != nil {
 		return TickerRes{}, err
@@ -48,11 +49,11 @@ func (m *tickerMapper) tickerToRes(ticker coingeckoService.Ticker) (TickerRes, e
 		TickerId:       ticker.BaseCurrency + "_" + ticker.TargetCurrency,
 		BaseCurrency:   ticker.BaseCurrency,
 		TargetCurrency: ticker.TargetCurrency,
-		LastPrice:      lastPrice,
-		BaseVolume:     baseVolume,
-		TargetVolume:   targetVolume,
+		LastPrice:      strconv.FormatFloat(lastPrice, 'f', -1, 64),
+		BaseVolume:     strconv.FormatFloat(baseVolume, 'f', -1, 64),
+		TargetVolume:   strconv.FormatFloat(targetVolume, 'f', -1, 64),
 		PoolId:         ticker.PoolId,
-		LiquidityInUsd: baseLiquidityInPrice,
+		LiquidityInUsd: strconv.FormatFloat(baseLiquidityInPrice*2, 'f', -1, 64),
 	}
 	return res, nil
 }

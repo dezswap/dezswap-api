@@ -25,11 +25,12 @@ func (s tickerService) Get(key string) (*Ticker, error) {
 		return nil, errors.New("unable to parse ticker: " + key)
 	}
 
-	if tx := s.Table("pair_stats_in_24h ps").Joins(
+	if tx := s.Table("pair_stats_recent ps").Joins(
 		"join pair p on ps.pair_id = p.id "+
 			"join tokens t0 on p.chain_id = t0.chain_id and p.asset0 = t0.address "+
 			"join tokens t1 on p.chain_id = t1.chain_id and p.asset1 = t1.address",
-	).Where("ps.chain_id = ? and p.asset0 = ? and p.asset1 = ?", s.chainId, tokens[0], tokens[1]).Order("ps.timestamp asc").Select(
+	).Where("ps.chain_id = ? and p.asset0 = ? and p.asset1 = ? and ps.timestamp >= extract(epoch from now()-interval'24h')", s.chainId, tokens[0], tokens[1]).Order(
+		"ps.timestamp asc").Select(
 		"t0.address base_address," +
 			"t0.name base_name," +
 			"t0.symbol base_symbol," +
@@ -120,26 +121,29 @@ where p.chain_id = ? and p.asset0 = ? and p.asset1 = ?
 }
 
 func (s tickerService) GetAll() ([]Ticker, error) {
+	query := `
+select t0.address base_address,
+       t0.name base_name,
+       t0.symbol base_symbol,
+       t1.address quote_address,
+       t1.name quote_name,
+       t1.symbol quote_symbol,
+       ps.volume0 base_volume,
+       ps.volume1 quote_volume,
+       t0.decimals base_decimals,
+       t1.decimals quote_decimals,
+       p.contract pool_id,
+       ps.timestamp
+from pair_stats_recent ps
+     join pair p on ps.pair_id = p.id
+     join tokens t0 on p.chain_id = t0.chain_id and p.asset0 = t0.address
+     join tokens t1 on p.chain_id = t1.chain_id and p.asset1 = t1.address
+where ps.chain_id = ?
+  and ps.timestamp >= extract(epoch from now()-interval'24h')
+order by ps.timestamp asc
+`
 	tickers := []Ticker{}
-
-	if tx := s.Table("pair_stats_in_24h ps").Joins(
-		"join pair p on ps.pair_id = p.id "+
-			"join tokens t0 on p.chain_id = t0.chain_id and p.asset0 = t0.address "+
-			"join tokens t1 on p.chain_id = t1.chain_id and p.asset1 = t1.address",
-	).Where("ps.chain_id = ?", s.chainId).Order("ps.timestamp asc").Select(
-		"t0.address base_address," +
-			"t0.name base_name," +
-			"t0.symbol base_symbol," +
-			"t1.address quote_address," +
-			"t1.name quote_name," +
-			"t1.symbol quote_symbol," +
-			"ps.volume0 base_volume," +
-			"ps.volume1 quote_volume," +
-			"t0.decimals base_decimals," +
-			"t1.decimals quote_decimals," +
-			"p.contract pool_id, " +
-			"ps.timestamp",
-	).Scan(&tickers); tx.Error != nil {
+	if tx := s.Raw(query, s.chainId).Find(&tickers); tx.Error != nil {
 		return nil, errors.Wrap(tx.Error, "TickerService.GetAll")
 	}
 
@@ -228,7 +232,7 @@ from pair_stats_30m ps
 where p.chain_id = ?
 `
 	if len(activePoolIds) > 0 {
-		query += " and p.contract not in (" + strings.Join(activePoolIds, ",") + ")"
+		query += " and p.contract not in ('" + strings.Join(activePoolIds, "','") + "')"
 	}
 
 	tickers := []Ticker{}

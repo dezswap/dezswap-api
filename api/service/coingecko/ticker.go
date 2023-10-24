@@ -46,11 +46,12 @@ func (s *tickerService) Get(key string) (*Ticker, error) {
 		return nil, errors.New("unable to parse ticker: " + key)
 	}
 
-	if tx := s.Table("pair_stats_in_24h ps").Joins(
+	if tx := s.Table("pair_stats_recent ps").Joins(
 		"join pair p on ps.pair_id = p.id "+
 			"join tokens t0 on p.chain_id = t0.chain_id and p.asset0 = t0.address "+
 			"join tokens t1 on p.chain_id = t1.chain_id and p.asset1 = t1.address",
-	).Where("ps.chain_id = ? and p.asset0 = ? and p.asset1 = ?", s.chainId, tokens[0], tokens[1]).Order("ps.timestamp asc").Select(
+	).Where("ps.chain_id = ? and p.asset0 = ? and p.asset1 = ? and ps.timestamp >= extract(epoch from now()-interval'24h')", s.chainId, tokens[0], tokens[1]).Order(
+		"ps.timestamp asc").Select(
 		"p.asset0 base_currency," +
 			"p.asset1 target_currency," +
 			"ps.volume0 base_volume," +
@@ -147,23 +148,26 @@ where p.chain_id = ? and p.asset0 = ? and p.asset1 = ?
 
 // GetAll implements Getter
 func (s *tickerService) GetAll() ([]Ticker, error) {
+	query := `
+select p.asset0 base_currency,
+       p.asset1 target_currency,
+       ps.volume0 base_volume,
+       ps.volume1 target_volume,
+       t0.decimals base_decimals,
+       t1.decimals target_decimals,
+       ps.liquidity0_in_price base_liquidity_in_price,
+       p.contract pool_id,
+       ps.timestamp
+from pair_stats_recent ps
+    join pair p on ps.pair_id = p.id
+    join tokens t0 on p.chain_id = t0.chain_id and p.asset0 = t0.address
+    join tokens t1 on p.chain_id = t1.chain_id and p.asset1 = t1.address
+where ps.chain_id = ?
+  and ps.timestamp >= extract(epoch from now()-interval'24h')
+order by ps.timestamp asc
+`
 	tickers := []Ticker{}
-
-	if tx := s.Table("pair_stats_in_24h ps").Joins(
-		"join pair p on ps.pair_id = p.id "+
-			"join tokens t0 on p.chain_id = t0.chain_id and p.asset0 = t0.address "+
-			"join tokens t1 on p.chain_id = t1.chain_id and p.asset1 = t1.address",
-	).Where("ps.chain_id = ?", s.chainId).Order("ps.timestamp asc").Select(
-		"p.asset0 base_currency," +
-			"p.asset1 target_currency," +
-			"ps.volume0 base_volume," +
-			"ps.volume1 target_volume," +
-			"t0.decimals base_decimals," +
-			"t1.decimals target_decimals," +
-			"ps.liquidity0_in_price base_liquidity_in_price," +
-			"p.contract pool_id, " +
-			"ps.timestamp",
-	).Scan(&tickers); tx.Error != nil {
+	if tx := s.Raw(query, s.chainId).Find(&tickers); tx.Error != nil {
 		return nil, errors.Wrap(tx.Error, "TickerService.GetAll")
 	}
 
@@ -277,7 +281,7 @@ where p.chain_id = ?
 `
 
 	if len(activePoolIds) > 0 {
-		query += " and p.contract not in (" + strings.Join(activePoolIds, ",") + ")"
+		query += " and p.contract not in ('" + strings.Join(activePoolIds, "','") + "')"
 	}
 
 	tickers := []Ticker{}
@@ -350,7 +354,7 @@ func (s *tickerService) cachePriceInUsd(priceCoinId string) error {
 func (s *tickerService) price(targetTimestamp float64, force bool) float64 {
 	price := float64(0)
 	for _, p := range s.cachedPrices {
-		if p[priceTimestamp] > math.Trunc(targetTimestamp) {
+		if p[priceTimestamp] > math.Trunc(targetTimestamp)*1_000 {
 			return price
 		}
 		price = p[priceValue]
