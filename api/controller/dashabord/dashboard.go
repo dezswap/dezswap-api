@@ -56,10 +56,10 @@ func (c *dashboardController) Volumes(ctx *gin.Context) {
 //	@Param			duration	query	string	false	"default(empty) value is all"	Enums(year, quarter, month)
 //	@Accept			json
 //	@Produce		json
-//	@Success		200	{object}	TVLsRes
+//	@Success		200	{object}	TvlsRes
 //	@Failure		400	{object}	httputil.BadRequestError
 //	@Failure		500	{object}	httputil.InternalServerError
-//	@Router			/dashboard/tvls [get]
+//	@Router			/dashboard/TVLs [get]
 func (c *dashboardController) TVLs(ctx *gin.Context) {
 }
 

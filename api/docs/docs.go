@@ -258,6 +258,57 @@ const docTemplate = `{
                 }
             }
         },
+        "/dashboard/TVLs": {
+            "get": {
+                "description": "get TVLs",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "dashboard"
+                ],
+                "summary": "TVLs of dezswap selected duration",
+                "parameters": [
+                    {
+                        "enum": [
+                            "year",
+                            "quarter",
+                            "month"
+                        ],
+                        "type": "string",
+                        "description": "default(empty) value is all",
+                        "name": "duration",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/dashboard.TvlRes"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.BadRequestError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.InternalServerError"
+                        }
+                    }
+                }
+            }
+        },
         "/dashboard/pools": {
             "get": {
                 "description": "get Pools data of dezswap (address, tvl, volume, fee, apr)",
@@ -386,57 +437,6 @@ const docTemplate = `{
                             "type": "array",
                             "items": {
                                 "$ref": "#/definitions/dashboard.TokenRes"
-                            }
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/httputil.BadRequestError"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/httputil.InternalServerError"
-                        }
-                    }
-                }
-            }
-        },
-        "/dashboard/tvls": {
-            "get": {
-                "description": "get TVLs",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "dashboard"
-                ],
-                "summary": "TVLs of dezswap selected duration",
-                "parameters": [
-                    {
-                        "enum": [
-                            "year",
-                            "quarter",
-                            "month"
-                        ],
-                        "type": "string",
-                        "description": "default(empty) value is all",
-                        "name": "duration",
-                        "in": "query"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/dashboard.TVLRes"
                             }
                         }
                     },
@@ -903,13 +903,13 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "base_volume": {
-                    "type": "number"
+                    "type": "string"
                 },
                 "last_price": {
-                    "type": "number"
+                    "type": "string"
                 },
                 "liquidity_in_usd": {
-                    "type": "number"
+                    "type": "string"
                 },
                 "pool_id": {
                     "type": "string"
@@ -918,7 +918,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "target_volume": {
-                    "type": "number"
+                    "type": "string"
                 },
                 "ticker_id": {
                     "type": "string"
@@ -1182,17 +1182,6 @@ const docTemplate = `{
                 }
             }
         },
-        "dashboard.TVLRes": {
-            "type": "object",
-            "properties": {
-                "timestamp": {
-                    "type": "string"
-                },
-                "tvl": {
-                    "type": "string"
-                }
-            }
-        },
         "dashboard.TokenRes": {
             "type": "object",
             "properties": {
@@ -1209,6 +1198,17 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "volume": {
+                    "type": "string"
+                }
+            }
+        },
+        "dashboard.TvlRes": {
+            "type": "object",
+            "properties": {
+                "timestamp": {
+                    "type": "string"
+                },
+                "tvl": {
                     "type": "string"
                 }
             }
