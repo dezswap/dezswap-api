@@ -1,4 +1,4 @@
-package api
+package aggregator
 
 import (
 	"github.com/dezswap/cosmwasm-etl/pkg/db/schemas"
