@@ -10,6 +10,6 @@ type LpHistory = schemas.LpHistory
 type Price = schemas.Price
 type Route = schemas.Route
 type ParsedTxWithPrice = schemas.ParsedTxWithPrice
-type PairStatsIn24h = schemas.PairStatsIn24h
+type PairStatsRecent = schemas.PairStatsRecent
 type PairStats30m = schemas.PairStats30m
 type HAccountStats30m = schemas.HAccountStats30m
