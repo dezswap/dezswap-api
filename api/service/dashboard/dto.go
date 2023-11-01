@@ -3,13 +3,6 @@ package dashboard
 import "time"
 
 type Addr string
-type Duration string
-
-const (
-	Year    Duration = "year"
-	Quarter Duration = "quarter"
-	Month   Duration = "month"
-)
 
 type Recent struct {
 	Volume           string  `json:"volume"`

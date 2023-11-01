@@ -3,11 +3,11 @@ package dashboard
 type Dashboard interface {
 	Recent() (Recent, error)
 
-	Volumes(duration Duration) (Volumes, error)
-	Volume(of Addr, duration Duration) (Volume, error)
+	Volumes() (Volumes, error)
+	Volume(of Addr) (Volumes, error)
 
-	Tvls(duration Duration) (Tvls, error)
-	Tvl(of Addr, duration Duration) (Tvl, error)
+	Tvls() (Tvls, error)
+	Tvl(of Addr) (Tvls, error)
 
 	Statistic() (Statistic, error)
 
@@ -20,9 +20,9 @@ type Dashboard interface {
 	Txs() (Txs, error)
 	Tx(of Addr) (Tx, error)
 
-	Prices(duration Duration) (Prices, error)
-	Price(of Addr, duration Duration) (Price, error)
+	Prices() (Prices, error)
+	Price(of Addr) (Prices, error)
 
-	Aprs(duration Duration) (Aprs, error)
-	Apr(of Addr, duration Duration) (Apr, error)
+	Aprs() (Aprs, error)
+	Apr(of Addr) (Aprs, error)
 }
