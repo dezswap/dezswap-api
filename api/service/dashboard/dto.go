@@ -39,8 +39,8 @@ type Statistic struct {
 
 type AddsCounts = []AddsCount
 type AddsCount struct {
-	AddsCount uint64
-	Timestamp time.Time
+	AddressCount uint64
+	Timestamp    time.Time
 }
 
 type TxCounts = []TxCount

@@ -65,8 +65,22 @@ func (d *dashboard) Recent() (Recent, error) {
 }
 
 // Statistic implements Dashboard.
-func (d *dashboard) Statistic(addr ...Addr) (Statistic, error) {
-	panic("unimplemented")
+func (d *dashboard) Statistic(addr ...Addr) (st Statistic, err error) {
+	st = Statistic{}
+	st.AddsCounts, err = d.dau(addr...)
+	if err != nil {
+		return st, errors.Wrap(err, "dashboard.Statistic")
+	}
+	st.TxCounts, err = d.txCounts(addr...)
+	if err != nil {
+		return st, errors.Wrap(err, "dashboard.Statistic")
+	}
+	st.Fees, err = d.fees(addr...)
+	if err != nil {
+		return st, errors.Wrap(err, "dashboard.Statistic")
+	}
+
+	return st, nil
 }
 
 // Tokens implements Dashboard.
@@ -140,7 +154,7 @@ func (d *dashboard) fees(addr ...Addr) (Fees, error) {
 	query := d.DB.Model(
 		&m,
 	).Select(
-		"SUM(volume0_in_price) * 0.003 AS fee, DATE_TRUNC('day', TO_TIMESTAMP(timestamp)) AS timestamp",
+		"SUM(commission0_in_price + commission1_in_price) AS fee, DATE_TRUNC('day', TO_TIMESTAMP(timestamp)) AS timestamp",
 	).Where(
 		fmt.Sprintf("%s.chain_id = ?", m.TableName()), d.chainId,
 	).Where(
@@ -168,7 +182,7 @@ func (d *dashboard) dau(addr ...Addr) (AddsCounts, error) {
 	query := d.DB.Model(
 		&m,
 	).Select(
-		"COUNT(DISTINCT sender) AS adds, DATE_TRUNC('day', TO_TIMESTAMP(timestamp)) AS timestamp",
+		"COUNT(DISTINCT sender) AS address_count, DATE_TRUNC('day', TO_TIMESTAMP(timestamp)) AS timestamp",
 	).Where(
 		fmt.Sprintf("%s.chain_id = ?", m.TableName()), d.chainId,
 	).Where(
@@ -181,7 +195,7 @@ func (d *dashboard) dau(addr ...Addr) (AddsCounts, error) {
 
 	if len(addr) > 0 {
 		if len(addr) > 0 {
-			query = query.Where(fmt.Sprintf("%s.contract = ?", string(addr[0])))
+			query = query.Where(fmt.Sprintf("%s.contract = ?", m.TableName()), addr[0])
 		}
 	}
 
@@ -192,12 +206,12 @@ func (d *dashboard) dau(addr ...Addr) (AddsCounts, error) {
 	return adds, nil
 }
 
-func (d *dashboard) txCnts(addr ...Addr) (TxCounts, error) {
+func (d *dashboard) txCounts(addr ...Addr) (TxCounts, error) {
 	m := parser.ParsedTx{}
 	query := d.DB.Model(
 		&m,
 	).Select(
-		"COUNT(*) AS txs, DATE_TRUNC('day', TO_TIMESTAMP(timestamp)) AS timestamp",
+		"COUNT(*) AS tx_count, DATE_TRUNC('day', TO_TIMESTAMP(timestamp)) AS timestamp",
 	).Where(
 		fmt.Sprintf("%s.chain_id = ?", m.TableName()), d.chainId,
 	).Where(
@@ -209,12 +223,12 @@ func (d *dashboard) txCnts(addr ...Addr) (TxCounts, error) {
 	)
 
 	if len(addr) > 0 {
-		query = query.Where(fmt.Sprintf("%s.contract = ?", string(addr[0])))
+		query = query.Where(fmt.Sprintf("%s.contract = ?", m.TableName()), addr[0])
 	}
 
 	txs := TxCounts{}
 	if err := query.Scan(&txs).Error; err != nil {
-		return nil, errors.Wrap(err, "dashboard.txCnts")
+		return nil, errors.Wrap(err, "dashboard.txCounts")
 	}
 	return txs, nil
 }
