@@ -3,26 +3,19 @@ package dashboard
 type Dashboard interface {
 	Recent() (Recent, error)
 
-	Volumes() (Volumes, error)
-	Volume(of Addr) (Volumes, error)
+	Volumes(...Addr) (Volumes, error)
 
-	Tvls() (Tvls, error)
-	Tvl(of Addr) (Tvls, error)
+	Tvls(...Addr) (Tvls, error)
 
-	Statistic() (Statistic, error)
+	Statistic(...Addr) (Statistic, error)
 
-	Pools() (Pools, error)
-	Pool(of Addr) (Pool, error)
+	Pools(...Addr) (Pools, error)
 
-	Tokens() (Tokens, error)
-	Token(of Addr) (Token, error)
+	Tokens(...Addr) (Tokens, error)
 
-	Txs() (Txs, error)
-	Tx(of Addr) (Tx, error)
+	Txs(...Addr) (Txs, error)
 
-	Prices() (Prices, error)
-	Price(of Addr) (Prices, error)
+	Prices(...Addr) (Prices, error)
 
-	Aprs() (Aprs, error)
-	Apr(of Addr) (Aprs, error)
+	Aprs(...Addr) (Aprs, error)
 }

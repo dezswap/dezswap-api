@@ -1,9 +1,19 @@
 package dashboard
 
 import (
+	"fmt"
+
+	"github.com/dezswap/dezswap-api/pkg/db/aggregator"
+	"github.com/dezswap/dezswap-api/pkg/db/parser"
+	"github.com/dezswap/dezswap-api/pkg/dezswap"
 	"github.com/pkg/errors"
 	"gorm.io/gorm"
 )
+
+type dashboard struct {
+	chainId string
+	*gorm.DB
+}
 
 var _ Dashboard = &dashboard{}
 
@@ -11,84 +21,41 @@ func NewDashboardService(chainId string, db *gorm.DB) Dashboard {
 	return &dashboard{chainId, db}
 }
 
-// Volume implements Dashboard.
-func (d *dashboard) Volume(of Addr) (Volumes, error) {
-	query := `
-SELECT
-	DATE_TRUNC('day', TO_TIMESTAMP(PS. "timestamp")) AS active_date,
-	SUM(PS.volume0_in_price) AS volume
-FROM
-	pair_stats_30m AS PS
-	LEFT JOIN pair AS P ON PS.pair_id = P.id
-WHERE
-	P.contract = ?
-	AND
-	DATE_TRUNC('day', TO_TIMESTAMP(PS. "timestamp")) >= DATE_TRUNC('day', NOW() - INTERVAL '1 year')
-GROUP BY
-	DATE_TRUNC('day', TO_TIMESTAMP(PS. "timestamp"))
-ORDER BY
-	DATE_TRUNC('day', TO_TIMESTAMP(PS. "timestamp"))
-	DESC;
-	`
-	volumes := Volumes{}
-	err := d.DB.Raw(query, of).Scan(&volumes).Error
-	return volumes, errors.Wrap(err, "dashboard.Volumes")
-}
+// Aprs implements Dashboard.
+func (d *dashboard) Aprs(addr ...Addr) (Aprs, error) {
+	m := aggregator.PairStats30m{}
+	query := d.DB.Model(
+		&m,
+	).Select(
+		fmt.Sprintf("SUM(volume0_in_price) * %f AS volume, DATE_TRUNC('day', TO_TIMESTAMP(timestamp)) AS timestamp", dezswap.SWAP_FEE),
+	).Where(
+		fmt.Sprintf("%s.chain_id = ?", m.TableName()), d.chainId,
+	).Where(
+		"DATE_TRUNC('day', TO_TIMESTAMP(timestamp)) >= DATE_TRUNC('day', NOW() - INTERVAL '1 year')",
+	).Group(
+		"DATE_TRUNC('day', TO_TIMESTAMP(timestamp))",
+	).Order(
+		"DATE_TRUNC('day', TO_TIMESTAMP(timestamp)) ASC",
+	)
 
-// Volumes implements Dashboard.
-func (d *dashboard) Volumes() ([]Volume, error) {
-	query := `
-SELECT
-	DATE_TRUNC('day', TO_TIMESTAMP(PS. "timestamp")) AS active_date,
-	SUM(PS.volume0_in_price) AS volume
-FROM
-	pair_stats_30m AS PS
-WHERE
-	DATE_TRUNC('day', TO_TIMESTAMP(PS. "timestamp")) >= DATE_TRUNC('day', NOW() - INTERVAL '1 year')
-GROUP BY
-	DATE_TRUNC('day', TO_TIMESTAMP(PS. "timestamp"))
-ORDER BY
-	DATE_TRUNC('day', TO_TIMESTAMP(PS. "timestamp"))
-	DESC;
-`
-	volumes := []Volume{}
-	if err := d.DB.Raw(query).Scan(&volumes).Error; err != nil {
+	if len(addr) > 0 {
+		joinMsg := fmt.Sprintf("LEFT JOIN pair AS P ON %s.pair_id = P.id", m.TableName())
+		query = query.Where("P.contract = ?", string(addr[0])).Joins(joinMsg)
+	}
+	aprs := Aprs{}
+	if err := query.Scan(&aprs).Error; err != nil {
 		return nil, errors.Wrap(err, "dashboard.Volumes")
 	}
-	return volumes, nil
-}
-
-func (d *dashboard) ActiveAccounts() ([]uint, error) {
-	panic("unimplemented")
-}
-
-// Apr implements Dashboard.
-func (d *dashboard) Apr(of Addr) ([]Apr, error) {
-	panic("unimplemented")
-}
-
-// Aprs implements Dashboard.
-func (d *dashboard) Aprs() ([]Apr, error) {
-	panic("unimplemented")
-}
-
-// Pool implements Dashboard.
-func (d *dashboard) Pool(of Addr) (Pool, error) {
-	panic("unimplemented")
+	return aprs, nil
 }
 
 // Pools implements Dashboard.
-func (d *dashboard) Pools() (Pools, error) {
-	panic("unimplemented")
-}
-
-// Price implements Dashboard.
-func (d *dashboard) Price(of Addr) (Prices, error) {
+func (d *dashboard) Pools(...Addr) (Pools, error) {
 	panic("unimplemented")
 }
 
 // Prices implements Dashboard.
-func (d *dashboard) Prices() (Prices, error) {
+func (d *dashboard) Prices(...Addr) ([]Price, error) {
 	panic("unimplemented")
 }
 
@@ -98,41 +65,156 @@ func (d *dashboard) Recent() (Recent, error) {
 }
 
 // Statistic implements Dashboard.
-func (d *dashboard) Statistic() (Statistic, error) {
-	panic("unimplemented")
-}
-
-// Token implements Dashboard.
-func (d *dashboard) Token(of Addr) (Token, error) {
+func (d *dashboard) Statistic(addr ...Addr) (Statistic, error) {
 	panic("unimplemented")
 }
 
 // Tokens implements Dashboard.
-func (d *dashboard) Tokens() (Tokens, error) {
-	panic("unimplemented")
-}
-
-// Tvl implements Dashboard.
-func (d *dashboard) Tvl(of Addr) (Tvls, error) {
+func (d *dashboard) Tokens(...Addr) (Tokens, error) {
 	panic("unimplemented")
 }
 
 // Tvls implements Dashboard.
-func (d *dashboard) Tvls() (Tvls, error) {
-	panic("unimplemented")
-}
-
-// Tx implements Dashboard.
-func (d *dashboard) Tx(of Addr) (Tx, error) {
+func (d *dashboard) Tvls(addr ...Addr) ([]Tvl, error) {
 	panic("unimplemented")
 }
 
 // Txs implements Dashboard.
-func (d *dashboard) Txs() (Txs, error) {
-	panic("unimplemented")
+func (d *dashboard) Txs(addr ...Addr) (Txs, error) {
+	m := parser.ParsedTx{}
+	query := d.DB.Model(
+		&m,
+	).Select(
+		"SUM(volume0_in_price) AS volume, DATE_TRUNC('day', TO_TIMESTAMP(timestamp)) AS timestamp",
+	).Where(
+		fmt.Sprintf("%s.chain_id = ?", m.TableName()), d.chainId,
+	).Where(
+		"DATE_TRUNC('day', TO_TIMESTAMP(timestamp)) >= DATE_TRUNC('day', NOW() - INTERVAL '1 year')",
+	).Group(
+		"DATE_TRUNC('day', TO_TIMESTAMP(timestamp))",
+	).Order(
+		"DATE_TRUNC('day', TO_TIMESTAMP(timestamp)) ASC",
+	)
+
+	if len(addr) > 0 {
+		joinMsg := fmt.Sprintf("LEFT JOIN pair AS P ON %s.pair_id = P.id", m.TableName())
+		query = query.Where("P.contract = ?", string(addr[0])).Joins(joinMsg)
+	}
+	txs := Txs{}
+	if err := query.Scan(&txs).Error; err != nil {
+		return nil, errors.Wrap(err, "dashboard.Volumes")
+	}
+	return txs, nil
 }
 
-type dashboard struct {
-	chainId string
-	*gorm.DB
+// Volumes implements Dashboard.
+func (d *dashboard) Volumes(addr ...Addr) ([]Volume, error) {
+	m := aggregator.PairStats30m{}
+	query := d.DB.Model(
+		&m,
+	).Select(
+		"SUM(volume0_in_price) AS volume, DATE_TRUNC('day', TO_TIMESTAMP(timestamp)) AS timestamp",
+	).Where(
+		fmt.Sprintf("%s.chain_id = ?", m.TableName()), d.chainId,
+	).Where(
+		"DATE_TRUNC('day', TO_TIMESTAMP(timestamp)) >= DATE_TRUNC('day', NOW() - INTERVAL '1 year')",
+	).Group(
+		"DATE_TRUNC('day', TO_TIMESTAMP(timestamp))",
+	).Order(
+		"DATE_TRUNC('day', TO_TIMESTAMP(timestamp)) ASC",
+	)
+
+	if len(addr) > 0 {
+		joinMsg := fmt.Sprintf("LEFT JOIN pair AS P ON %s.pair_id = P.id", m.TableName())
+		query = query.Where("P.contract = ?", string(addr[0])).Joins(joinMsg)
+	}
+	volumes := []Volume{}
+	if err := query.Scan(&volumes).Error; err != nil {
+		return nil, errors.Wrap(err, "dashboard.Volumes")
+	}
+	return volumes, nil
+}
+
+func (d *dashboard) fees(addr ...Addr) (Fees, error) {
+	m := aggregator.PairStats30m{}
+	query := d.DB.Model(
+		&m,
+	).Select(
+		"SUM(volume0_in_price) * 0.003 AS fee, DATE_TRUNC('day', TO_TIMESTAMP(timestamp)) AS timestamp",
+	).Where(
+		fmt.Sprintf("%s.chain_id = ?", m.TableName()), d.chainId,
+	).Where(
+		"DATE_TRUNC('day', TO_TIMESTAMP(timestamp)) >= DATE_TRUNC('day', NOW() - INTERVAL '1 month')",
+	).Group(
+		"DATE_TRUNC('day', TO_TIMESTAMP(timestamp))",
+	).Order(
+		"DATE_TRUNC('day', TO_TIMESTAMP(timestamp)) ASC",
+	)
+
+	if len(addr) > 0 {
+		joinMsg := fmt.Sprintf("LEFT JOIN pair AS P ON %s.pair_id = P.id", m.TableName())
+		query = query.Where("P.contract = ?", string(addr[0])).Joins(joinMsg)
+	}
+
+	fees := Fees{}
+	if err := query.Scan(&fees).Error; err != nil {
+		return nil, errors.Wrap(err, "dashboard.fees")
+	}
+	return fees, nil
+}
+
+func (d *dashboard) dau(addr ...Addr) (AddsCounts, error) {
+	m := parser.ParsedTx{}
+	query := d.DB.Model(
+		&m,
+	).Select(
+		"COUNT(DISTINCT sender) AS adds, DATE_TRUNC('day', TO_TIMESTAMP(timestamp)) AS timestamp",
+	).Where(
+		fmt.Sprintf("%s.chain_id = ?", m.TableName()), d.chainId,
+	).Where(
+		"DATE_TRUNC('day', TO_TIMESTAMP(timestamp)) >= DATE_TRUNC('day', NOW() - INTERVAL '1 month')",
+	).Group(
+		"DATE_TRUNC('day', TO_TIMESTAMP(timestamp))",
+	).Order(
+		"DATE_TRUNC('day', TO_TIMESTAMP(timestamp)) ASC",
+	)
+
+	if len(addr) > 0 {
+		if len(addr) > 0 {
+			query = query.Where(fmt.Sprintf("%s.contract = ?", string(addr[0])))
+		}
+	}
+
+	adds := AddsCounts{}
+	if err := query.Scan(&adds).Error; err != nil {
+		return nil, errors.Wrap(err, "dashboard.dau")
+	}
+	return adds, nil
+}
+
+func (d *dashboard) txCnts(addr ...Addr) (TxCounts, error) {
+	m := parser.ParsedTx{}
+	query := d.DB.Model(
+		&m,
+	).Select(
+		"COUNT(*) AS txs, DATE_TRUNC('day', TO_TIMESTAMP(timestamp)) AS timestamp",
+	).Where(
+		fmt.Sprintf("%s.chain_id = ?", m.TableName()), d.chainId,
+	).Where(
+		"DATE_TRUNC('day', TO_TIMESTAMP(timestamp)) >= DATE_TRUNC('day', NOW() - INTERVAL '1 month')",
+	).Group(
+		"DATE_TRUNC('day', TO_TIMESTAMP(timestamp))",
+	).Order(
+		"DATE_TRUNC('day', TO_TIMESTAMP(timestamp)) ASC",
+	)
+
+	if len(addr) > 0 {
+		query = query.Where(fmt.Sprintf("%s.contract = ?", string(addr[0])))
+	}
+
+	txs := TxCounts{}
+	if err := query.Scan(&txs).Error; err != nil {
+		return nil, errors.Wrap(err, "dashboard.txCnts")
+	}
+	return txs, nil
 }

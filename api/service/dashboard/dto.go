@@ -2,90 +2,96 @@ package dashboard
 
 import "time"
 
+type ActiveAccounts = []ActiveAccount
+type ActiveAccount struct {
+	ActiveAccount uint64
+	Timestamp     time.Time
+}
+
 type Addr string
 
 type Recent struct {
-	Volume           string  `json:"volume"`
-	VolumeChangeRate float32 `json:"volumeChangeRate"`
-	Fee              string  `json:"fee"`
-	FeeChangeRate    float32 `json:"feeChangeRate"`
-	Tvl              string  `json:"tvl"`
-	TvlChangeRate    float32 `json:"tvlChangeRate"`
+	Volume           string
+	VolumeChangeRate float32
+	Fee              string
+	FeeChangeRate    float32
+	Tvl              string
+	TvlChangeRate    float32
 }
 
 type Volumes = []Volume
 type Volume struct {
-	Volume    string    `json:"volume"`
-	Timestamp time.Time `json:"timestamp"`
+	Volume    string
+	Timestamp time.Time
 }
 
 type Tvls = []Tvl
 type Tvl struct {
-	Tvl       string    `json:"tvl"`
-	Timestamp time.Time `json:"timestamp"`
+	Tvl       string
+	Timestamp time.Time
 }
 
 type Statistic struct {
-	AddsCounts AddsCounts `json:"addsCounts"`
-	TxCounts   TxCounts   `json:"txCounts"`
-	Fees       Fees       `json:"fees"`
+	AddsCounts AddsCounts
+	TxCounts   TxCounts
+	Fees       Fees
 }
 
 type AddsCounts = []AddsCount
 type AddsCount struct {
-	AddsCount uint64    `json:"addsCount"`
-	Timestamp time.Time `json:"timestamp"`
+	AddsCount uint64
+	Timestamp time.Time
 }
 
 type TxCounts = []TxCount
 type TxCount struct {
-	TxCount   uint64    `json:"txCount"`
-	Timestamp time.Time `json:"timestamp"`
+	TxCount   uint64
+	Timestamp time.Time
 }
 
 type Fees = []Fee
 type Fee struct {
-	Fee       string    `json:"fee"`
-	Timestamp time.Time `json:"timestamp"`
+	Fee       string
+	Timestamp time.Time
 }
 
 type Pools []Pool
 
 type Pool struct {
-	Adds   string `json:"adds"`
-	Tvl    string `json:"tvl"`
-	Volume string `json:"volume"`
-	Fee    string `json:"fee"`
-	Apr    string `json:"apr"`
+	Adds   string
+	Tvl    string
+	Volume string
+	Fee    string
+	Apr    string
 }
 
 type Tokens []Token
 type Token struct {
-	Adds        string  `json:"adds"`
-	Price       string  `json:"price"`
-	PriceChange float32 `json:"priceChange"`
-	Volume      string  `json:"volume"`
-	Tvl         string  `json:"tvl"`
+	Adds        string
+	Price       string
+	PriceChange float32
+	Volume      string
+	Tvl         string
 }
 
 type Txs []Tx
 type Tx struct {
-	Action       string    `json:"action"`
-	TotalValue   string    `json:"totalValue"`
-	Asset0Amount string    `json:"asset0amount"`
-	Asset1Amount string    `json:"asset1amount"`
-	Sender       string    `json:"sender"`
-	Time         time.Time `json:"time"`
+	Action       string
+	TotalValue   string
+	Asset0Amount string
+	Asset1Amount string
+	Sender       string
+	Time         time.Time
 }
 
 type Prices = []Price
 type Price struct {
-	Price     string    `json:"price"`
-	Timestamp time.Time `json:"timestamp"`
+	Price     string
+	Timestamp time.Time
 }
 
 type Aprs = []Apr
 type Apr struct {
-	Apr       string    `json:"apr"`
-	Timestamp time.Time `json:"timestamp"`
+	Apr       string
+	Timestamp time.Time
 }
