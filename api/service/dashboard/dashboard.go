@@ -85,7 +85,82 @@ func (d *dashboard) Statistic(addr ...Addr) (st Statistic, err error) {
 
 // Tokens implements Dashboard.
 func (d *dashboard) Tokens(...Addr) (Tokens, error) {
-	panic("unimplemented")
+	query := `
+select t.address as addr, coalesce(p.price, 0) price,
+       floor((coalesce(p.price, 0)-coalesce(p24h.price, 0))/coalesce(p.price, 1)*10000)/100 as price_change
+from tokens t
+    left join (
+        select token_id, price
+        from price p
+            join (
+                select max(id) id
+                from price
+                group by token_id) t on p.id = t.id) p on t.id = p.token_id
+    left join (
+        select token_id, price
+        from price p
+            join (
+                select max(id) id
+                from price
+                where height <= (select coalesce(max(height), 0) from parsed_tx
+                  where chain_id = ? and timestamp <= extract(epoch from now() - interval '1 day'))
+                group by token_id) t on p.id = t.id) p24h on t.id = p24h.token_id
+where t.chain_id = ? and t.symbol != 'uLP'
+`
+	var tokens []Token
+	if tx := d.Raw(query, d.chainId, d.chainId).Find(&tokens); tx.Error != nil {
+		return nil, errors.Wrap(tx.Error, "dashboard.Tokens")
+	}
+
+	query = `
+select address,
+       sum(volume) as volume,
+       sum(tvl) as tvl
+from (
+    select t.address,
+       case when p.asset0 = t.address then sum(s.sum_vol0) else sum(s.sum_vol1) end as volume,
+       case when p.asset0 = t.address then sum(s.lp0) else sum(s.lp1) end as tvl
+    from (
+        select distinct pair_id,
+                        sum(volume0_in_price) over(partition by pair_id) sum_vol0,
+                        sum(volume1_in_price) over(partition by pair_id) sum_vol1,
+                        first_value(liquidity0_in_price) over(partition by pair_id order by timestamp desc) lp0,
+                        first_value(liquidity1_in_price) over(partition by pair_id order by timestamp desc) lp1
+        from pair_stats_recent
+        where timestamp >= extract(epoch from now() - interval '1 day')
+          and chain_id = ?) s
+    join pair p on p.id = s.pair_id
+    left join tokens t on p.chain_id = t.chain_id and (p.asset0 = t.address or p.asset1 = t.address)
+    group by t.address, p.asset0) t
+group by address
+`
+	type tokenStat struct {
+		Address Addr
+		Volume  string
+		Tvl     string
+	}
+	var stats []tokenStat
+	if tx := d.Raw(query, d.chainId).Find(&stats); tx.Error != nil {
+		return nil, errors.Wrap(tx.Error, "dashboard.Tokens")
+	}
+
+	statMap := make(map[Addr]tokenStat, len(stats))
+	for _, s := range stats {
+		statMap[s.Address] = s
+	}
+
+	for i, t := range tokens {
+		if stat, ok := statMap[t.Addr]; ok {
+			t.Volume = stat.Volume
+			t.Tvl = stat.Tvl
+		} else {
+			t.Volume = "0"
+			t.Tvl = "0"
+		}
+		tokens[i] = t
+	}
+
+	return tokens, nil
 }
 
 // Tvls implements Dashboard.

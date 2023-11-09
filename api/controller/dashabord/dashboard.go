@@ -2,8 +2,12 @@ package dashboard
 
 import (
 	"github.com/dezswap/dezswap-api/api/controller"
+	dashboardService "github.com/dezswap/dezswap-api/api/service/dashboard"
+	"github.com/dezswap/dezswap-api/pkg/httputil"
 	"github.com/dezswap/dezswap-api/pkg/logging"
 	"github.com/gin-gonic/gin"
+	"github.com/pkg/errors"
+	"net/http"
 )
 
 func InitDashboardController() controller.DashboardController {
@@ -15,6 +19,7 @@ func InitDashboardController() controller.DashboardController {
 }
 
 type dashboardController struct {
+	dashboardService.Dashboard
 	logger logging.Logger
 	mapper
 }
@@ -103,6 +108,15 @@ func (c *dashboardController) Pools(ctx *gin.Context) {
 //	@Failure		500	{object}	httputil.InternalServerError
 //	@Router			/dashboard/tokens [get]
 func (c *dashboardController) Tokens(ctx *gin.Context) {
+	tokens, err := c.Dashboard.Tokens()
+	if err != nil {
+		c.logger.Warn(err)
+		httputil.NewError(ctx, http.StatusInternalServerError, errors.New("internal server error"))
+		return
+	}
+	res := c.tokensToRes(tokens)
+
+	ctx.JSON(http.StatusOK, res)
 }
 
 // Dashboard godoc
