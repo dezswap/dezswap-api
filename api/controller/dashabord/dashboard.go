@@ -10,11 +10,12 @@ import (
 	"net/http"
 )
 
-func InitDashboardController() controller.DashboardController {
+func InitDashboardController(route *gin.RouterGroup) controller.DashboardController {
 	c := dashboardController{}
 	c.logger.Debug("InitDashboardController")
 	// TODO: remove when implement this is temporary code for lint
 	c.mapper = mapper{}
+	c.register(route)
 	return &c
 }
 
@@ -22,6 +23,11 @@ type dashboardController struct {
 	dashboardService.Dashboard
 	logger logging.Logger
 	mapper
+}
+
+func (c *dashboardController) register(route *gin.RouterGroup) {
+	route.GET("/tokens", c.Tokens)
+	route.GET("/token/:address", c.Token)
 }
 
 // Dashboard godoc
@@ -94,6 +100,40 @@ func (c *dashboardController) Statistic(ctx *gin.Context) {
 //	@Failure		500	{object}	httputil.InternalServerError
 //	@Router			/dashboard/pools [get]
 func (c *dashboardController) Pools(ctx *gin.Context) {
+}
+
+// Dashboard godoc
+//
+//	@Summary		Dezswap's Token Stats
+//	@Description	get Token data of dezswap (address, price, price_change, volume_24h,  volume_24h_change, volume_7d, volume_7d_change, tvl)
+//	@Tags			dashboard
+//	@Accept			json
+//	@Produce		json
+//	@Success		200	{object}	TokenRes
+//	@Failure		400	{object}	httputil.BadRequestError
+//	@Failure		404	{object}	httputil.NotFoundError
+//	@Failure		500	{object}	httputil.InternalServerError
+//	@Router			/dashboard/token/{address} [get]
+func (c *dashboardController) Token(ctx *gin.Context) {
+	address := ctx.Param("address")
+	if address == "" {
+		httputil.NewError(ctx, http.StatusBadRequest, errors.New("invalid address address"))
+		return
+	}
+
+	tokens, err := c.Dashboard.Tokens(dashboardService.Addr(address))
+	if err != nil {
+		c.logger.Warn(err)
+		httputil.NewError(ctx, http.StatusInternalServerError, errors.New("internal server error"))
+		return
+	}
+	if len(tokens) == 0 {
+		httputil.NewError(ctx, http.StatusNotFound, errors.New("token not found"))
+		return
+	}
+	res := c.tokenToRes(tokens[0])
+
+	ctx.JSON(http.StatusOK, res)
 }
 
 // Dashboard godoc
