@@ -305,6 +305,8 @@ with s as (
            sum(volume1_in_price) filter (where timestamp_before = 0) over w sum_vol1,
            sum(volume0_in_price) filter (where timestamp_before > 0) over w sum_vol0_before,
            sum(volume1_in_price) filter (where timestamp_before > 0) over w sum_vol1_before,
+           sum(commission0_in_price) filter (where timestamp_before = 0) over w sum_com0,
+           sum(commission1_in_price) filter (where timestamp_before = 0) over w sum_com1,
            first_value(liquidity0_in_price) over w_lp lp0,
            first_value(liquidity1_in_price) over w_lp lp1,
            first_value(liquidity0_in_price) over w_lp_before lp0_before,
@@ -335,7 +337,8 @@ select address,
        coalesce(sum(volume_7d)+sum(volume_24h),0) as volume_week,
        coalesce((sum(volume_7d)+sum(volume_24h)-sum(volume_7d_before))/(sum(volume_7d)+sum(volume_24h)),0) as volume_week_change,
        coalesce(sum(tvl),0) as tvl,
-       coalesce((sum(tvl)-sum(tvl_24h_before))/sum(tvl),0) as tvl_change
+       coalesce((sum(tvl)-sum(tvl_24h_before))/sum(tvl),0) as tvl_change,
+       coalesce(sum(commission),0) as commission
 from (
     select t.address,
            case when p.asset0 = t.address then sum(s.sum_vol0) else sum(s.sum_vol1) end as volume_24h,
@@ -343,7 +346,8 @@ from (
            case when p.asset0 = t.address then sum(s_7d.sum_vol0) else sum(s_7d.sum_vol1) end as volume_7d,
            case when p.asset0 = t.address then sum(s_7d.sum_vol0_before) else sum(s_7d.sum_vol1_before) end as volume_7d_before,
            case when p.asset0 = t.address then sum(s.lp0) else sum(s.lp1) end as tvl,
-           case when p.asset0 = t.address then sum(s.lp0_before) else sum(s.lp1_before) end as tvl_24h_before
+           case when p.asset0 = t.address then sum(s.lp0_before) else sum(s.lp1_before) end as tvl_24h_before,
+           case when p.asset0 = t.address then sum(s.sum_com0) else sum(s.sum_com1) end as commission
     from s
         join pair p on p.id = s.pair_id
         join s_7d  on p.id = s_7d.pair_id
@@ -362,6 +366,7 @@ from (
 		VolumeWeekChange string
 		Tvl              string
 		TvlChange        string
+		Commission       string
 	}
 	var stats []tokenStat
 	if tx := d.Raw(query, d.chainId, d.chainId).Find(&stats); tx.Error != nil {
@@ -381,6 +386,7 @@ from (
 			t.Volume7dChange = stat.VolumeWeekChange
 			t.Tvl = stat.Tvl
 			t.TvlChange = stat.TvlChange
+			t.Commission = stat.Commission
 		} else {
 			t.Volume = "0"
 			t.VolumeChange = "0"
@@ -388,6 +394,7 @@ from (
 			t.Volume7dChange = "0"
 			t.Tvl = "0"
 			t.TvlChange = "0"
+			t.Commission = "0"
 		}
 		tokens[i] = t
 	}

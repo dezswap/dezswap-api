@@ -20,6 +20,7 @@ func (m *mapper) tokenToRes(token dashboardService.Token) TokenRes {
 		Volume7dChange:  token.Volume7dChange,
 		Tvl:             token.Tvl,
 		TvlChange:       token.TvlChange,
+		Fee:             token.Commission,
 	}
 }
 

@@ -68,6 +68,7 @@ type Token struct {
 	Volume7dChange string
 	Tvl            string
 	TvlChange      string
+	Commission     string
 }
 
 type Txs []Tx
