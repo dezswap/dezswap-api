@@ -17,7 +17,7 @@ type TickerRes struct {
 	TargetCurrency string `json:"target_currency"`
 	LastPrice      string `json:"last_price"`
 	BaseVolume     string `json:"base_volume"`
-	TargetVolume   string `json:"target_volume" `
+	TargetVolume   string `json:"target_volume"`
 	PoolId         string `json:"pool_id"`
 	LiquidityInUsd string `json:"liquidity_in_usd"`
 }

@@ -67,11 +67,15 @@ type Pool struct {
 
 type Tokens []Token
 type Token struct {
-	Adds        string
-	Price       string
-	PriceChange float32
-	Volume      string
-	Tvl         string
+	Addr           Addr
+	Price          string
+	PriceChange    float32
+	Volume         string
+	VolumeChange   string
+	Volume7d       string
+	Volume7dChange string
+	Tvl            string
+	TvlChange      string
 }
 
 type Txs []Tx
