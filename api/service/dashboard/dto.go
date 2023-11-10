@@ -58,11 +58,11 @@ type Fee struct {
 type Pools []Pool
 
 type Pool struct {
-	Adds   string
-	Tvl    string
-	Volume string
-	Fee    string
-	Apr    string
+	Address string
+	Tvl     string
+	Volume  string
+	Fee     string
+	Apr     string
 }
 
 type Tokens []Token

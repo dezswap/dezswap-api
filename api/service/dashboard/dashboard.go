@@ -26,7 +26,7 @@ func (d *dashboard) Aprs(addr ...Addr) (Aprs, error) {
 	query := d.DB.Model(
 		&m,
 	).Select(
-		fmt.Sprintf("SUM(volume0_in_price) * %f AS volume, DATE_TRUNC('day', TO_TIMESTAMP(timestamp)) AS timestamp", dezswap.SWAP_FEE),
+		"SUM(volume0_in_price) over AS volume, DATE_TRUNC('day', TO_TIMESTAMP(timestamp)) AS timestamp",
 	).Where(
 		fmt.Sprintf("%s.chain_id = ?", m.TableName()), d.chainId,
 	).Where(
@@ -34,7 +34,7 @@ func (d *dashboard) Aprs(addr ...Addr) (Aprs, error) {
 	).Group(
 		"DATE_TRUNC('day', TO_TIMESTAMP(timestamp))",
 	).Order(
-		"DATE_TRUNC('day', TO_TIMESTAMP(timestamp)) ASC",
+		"DATE_TRUNC('day', TO_TIMESTAMP(timestamp)) DESC",
 	)
 
 	if len(addr) > 0 {
@@ -49,8 +49,87 @@ func (d *dashboard) Aprs(addr ...Addr) (Aprs, error) {
 }
 
 // Pools implements Dashboard.
-func (d *dashboard) Pools(...Addr) (Pools, error) {
-	panic("unimplemented")
+func (d *dashboard) Pools(addr ...Addr) (Pools, error) {
+
+	timeRangeWith := `
+		WITH time_range AS (
+			SELECT
+			CASE WHEN EXTRACT(MINUTE FROM now()) >= 30 THEN
+				DATE_TRUNC('hour',now())
+			ELSE
+				DATE_TRUNC('hour',now()) - INTERVAL '30 min'
+			END AS end_time,
+			CASE WHEN EXTRACT(MINUTE FROM now()) >= 30 THEN
+				DATE_TRUNC('hour',now()) - INTERVAL '7 day'
+			ELSE
+				DATE_TRUNC('hour',now()) - INTERVAL '7 day' - INTERVAL '30 min'
+			END AS start_time
+		)
+	`
+	latestTvls := `
+		SELECT DISTINCT ON (ps.pair_id)
+			ps.pair_id AS pair_id,
+			p.contract AS address,
+			(ps.liquidity0_in_price + ps.liquidity1_in_price) AS tvl
+		FROM
+			"pair_stats_30m" AS ps
+			JOIN pair AS p ON ps.pair_id = p.id
+		WHERE
+			p.chain_id = ?
+		AND
+			TO_TIMESTAMP(ps. "timestamp") <= (
+				SELECT
+					end_time
+				FROM
+					time_range)
+			ORDER BY
+				ps.pair_id,
+				ps.timestamp DESC`
+	volume1d := `
+		SELECT
+			ps0.pair_id AS pair_id,
+			SUM(volume0_in_price) AS volume
+		FROM
+			pair_stats_30m AS ps0
+		WHERE (
+			SELECT
+				end_time
+			FROM
+				time_range) - INTERVAL '1 day' < TO_TIMESTAMP(ps0. "timestamp")
+		GROUP BY
+			ps0.pair_id
+		ORDER BY
+			ps0.pair_id
+	`
+	volume7d := `
+		SELECT
+			v.pair_id AS pair_id,
+			SUM(v.volume0_in_price) AS volume
+		FROM
+			pair_stats_30m AS v
+		WHERE
+			TO_TIMESTAMP(v.timestamp) > (SELECT start_time FROM time_range)
+			GROUP BY
+				v.pair_id
+			ORDER BY
+				v.pair_id
+	`
+	query := fmt.Sprintf(
+		`%s
+		SELECT
+			t.address, t.tvl, v1.volume, v1.volume * %f as fee, v7.volume/t.tvl as apr
+		FROM
+			(%s) AS t
+			LEFT JOIN (%s) AS v1 ON v1.pair_id = t.pair_id
+			LEFT JOIN (%s) AS v7 ON v7.pair_id = t.pair_id
+		`,
+		timeRangeWith, dezswap.SWAP_FEE, latestTvls, volume1d, volume7d,
+	)
+	pools := Pools{}
+	if err := d.DB.Raw(query, d.chainId).Scan(&pools).Error; err != nil {
+		return nil, errors.Wrap(err, "dashboard.Pools")
+	}
+	return pools, nil
 }
 
 // Prices implements Dashboard.
@@ -249,7 +328,7 @@ func (d *dashboard) Txs(addr ...Addr) (Txs, error) {
 	}
 	txs := Txs{}
 	if err := query.Scan(&txs).Error; err != nil {
-		return nil, errors.Wrap(err, "dashboard.Volumes")
+		return nil, errors.Wrap(err, "dashboard.Txs")
 	}
 	return txs, nil
 }
