@@ -153,20 +153,30 @@ func (d *dashboard) Recent() (Recent, error) {
 
 // Statistic implements Dashboard.
 func (d *dashboard) Statistic(addr ...Addr) (st Statistic, err error) {
-	st = Statistic{}
-	st.AddsCounts, err = d.dau(addr...)
-	if err != nil {
-		return st, errors.Wrap(err, "dashboard.Statistic")
-	}
-	st.TxCounts, err = d.txCounts(addr...)
-	if err != nil {
-		return st, errors.Wrap(err, "dashboard.Statistic")
-	}
-	st.Fees, err = d.fees(addr...)
-	if err != nil {
-		return st, errors.Wrap(err, "dashboard.Statistic")
-	}
+	subDau := d.dau(addr...)
+	subTxCnts := d.txCounts(addr...)
+	subFees := d.fees(addr...)
 
+	query := `
+	WITH dau AS (?),
+		tx_counts AS (?),
+		fees AS (?)
+	SELECT
+		dau.address_count,
+		tx_counts.tx_count,
+		fees.fee,
+		dau.timestamp
+	FROM
+		dau
+		JOIN tx_counts ON dau.timestamp = tx_counts.timestamp
+		JOIN fees ON dau.timestamp = fees.timestamp
+	ORDER BY dau.timestamp ASC
+	`
+
+	st = Statistic{}
+	if err := d.DB.Raw(query, subDau, subTxCnts, subFees).Scan(&st).Error; err != nil {
+		return nil, errors.Wrap(err, "dashboard.Pools")
+	}
 	return st, nil
 }
 
@@ -386,7 +396,7 @@ func (d *dashboard) Volumes(addr ...Addr) ([]Volume, error) {
 	return volumes, nil
 }
 
-func (d *dashboard) fees(addr ...Addr) (Fees, error) {
+func (d *dashboard) fees(addr ...Addr) *gorm.DB {
 	m := aggregator.PairStats30m{}
 	query := d.DB.Model(
 		&m,
@@ -407,14 +417,10 @@ func (d *dashboard) fees(addr ...Addr) (Fees, error) {
 		query = query.Where("P.contract = ?", string(addr[0])).Joins(joinMsg)
 	}
 
-	fees := Fees{}
-	if err := query.Scan(&fees).Error; err != nil {
-		return nil, errors.Wrap(err, "dashboard.fees")
-	}
-	return fees, nil
+	return query
 }
 
-func (d *dashboard) dau(addr ...Addr) (AddsCounts, error) {
+func (d *dashboard) dau(addr ...Addr) *gorm.DB {
 	m := parser.ParsedTx{}
 	query := d.DB.Model(
 		&m,
@@ -431,19 +437,12 @@ func (d *dashboard) dau(addr ...Addr) (AddsCounts, error) {
 	)
 
 	if len(addr) > 0 {
-		if len(addr) > 0 {
-			query = query.Where(fmt.Sprintf("%s.contract = ?", m.TableName()), addr[0])
-		}
+		query = query.Where(fmt.Sprintf("%s.contract = ?", m.TableName()), addr[0])
 	}
-
-	adds := AddsCounts{}
-	if err := query.Scan(&adds).Error; err != nil {
-		return nil, errors.Wrap(err, "dashboard.dau")
-	}
-	return adds, nil
+	return query
 }
 
-func (d *dashboard) txCounts(addr ...Addr) (TxCounts, error) {
+func (d *dashboard) txCounts(addr ...Addr) *gorm.DB {
 	m := parser.ParsedTx{}
 	query := d.DB.Model(
 		&m,
@@ -463,9 +462,5 @@ func (d *dashboard) txCounts(addr ...Addr) (TxCounts, error) {
 		query = query.Where(fmt.Sprintf("%s.contract = ?", m.TableName()), addr[0])
 	}
 
-	txs := TxCounts{}
-	if err := query.Scan(&txs).Error; err != nil {
-		return nil, errors.Wrap(err, "dashboard.txCounts")
-	}
-	return txs, nil
+	return query
 }

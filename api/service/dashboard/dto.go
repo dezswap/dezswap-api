@@ -31,28 +31,12 @@ type Tvl struct {
 	Timestamp time.Time
 }
 
-type Statistic struct {
-	AddsCounts AddsCounts
-	TxCounts   TxCounts
-	Fees       Fees
-}
-
-type AddsCounts = []AddsCount
-type AddsCount struct {
+type Statistic = []StatisticItem
+type StatisticItem struct {
 	AddressCount uint64
+	TxCount      uint64
+	Fee          string
 	Timestamp    time.Time
-}
-
-type TxCounts = []TxCount
-type TxCount struct {
-	TxCount   uint64
-	Timestamp time.Time
-}
-
-type Fees = []Fee
-type Fee struct {
-	Fee       string
-	Timestamp time.Time
 }
 
 type Pools []struct {
