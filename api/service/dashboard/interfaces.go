@@ -14,6 +14,12 @@ type Dashboard interface {
 
 	Tokens(...Addr) (Tokens, error)
 
+	TokenVolumes(addr Addr, itv Interval) (TokenChart, error)
+
+	TokenTvls(addr Addr, itv Interval) (TokenChart, error)
+
+	TokenPrices(addr Addr, itv Interval) (TokenChart, error)
+
 	Txs(...Addr) (Txs, error)
 
 	Prices(...Addr) (Prices, error)

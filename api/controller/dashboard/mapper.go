@@ -33,6 +33,16 @@ func (m *mapper) tokensToRes(tokens dashboardService.Tokens) TokensRes {
 	return res
 }
 
+func (m *mapper) tokenChartToRes(chart dashboardService.TokenChart) TokenChart {
+	res := make(TokenChart, len(chart))
+
+	for i, v := range chart {
+		res[i] = [2]string{v.Timestamp, v.Value}
+	}
+
+	return res
+}
+
 func (m *mapper) recentToRes(recent dashboardService.Recent) RecentRes {
 	return RecentRes{
 		Volume:           recent.Volume,

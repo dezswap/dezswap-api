@@ -58,6 +58,10 @@ type TokenRes struct {
 	Fee             string  `json:"fee,omitempty"`
 }
 
+type TokenChart []TimestampValue
+
+type TimestampValue [2]string
+
 type TxsRes []TxRes
 type TxRes struct {
 	Action       string    `json:"action"`
