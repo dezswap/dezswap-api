@@ -55,10 +55,9 @@ type Fee struct {
 	Timestamp time.Time
 }
 
-type Pools []Pool
-
-type Pool struct {
+type Pools []struct {
 	Address string
+	Symbols string
 	Tvl     string
 	Volume  string
 	Fee     string

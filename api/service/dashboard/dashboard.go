@@ -50,7 +50,7 @@ func (d *dashboard) Aprs(addr ...Addr) (Aprs, error) {
 }
 
 // Pools implements Dashboard.
-func (d *dashboard) Pools(addr ...Addr) (Pools, error) {
+func (d *dashboard) Pools() (Pools, error) {
 
 	timeRangeWith := `
 		WITH time_range AS (
@@ -71,10 +71,13 @@ func (d *dashboard) Pools(addr ...Addr) (Pools, error) {
 		SELECT DISTINCT ON (ps.pair_id)
 			ps.pair_id AS pair_id,
 			p.contract AS address,
+			CONCAT(t0.symbol, '-', t1.symbol) AS symbols,
 			(ps.liquidity0_in_price + ps.liquidity1_in_price) AS tvl
 		FROM
 			"pair_stats_30m" AS ps
 			JOIN pair AS p ON ps.pair_id = p.id
+			JOIN tokens AS t0 ON p.asset0 = t0.address
+			JOIN tokens AS t1 ON p.asset1 = t1.address
 		WHERE
 			p.chain_id = ?
 		AND
@@ -118,7 +121,7 @@ func (d *dashboard) Pools(addr ...Addr) (Pools, error) {
 	query := fmt.Sprintf(
 		`%s
 		SELECT
-			t.address, t.tvl, v1.volume, v1.volume * %f as fee, v7.volume/t.tvl as apr
+			t.address, t.symbols, t.tvl, v1.volume, v1.volume * %f as fee, v7.volume/t.tvl as apr
 		FROM
 			(%s) AS t
 			LEFT JOIN (%s) AS v1 ON v1.pair_id = t.pair_id
@@ -131,6 +134,11 @@ func (d *dashboard) Pools(addr ...Addr) (Pools, error) {
 		return nil, errors.Wrap(err, "dashboard.Pools")
 	}
 	return pools, nil
+}
+
+// Pool implements Dashboard.
+func (*dashboard) Pool(addr Addr) (Pools, error) {
+	panic("unimplemented")
 }
 
 // Prices implements Dashboard.
