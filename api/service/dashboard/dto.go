@@ -81,11 +81,17 @@ type Token struct {
 type Txs []Tx
 type Tx struct {
 	Action       string
-	TotalValue   string
-	Asset0Amount string
-	Asset1Amount string
+	Hash         string
 	Sender       string
-	Time         time.Time
+	Address      string
+	Asset0       string
+	Asset0Symbol string
+	Asset0Amount string
+	Asset1       string
+	Asset1Symbol string
+	Asset1Amount string
+	TotalValue   string
+	Timestamp    time.Time
 }
 
 type Prices = []Price
