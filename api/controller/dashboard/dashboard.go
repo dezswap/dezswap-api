@@ -138,6 +138,7 @@ func (c *dashboardController) Pools(ctx *gin.Context) {
 //	@Failure		400	{object}	httputil.BadRequestError
 //	@Failure		404	{object}	httputil.NotFoundError
 //	@Failure		500	{object}	httputil.InternalServerError
+//	@Param			address		path	string	true	"token address"
 //	@Router			/dashboard/token/{address} [get]
 func (c *dashboardController) Token(ctx *gin.Context) {
 	address := ctx.Param("address")
@@ -194,7 +195,10 @@ func (c *dashboardController) Tokens(ctx *gin.Context) {
 //	@Success		200	{object}	TokenChart
 //	@Failure		400	{object}	httputil.BadRequestError
 //	@Failure		500	{object}	httputil.InternalServerError
-//	@Router			/dashboard/token_chart [get]
+//	@Router			/dashboard/token_chart/{address} [get]
+//	@Param			address		path	string	true	"token address"
+//	@Param			data		query	string	false	"chart data type"			Enums(volume, tvl, price)
+//	@Param			interval	query	string	false	"time range of each amount" Enums(month, two-week, week, day)
 func (c *dashboardController) TokenChart(ctx *gin.Context) {
 	address := ctx.Param("address")
 	if address == "" {

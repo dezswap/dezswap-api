@@ -422,6 +422,15 @@
                     "dashboard"
                 ],
                 "summary": "Dezswap's Token Stats",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "token address",
+                        "name": "address",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -439,6 +448,79 @@
                         "description": "Not Found",
                         "schema": {
                             "$ref": "#/definitions/httputil.NotFoundError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.InternalServerError"
+                        }
+                    }
+                }
+            }
+        },
+        "/dashboard/token_chart/{address}": {
+            "get": {
+                "description": "get Token' chart data of Dezswap by designated interval",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "dashboard"
+                ],
+                "summary": "Dezswap's Token Chart Data",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "token address",
+                        "name": "address",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "enum": [
+                            "volume",
+                            "tvl",
+                            "price"
+                        ],
+                        "type": "string",
+                        "description": "chart data type",
+                        "name": "data",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "month",
+                            "two-week",
+                            "week",
+                            "day"
+                        ],
+                        "type": "string",
+                        "description": "time range of each amount",
+                        "name": "interval",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "type": "array",
+                                "items": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.BadRequestError"
                         }
                     },
                     "500": {
@@ -1229,6 +1311,9 @@
             "type": "object",
             "properties": {
                 "address": {
+                    "type": "string"
+                },
+                "fee": {
                     "type": "string"
                 },
                 "price": {
