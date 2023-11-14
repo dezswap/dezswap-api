@@ -1,20 +1,21 @@
 package dashboard
 
 import (
+	"net/http"
+
 	"github.com/dezswap/dezswap-api/api/controller"
 	dashboardService "github.com/dezswap/dezswap-api/api/service/dashboard"
 	"github.com/dezswap/dezswap-api/pkg/httputil"
 	"github.com/dezswap/dezswap-api/pkg/logging"
 	"github.com/gin-gonic/gin"
 	"github.com/pkg/errors"
-	"net/http"
 )
 
-func InitDashboardController(route *gin.RouterGroup) controller.DashboardController {
-	c := dashboardController{}
+func InitDashboardController(s dashboardService.Dashboard, route *gin.RouterGroup, logger logging.Logger) controller.DashboardController {
+	c := dashboardController{
+		s, logger, mapper{},
+	}
 	c.logger.Debug("InitDashboardController")
-	// TODO: remove when implement this is temporary code for lint
-	c.mapper = mapper{}
 	c.register(route)
 	return &c
 }
@@ -26,8 +27,16 @@ type dashboardController struct {
 }
 
 func (c *dashboardController) register(route *gin.RouterGroup) {
-	route.GET("/tokens", c.Tokens)
+
+	route.GET("/recent", c.Recent)
+
+	route.GET("/statistics", c.Statistic)
+
 	route.GET("/token/:address", c.Token)
+	route.GET("/tokens", c.Tokens)
+
+	route.GET("/txs/:poolAddress", c.TxsOfPool)
+	route.GET("/txs", c.Txs)
 }
 
 // Dashboard godoc
@@ -42,6 +51,13 @@ func (c *dashboardController) register(route *gin.RouterGroup) {
 //	@Failure		500	{object}	httputil.InternalServerError
 //	@Router			/dashboard/recent [get]
 func (c *dashboardController) Recent(ctx *gin.Context) {
+	recent, err := c.Dashboard.Recent()
+	if err != nil {
+		c.logger.Warn(err)
+		httputil.NewError(ctx, http.StatusInternalServerError, errors.New("internal server error"))
+		return
+	}
+	ctx.JSON(http.StatusOK, c.recentToRes(recent))
 }
 
 // Dashboard godoc
@@ -86,6 +102,14 @@ func (c *dashboardController) TVLs(ctx *gin.Context) {
 //	@Failure		500	{object}	httputil.InternalServerError
 //	@Router			/dashboard/statistics [get]
 func (c *dashboardController) Statistic(ctx *gin.Context) {
+	statistic, err := c.Dashboard.Statistic()
+	if err != nil {
+		c.logger.Warn(err)
+		httputil.NewError(ctx, http.StatusInternalServerError, errors.New("internal server error"))
+		return
+	}
+	ctx.JSON(http.StatusOK, c.statisticToRes(statistic))
+
 }
 
 // Dashboard godoc
@@ -161,14 +185,57 @@ func (c *dashboardController) Tokens(ctx *gin.Context) {
 
 // Dashboard godoc
 //
+//	@Summary		Dezswap's Transactions of a pool
+//	@Description	get Transactions data of dezswap (action, totalValue, asset0amount, asset1amount, time)
+//	@Tags			dashboard
+//	@Accept			json
+//	@Produce		json
+//	@Success		200	{object}	TxsRes
+//	@Failure		400	{object}	httputil.BadRequestError
+//	@Failure		500	{object}	httputil.InternalServerError
+//	@Router			/dashboard/txs/{poolAddress} [get]
+func (c *dashboardController) TxsOfPool(ctx *gin.Context) {
+
+	address := ctx.Param("poolAddress")
+	if address == "" {
+		httputil.NewError(ctx, http.StatusBadRequest, errors.New("invalid address"))
+		return
+	}
+
+	txs, err := c.Dashboard.Txs()
+	if err != nil {
+		c.logger.Warn(err)
+		httputil.NewError(ctx, http.StatusInternalServerError, errors.New("internal server error"))
+		return
+	}
+
+	if len(txs) == 0 {
+		httputil.NewError(ctx, http.StatusNotFound, errors.New("pool not found"))
+		return
+	}
+
+	txsRes := c.txsToRes(txs)
+	ctx.JSON(http.StatusOK, txsRes)
+}
+
+// Dashboard godoc
+//
 //	@Summary		Dezswap's Transactions
 //	@Description	get Transactions data of dezswap (action, totalValue, asset0amount, asset1amount, time)
 //	@Tags			dashboard
 //	@Accept			json
 //	@Produce		json
-//	@Success		200	{object}	TxReses
+//	@Success		200	{object}	TxsRes
 //	@Failure		400	{object}	httputil.BadRequestError
 //	@Failure		500	{object}	httputil.InternalServerError
 //	@Router			/dashboard/txs [get]
 func (c *dashboardController) Txs(ctx *gin.Context) {
+	txs, err := c.Dashboard.Txs()
+	if err != nil {
+		c.logger.Warn(err)
+		httputil.NewError(ctx, http.StatusInternalServerError, errors.New("internal server error"))
+		return
+	}
+	txsRes := c.txsToRes(txs)
+	ctx.JSON(http.StatusOK, txsRes)
 }

@@ -399,13 +399,57 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/dashboard.StatisticRes"
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/dashboard.StatisticResItem"
+                            }
                         }
                     },
                     "400": {
                         "description": "Bad Request",
                         "schema": {
                             "$ref": "#/definitions/httputil.BadRequestError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.InternalServerError"
+                        }
+                    }
+                }
+            }
+        },
+        "/dashboard/token/{address}": {
+            "get": {
+                "description": "get Token data of dezswap (address, price, price_change, volume_24h,  volume_24h_change, volume_7d, volume_7d_change, tvl)",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "dashboard"
+                ],
+                "summary": "Dezswap's Token Stats",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dashboard.TokenRes"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.BadRequestError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.NotFoundError"
                         }
                     },
                     "500": {
@@ -468,6 +512,44 @@ const docTemplate = `{
                     "dashboard"
                 ],
                 "summary": "Dezswap's Transactions",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/dashboard.TxRes"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.BadRequestError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.InternalServerError"
+                        }
+                    }
+                }
+            }
+        },
+        "/dashboard/txs/{poolAddress}": {
+            "get": {
+                "description": "get Transactions data of dezswap (action, totalValue, asset0amount, asset1amount, time)",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "dashboard"
+                ],
+                "summary": "Dezswap's Transactions of a pool",
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -1094,28 +1176,6 @@ const docTemplate = `{
                 }
             }
         },
-        "dashboard.AddressCountRes": {
-            "type": "object",
-            "properties": {
-                "addressCount": {
-                    "type": "integer"
-                },
-                "timestamp": {
-                    "type": "string"
-                }
-            }
-        },
-        "dashboard.FeeRes": {
-            "type": "object",
-            "properties": {
-                "fee": {
-                    "type": "string"
-                },
-                "timestamp": {
-                    "type": "string"
-                }
-            }
-        },
         "dashboard.PoolRes": {
             "type": "object",
             "properties": {
@@ -1159,26 +1219,20 @@ const docTemplate = `{
                 }
             }
         },
-        "dashboard.StatisticRes": {
+        "dashboard.StatisticResItem": {
             "type": "object",
             "properties": {
-                "addressCounts": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/dashboard.AddressCountRes"
-                    }
+                "addressCount": {
+                    "type": "integer"
                 },
-                "fees": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/dashboard.FeeRes"
-                    }
+                "fee": {
+                    "type": "string"
                 },
-                "txCounts": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/dashboard.TxCountRes"
-                    }
+                "timestamp": {
+                    "type": "string"
+                },
+                "txCount": {
+                    "type": "integer"
                 }
             }
         },
@@ -1197,7 +1251,19 @@ const docTemplate = `{
                 "tvl": {
                     "type": "string"
                 },
-                "volume": {
+                "tvl_change": {
+                    "type": "string"
+                },
+                "volume_24h": {
+                    "type": "string"
+                },
+                "volume_24h_change": {
+                    "type": "string"
+                },
+                "volume_7d": {
+                    "type": "string"
+                },
+                "volume_7d_change": {
                     "type": "string"
                 }
             }
@@ -1213,33 +1279,34 @@ const docTemplate = `{
                 }
             }
         },
-        "dashboard.TxCountRes": {
-            "type": "object",
-            "properties": {
-                "timestamp": {
-                    "type": "string"
-                },
-                "txCount": {
-                    "type": "integer"
-                }
-            }
-        },
         "dashboard.TxRes": {
             "type": "object",
             "properties": {
+                "account": {
+                    "type": "string"
+                },
                 "action": {
+                    "type": "string"
+                },
+                "address": {
+                    "type": "string"
+                },
+                "asset0": {
                     "type": "string"
                 },
                 "asset0amount": {
                     "type": "string"
                 },
+                "asset1": {
+                    "type": "string"
+                },
                 "asset1amount": {
                     "type": "string"
                 },
-                "sender": {
+                "hash": {
                     "type": "string"
                 },
-                "time": {
+                "timestamp": {
                     "type": "string"
                 },
                 "totalValue": {

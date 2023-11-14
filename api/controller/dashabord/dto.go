@@ -1,5 +1,7 @@
 package dashboard
 
+import "time"
+
 type RecentRes struct {
 	Volume           string  `json:"volume"`
 	VolumeChangeRate float32 `json:"volumeChangeRate"`
@@ -24,28 +26,12 @@ type TvlRes struct {
 	Timestamp string `json:"timestamp"`
 }
 
-type StatisticRes struct {
-	AddressCountsRes AddressCountsRes `json:"addressCounts"`
-	TxCountsRes      TxCountsRes      `json:"txCounts"`
-	FeesRes          FeesRes          `json:"fees"`
-}
-
-type AddressCountsRes = []AddressCountRes
-type AddressCountRes struct {
-	AddressCount uint64 `json:"addressCount"`
-	Timestamp    string `json:"timestamp"`
-}
-
-type TxCountsRes = []TxCountRes
-type TxCountRes struct {
-	TxCount   uint64 `json:"txCount"`
-	Timestamp string `json:"timestamp"`
-}
-
-type FeesRes = []FeeRes
-type FeeRes struct {
-	Fee       string `json:"fee"`
-	Timestamp string `json:"timestamp"`
+type StatisticRes []StatisticResItem
+type StatisticResItem struct {
+	AddressCount uint64    `json:"addressCount"`
+	TxCount      uint64    `json:"txCount"`
+	Fee          string    `json:"fee"`
+	Timestamp    time.Time `json:"timestamp"`
 }
 
 type PoolsRes []PoolRes
@@ -71,12 +57,16 @@ type TokenRes struct {
 	TvlChange       string  `json:"tvl_change,omitempty"`
 }
 
-type TxReses []TxRes
+type TxsRes []TxRes
 type TxRes struct {
-	Action       string `json:"action"`
-	TotalValue   string `json:"totalValue"`
-	Asset0Amount string `json:"asset0amount"`
-	Asset1Amount string `json:"asset1amount"`
-	Sender       string `json:"sender"`
-	Time         string `json:"time"`
+	Action       string    `json:"action"`
+	Address      string    `json:"address"`
+	Hash         string    `json:"hash"`
+	TotalValue   string    `json:"totalValue"`
+	Asset0       string    `json:"asset0"`
+	Asset0Amount string    `json:"asset0amount"`
+	Asset1       string    `json:"asset1"`
+	Asset1Amount string    `json:"asset1amount"`
+	Account      string    `json:"account"`
+	Timestamp    time.Time `json:"timestamp"`
 }

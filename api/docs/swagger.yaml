@@ -139,20 +139,6 @@ definitions:
       verified:
         type: boolean
     type: object
-  dashboard.AddressCountRes:
-    properties:
-      addressCount:
-        type: integer
-      timestamp:
-        type: string
-    type: object
-  dashboard.FeeRes:
-    properties:
-      fee:
-        type: string
-      timestamp:
-        type: string
-    type: object
   dashboard.PoolRes:
     properties:
       address:
@@ -181,20 +167,16 @@ definitions:
       volumeChangeRate:
         type: number
     type: object
-  dashboard.StatisticRes:
+  dashboard.StatisticResItem:
     properties:
-      addressCounts:
-        items:
-          $ref: '#/definitions/dashboard.AddressCountRes'
-        type: array
-      fees:
-        items:
-          $ref: '#/definitions/dashboard.FeeRes'
-        type: array
-      txCounts:
-        items:
-          $ref: '#/definitions/dashboard.TxCountRes'
-        type: array
+      addressCount:
+        type: integer
+      fee:
+        type: string
+      timestamp:
+        type: string
+      txCount:
+        type: integer
     type: object
   dashboard.TokenRes:
     properties:
@@ -206,7 +188,15 @@ definitions:
         type: number
       tvl:
         type: string
-      volume:
+      tvl_change:
+        type: string
+      volume_7d:
+        type: string
+      volume_7d_change:
+        type: string
+      volume_24h:
+        type: string
+      volume_24h_change:
         type: string
     type: object
   dashboard.TvlRes:
@@ -216,24 +206,25 @@ definitions:
       tvl:
         type: string
     type: object
-  dashboard.TxCountRes:
-    properties:
-      timestamp:
-        type: string
-      txCount:
-        type: integer
-    type: object
   dashboard.TxRes:
     properties:
+      account:
+        type: string
       action:
+        type: string
+      address:
+        type: string
+      asset0:
         type: string
       asset0amount:
         type: string
+      asset1:
+        type: string
       asset1amount:
         type: string
-      sender:
+      hash:
         type: string
-      time:
+      timestamp:
         type: string
       totalValue:
         type: string
@@ -552,7 +543,9 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/dashboard.StatisticRes'
+            items:
+              $ref: '#/definitions/dashboard.StatisticResItem'
+            type: array
         "400":
           description: Bad Request
           schema:
@@ -562,6 +555,34 @@ paths:
           schema:
             $ref: '#/definitions/httputil.InternalServerError'
       summary: Dezswap's statistics
+      tags:
+      - dashboard
+  /dashboard/token/{address}:
+    get:
+      consumes:
+      - application/json
+      description: get Token data of dezswap (address, price, price_change, volume_24h,  volume_24h_change,
+        volume_7d, volume_7d_change, tvl)
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dashboard.TokenRes'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httputil.BadRequestError'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/httputil.NotFoundError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httputil.InternalServerError'
+      summary: Dezswap's Token Stats
       tags:
       - dashboard
   /dashboard/tokens:
@@ -614,6 +635,32 @@ paths:
           schema:
             $ref: '#/definitions/httputil.InternalServerError'
       summary: Dezswap's Transactions
+      tags:
+      - dashboard
+  /dashboard/txs/{poolAddress}:
+    get:
+      consumes:
+      - application/json
+      description: get Transactions data of dezswap (action, totalValue, asset0amount,
+        asset1amount, time)
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/dashboard.TxRes'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httputil.BadRequestError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httputil.InternalServerError'
+      summary: Dezswap's Transactions of a pool
       tags:
       - dashboard
   /dashboard/volumes:
