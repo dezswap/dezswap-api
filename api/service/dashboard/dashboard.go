@@ -2,6 +2,7 @@ package dashboard
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/dezswap/dezswap-api/pkg/db/aggregator"
 	"github.com/dezswap/dezswap-api/pkg/db/parser"
@@ -95,11 +96,10 @@ func (d *dashboard) Pools() (Pools, error) {
 			SUM(volume0_in_price) AS volume
 		FROM
 			pair_stats_30m AS ps0
-		WHERE (
-			SELECT
-				end_time
-			FROM
-				time_range) - INTERVAL '1 day' < TO_TIMESTAMP(ps0. "timestamp")
+		WHERE
+			(SELECT end_time FROM time_range) - INTERVAL '1 day' < TO_TIMESTAMP(ps0. "timestamp")
+			AND
+			TO_TIMESTAMP(ps0. "timestamp") <= (SELECT end_time FROM time_range)
 		GROUP BY
 			ps0.pair_id
 		ORDER BY
@@ -112,11 +112,13 @@ func (d *dashboard) Pools() (Pools, error) {
 		FROM
 			pair_stats_30m AS v
 		WHERE
-			TO_TIMESTAMP(v.timestamp) > (SELECT start_time FROM time_range)
-			GROUP BY
-				v.pair_id
-			ORDER BY
-				v.pair_id
+			(SELECT start_time FROM time_range) < TO_TIMESTAMP(v.timestamp)
+		AND
+			TO_TIMESTAMP(v.timestamp) <= (SELECT end_time FROM time_range)
+		GROUP BY
+			v.pair_id
+		ORDER BY
+			v.pair_id
 	`
 	query := fmt.Sprintf(
 		`%s
@@ -148,7 +150,38 @@ func (d *dashboard) Prices(...Addr) ([]Price, error) {
 
 // Recent implements Dashboard.
 func (d *dashboard) Recent() (Recent, error) {
-	panic("unimplemented")
+	basetime, mins := time.Now().Truncate(time.Hour), time.Now().Minute()
+	if mins >= 30 {
+		basetime = basetime.Add(time.Minute * -30)
+	}
+	tvl := d.tvl(basetime)
+	prevTvl := d.tvl(basetime.Add(time.Hour * -24))
+	volume := d.volume(basetime.Add(time.Hour*-24), basetime)
+	prevVolume := d.volume(basetime.Add(time.Hour*-48), basetime.Add(time.Hour*-24))
+
+	query := `
+		WITH tvl AS (?),
+		prev_tvl AS (?),
+		volume AS (?),
+		prev_volume AS (?)
+		SELECT
+			SUM(tvl.tvl) as tvl,
+			(SUM(tvl.tvl) / SUM(prev_tvl.tvl)) - 1 AS tvl_change_rate,
+			SUM(volume.volume) AS volume,
+			(SUM(volume.volume) / SUM(prev_volume.volume)) - 1 AS volume_change_rate,
+			SUM(volume.volume)* 0.003 as fee,
+			(SUM(volume.volume) / SUM(prev_volume.volume)) - 1 AS fee_change_rate
+		FROM
+			tvl
+			LEFT JOIN prev_tvl ON tvl.pair_id = prev_tvl.pair_id
+			LEFT JOIN volume ON tvl.pair_id = volume.pair_id
+			LEFT JOIN prev_volume ON tvl.pair_id = prev_volume.pair_id;
+	`
+	recent := Recent{}
+	if err := d.DB.Raw(query, tvl, prevTvl, volume, prevVolume).Scan(&recent).Error; err != nil {
+		return recent, errors.Wrap(err, "dashboard.Pools")
+	}
+	return recent, nil
 }
 
 // Statistic implements Dashboard.
@@ -461,6 +494,41 @@ func (d *dashboard) txCounts(addr ...Addr) *gorm.DB {
 	if len(addr) > 0 {
 		query = query.Where(fmt.Sprintf("%s.contract = ?", m.TableName()), addr[0])
 	}
+
+	return query
+}
+
+func (d *dashboard) tvl(at time.Time) *gorm.DB {
+	m := aggregator.PairStats30m{}
+	query := d.DB.Table(aggregator.PairStats30m{}.TableName()).Select(`
+		DISTINCT ON (pair_id)
+		pair_id AS pair_id,
+		(liquidity0_in_price + liquidity1_in_price) AS tvl`,
+	).Where(
+		fmt.Sprintf("%s.chain_id = ?", m.TableName()), d.chainId,
+	).Where(
+		`TO_TIMESTAMP("timestamp") <= ?`, at,
+	).Order(`
+		pair_id,
+		timestamp DESC`,
+	)
+
+	return query
+}
+func (d *dashboard) volume(from, to time.Time) *gorm.DB {
+	m := aggregator.PairStats30m{}
+	query := d.DB.Table(
+		aggregator.PairStats30m{}.TableName(),
+	).Select(`
+		pair_id AS pair_id,
+		SUM(volume0_in_price) AS volume`,
+	).Where(
+		fmt.Sprintf("%s.chain_id = ?", m.TableName()), d.chainId,
+	).Where(`
+		? < TO_TIMESTAMP("timestamp")
+		AND
+		TO_TIMESTAMP("timestamp") <= ?`, from, to,
+	).Group(`pair_id`).Order(`pair_id`)
 
 	return query
 }
