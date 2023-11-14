@@ -150,36 +150,65 @@ func (d *dashboard) Prices(...Addr) ([]Price, error) {
 
 // Recent implements Dashboard.
 func (d *dashboard) Recent() (Recent, error) {
-	basetime, mins := time.Now().Truncate(time.Hour), time.Now().Minute()
+	current, mins := time.Now().Truncate(time.Hour), time.Now().Minute()
 	if mins >= 30 {
-		basetime = basetime.Add(time.Minute * -30)
+		current = current.Add(time.Minute * -30)
 	}
-	tvl := d.tvl(basetime)
-	prevTvl := d.tvl(basetime.Add(time.Hour * -24))
-	volume := d.volume(basetime.Add(time.Hour*-24), basetime)
-	prevVolume := d.volume(basetime.Add(time.Hour*-48), basetime.Add(time.Hour*-24))
-
-	query := `
-		WITH tvl AS (?),
-		prev_tvl AS (?),
-		volume AS (?),
-		prev_volume AS (?)
+	dayAgo, twoDaysAgo := current.Add(time.Hour*-24), current.Add(time.Hour*-48)
+	tvl := func(at time.Time) string {
+		return fmt.Sprintf(`
 		SELECT
-			SUM(tvl.tvl) as tvl,
-			(SUM(tvl.tvl) / SUM(prev_tvl.tvl)) - 1 AS tvl_change_rate,
-			SUM(volume.volume) AS volume,
-			(SUM(volume.volume) / SUM(prev_volume.volume)) - 1 AS volume_change_rate,
-			SUM(volume.volume)* 0.003 as fee,
-			(SUM(volume.volume) / SUM(prev_volume.volume)) - 1 AS fee_change_rate
+			SUM(ps.liquidity0_in_price + ps.liquidity1_in_price) AS tvl
 		FROM
-			tvl
-			LEFT JOIN prev_tvl ON tvl.pair_id = prev_tvl.pair_id
-			LEFT JOIN volume ON tvl.pair_id = volume.pair_id
-			LEFT JOIN prev_volume ON tvl.pair_id = prev_volume.pair_id;
-	`
+			pair_stats_30m as ps
+			JOIN (
+				SELECT
+					pair_id,
+					MAX(timestamp) AS timestamp
+				FROM
+					pair_stats_30m
+				WHERE
+					chain_id = '%s'
+				AND
+					TO_TIMESTAMP(timestamp) <= '%s'
+				GROUP BY
+					pair_id) AS latests ON ps.pair_id = latests.pair_id
+			AND ps.timestamp = latests.timestamp`, d.chainId, at.UTC().Format(time.DateTime),
+		)
+	}
+	volume := func(from, to time.Time) string {
+		return fmt.Sprintf(`
+		SELECT
+			SUM(volume0_in_price) AS volume
+		FROM
+			pair_stats_30m
+		WHERE
+			chain_id = '%s'
+		AND
+			'%s' < TO_TIMESTAMP("timestamp")
+		AND
+			TO_TIMESTAMP("timestamp") <= '%s'
+		`, d.chainId, from.UTC().Format(time.DateTime), to.UTC().Format(time.DateTime))
+	}
+
+	query := fmt.Sprintf(`
+		WITH tvl AS (%s),
+			prev_tvl AS (%s),
+			volume AS (%s),
+			prev_volume AS (%s)
+		SELECT
+			tvl.tvl AS tvl,
+			CAST((tvl.tvl / prev_tvl.tvl - 1) AS float4) AS tvl_change_rate,
+			volume.volume AS volume,
+			CAST((volume.volume / prev_volume.volume - 1) AS float4) AS volume_change_rate,
+			volume.volume * ? as fee,
+			CAST((volume.volume / prev_volume.volume - 1) AS float4) AS fee_change_rate
+		FROM
+			tvl, prev_tvl, volume, prev_volume;
+	`, tvl(current), tvl(dayAgo), volume(dayAgo, current), volume(twoDaysAgo, dayAgo))
 	recent := Recent{}
-	if err := d.DB.Raw(query, tvl, prevTvl, volume, prevVolume).Scan(&recent).Error; err != nil {
-		return recent, errors.Wrap(err, "dashboard.Pools")
+	if err := d.DB.Raw(query, dezswap.SWAP_FEE).Scan(&recent).Error; err != nil {
+		return recent, errors.Wrap(err, "dashboard.Recent")
 	}
 	return recent, nil
 }
@@ -457,8 +486,9 @@ func (d *dashboard) dau(addr ...Addr) *gorm.DB {
 	m := parser.ParsedTx{}
 	query := d.DB.Model(
 		&m,
-	).Select(
-		"COUNT(DISTINCT sender) AS address_count, DATE_TRUNC('day', TO_TIMESTAMP(timestamp)) AS timestamp",
+	).Select(`
+		COUNT(DISTINCT sender) AS address_count,
+		DATE_TRUNC('day', TO_TIMESTAMP(timestamp)) AT TIME ZONE 'UTC' AS timestamp`,
 	).Where(
 		fmt.Sprintf("%s.chain_id = ?", m.TableName()), d.chainId,
 	).Where(
@@ -479,8 +509,9 @@ func (d *dashboard) txCounts(addr ...Addr) *gorm.DB {
 	m := parser.ParsedTx{}
 	query := d.DB.Model(
 		&m,
-	).Select(
-		"COUNT(*) AS tx_count, DATE_TRUNC('day', TO_TIMESTAMP(timestamp)) AS timestamp",
+	).Select(`
+		COUNT(*) AS tx_count,
+		DATE_TRUNC('day', TO_TIMESTAMP(timestamp)) AS timestamp`,
 	).Where(
 		fmt.Sprintf("%s.chain_id = ?", m.TableName()), d.chainId,
 	).Where(
@@ -494,41 +525,6 @@ func (d *dashboard) txCounts(addr ...Addr) *gorm.DB {
 	if len(addr) > 0 {
 		query = query.Where(fmt.Sprintf("%s.contract = ?", m.TableName()), addr[0])
 	}
-
-	return query
-}
-
-func (d *dashboard) tvl(at time.Time) *gorm.DB {
-	m := aggregator.PairStats30m{}
-	query := d.DB.Table(aggregator.PairStats30m{}.TableName()).Select(`
-		DISTINCT ON (pair_id)
-		pair_id AS pair_id,
-		(liquidity0_in_price + liquidity1_in_price) AS tvl`,
-	).Where(
-		fmt.Sprintf("%s.chain_id = ?", m.TableName()), d.chainId,
-	).Where(
-		`TO_TIMESTAMP("timestamp") <= ?`, at,
-	).Order(`
-		pair_id,
-		timestamp DESC`,
-	)
-
-	return query
-}
-func (d *dashboard) volume(from, to time.Time) *gorm.DB {
-	m := aggregator.PairStats30m{}
-	query := d.DB.Table(
-		aggregator.PairStats30m{}.TableName(),
-	).Select(`
-		pair_id AS pair_id,
-		SUM(volume0_in_price) AS volume`,
-	).Where(
-		fmt.Sprintf("%s.chain_id = ?", m.TableName()), d.chainId,
-	).Where(`
-		? < TO_TIMESTAMP("timestamp")
-		AND
-		TO_TIMESTAMP("timestamp") <= ?`, from, to,
-	).Group(`pair_id`).Order(`pair_id`)
 
 	return query
 }

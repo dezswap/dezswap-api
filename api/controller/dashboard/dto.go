@@ -16,8 +16,8 @@ type VolumesRequest struct {
 }
 type VolumesRes = []VolumeRes
 type VolumeRes struct {
-	Volume    string `json:"volume"`
-	Timestamp string `json:"timestamp"`
+	Volume    string    `json:"volume"`
+	Timestamp time.Time `json:"timestamp"`
 }
 
 type TvlsRes = []TvlRes

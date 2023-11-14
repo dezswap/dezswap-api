@@ -11,12 +11,12 @@ type ActiveAccount struct {
 type Addr string
 
 type Recent struct {
-	Volume           string
-	VolumeChangeRate float32
-	Fee              string
-	FeeChangeRate    float32
-	Tvl              string
-	TvlChangeRate    float32
+	Volume           string  `gorm:"volume"`
+	VolumeChangeRate float32 `gorm:"volume_change_rate"`
+	Fee              string  `gorm:"fee"`
+	FeeChangeRate    float32 `gorm:"fee_change_rate"`
+	Tvl              string  `gorm:"tvl"`
+	TvlChangeRate    float32 `gorm:"tvl_change_rate"`
 }
 
 type Volumes = []Volume
