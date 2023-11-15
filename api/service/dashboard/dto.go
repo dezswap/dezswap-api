@@ -19,13 +19,13 @@ type ActiveAccount struct {
 
 type Addr string
 
-type Interval string
+type Duration string
 
 const (
-	day     Interval = "day"
-	week    Interval = "week"
-	twoWeek Interval = "two-week"
-	month   Interval = "month"
+	month   Duration = "month"
+	quarter Duration = "quarter"
+	year    Duration = "year"
+	all     Duration = "all"
 )
 
 type Recent struct {

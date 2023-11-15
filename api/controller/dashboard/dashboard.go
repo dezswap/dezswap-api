@@ -197,8 +197,8 @@ func (c *dashboardController) Tokens(ctx *gin.Context) {
 //	@Failure		500	{object}	httputil.InternalServerError
 //	@Router			/dashboard/token_chart/{address} [get]
 //	@Param			address		path	string	true	"token address"
-//	@Param			data		query	string	false	"chart data type"			Enums(volume, tvl, price)
-//	@Param			interval	query	string	false	"time range of each amount" Enums(month, two-week, week, day)
+//	@Param			data		query	string	true	"chart data type"				Enums(volume, tvl, price)
+//	@Param			duration	query	string	false	"default(empty) value is all"	Enums(year, quarter, month)
 func (c *dashboardController) TokenChart(ctx *gin.Context) {
 	address := ctx.Param("address")
 	if address == "" {
@@ -207,31 +207,30 @@ func (c *dashboardController) TokenChart(ctx *gin.Context) {
 	}
 
 	data := ctx.Query("data")
-	interval := ctx.Query("interval")
-	if interval == "" {
-		httputil.NewError(ctx, http.StatusBadRequest, errors.New("invalid interval"))
-		return
+	duration := ctx.Query("duration")
+	if len(duration) == 0 {
+		duration = "all"
 	}
 
 	var chart dashboardService.TokenChart
 	var err error
 	switch data {
 	case "volume":
-		chart, err = c.Dashboard.TokenVolumes(dashboardService.Addr(address), dashboardService.Interval(interval))
+		chart, err = c.Dashboard.TokenVolumes(dashboardService.Addr(address), dashboardService.Duration(duration))
 		if err != nil {
 			c.logger.Warn(err)
 			httputil.NewError(ctx, http.StatusInternalServerError, errors.New("internal server error"))
 			return
 		}
 	case "tvl":
-		chart, err = c.Dashboard.TokenTvls(dashboardService.Addr(address), dashboardService.Interval(interval))
+		chart, err = c.Dashboard.TokenTvls(dashboardService.Addr(address), dashboardService.Duration(duration))
 		if err != nil {
 			c.logger.Warn(err)
 			httputil.NewError(ctx, http.StatusInternalServerError, errors.New("internal server error"))
 			return
 		}
 	case "price":
-		chart, err = c.Dashboard.TokenPrices(dashboardService.Addr(address), dashboardService.Interval(interval))
+		chart, err = c.Dashboard.TokenPrices(dashboardService.Addr(address), dashboardService.Duration(duration))
 		if err != nil {
 			c.logger.Warn(err)
 			httputil.NewError(ctx, http.StatusInternalServerError, errors.New("internal server error"))

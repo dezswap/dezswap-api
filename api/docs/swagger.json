@@ -489,18 +489,18 @@
                         "type": "string",
                         "description": "chart data type",
                         "name": "data",
-                        "in": "query"
+                        "in": "query",
+                        "required": true
                     },
                     {
                         "enum": [
-                            "month",
-                            "two-week",
-                            "week",
-                            "day"
+                            "year",
+                            "quarter",
+                            "month"
                         ],
                         "type": "string",
-                        "description": "time range of each amount",
-                        "name": "interval",
+                        "description": "default(empty) value is all",
+                        "name": "duration",
                         "in": "query"
                     }
                 ],

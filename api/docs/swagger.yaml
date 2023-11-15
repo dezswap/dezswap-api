@@ -611,15 +611,15 @@ paths:
         - price
         in: query
         name: data
+        required: true
         type: string
-      - description: time range of each amount
+      - description: default(empty) value is all
         enum:
+        - year
+        - quarter
         - month
-        - two-week
-        - week
-        - day
         in: query
-        name: interval
+        name: duration
         type: string
       produces:
       - application/json
