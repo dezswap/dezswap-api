@@ -99,3 +99,19 @@ func (m *mapper) txsToRes(txs dashboardService.Txs) TxsRes {
 	}
 	return res
 }
+
+func (m *mapper) poolsToRes(pools dashboardService.Pools) PoolsRes {
+	res := make(PoolsRes, len(pools))
+
+	for i, p := range pools {
+		res[i] = PoolRes{
+			Address: p.Address,
+			Tvl:     p.Tvl,
+			Volume:  p.Volume,
+			Fee:     p.Fee,
+			Apr:     p.Apr,
+		}
+	}
+
+	return res
+}

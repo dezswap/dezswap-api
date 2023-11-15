@@ -322,6 +322,14 @@ const docTemplate = `{
                     "dashboard"
                 ],
                 "summary": "Dezswap's Pools",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "token address",
+                        "name": "token",
+                        "in": "query"
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "OK",

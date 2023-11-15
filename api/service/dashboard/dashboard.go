@@ -65,7 +65,15 @@ func (d *dashboard) Aprs(addr ...Addr) (Aprs, error) {
 }
 
 // Pools implements Dashboard.
-func (d *dashboard) Pools() (Pools, error) {
+func (d *dashboard) Pools(tokens ...Addr) (Pools, error) {
+	var tokensCond string
+	if len(tokens) > 0 {
+		var tokensStr string
+		for _, t := range tokens {
+			tokensStr += string(t)
+		}
+		tokensCond = " and (p.asset0 in ('" + tokensStr + "') or p.asset1 in ('" + tokensStr + "'))"
+	}
 
 	timeRangeWith := `
 		WITH time_range AS (
@@ -101,9 +109,7 @@ func (d *dashboard) Pools() (Pools, error) {
 					end_time
 				FROM
 					time_range)
-			ORDER BY
-				ps.pair_id,
-				ps.timestamp DESC`
+	` + tokensCond + ` ORDER BY ps.pair_id, ps.timestamp DESC`
 	volume1d := `
 		SELECT
 			ps0.pair_id AS pair_id,
@@ -137,7 +143,12 @@ func (d *dashboard) Pools() (Pools, error) {
 	query := fmt.Sprintf(
 		`%s
 		SELECT
-			t.address, t.symbols, t.tvl, v1.volume, v1.volume * %f as fee, v7.volume/t.tvl as apr
+			t.address,
+			t.symbols,
+			coalesce(t.tvl,0) as tvl,
+			coalesce(v1.volume,0) as volume,
+			coalesce(v1.volume * %f,0) as fee,
+			coalesce(v7.volume/t.tvl,0) as apr
 		FROM
 			(%s) AS t
 			LEFT JOIN (%s) AS v1 ON v1.pair_id = t.pair_id
