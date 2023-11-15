@@ -491,6 +491,11 @@ paths:
       consumes:
       - application/json
       description: get Pools data of dezswap (address, tvl, volume, fee, apr)
+      parameters:
+      - description: token address
+        in: query
+        name: token
+        type: string
       produces:
       - application/json
       responses:

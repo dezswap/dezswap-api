@@ -9,7 +9,7 @@ type Dashboard interface {
 
 	Statistic(...Addr) (Statistic, error)
 
-	Pools() (Pools, error)
+	Pools(...Addr) (Pools, error)
 	Pool(addr Addr) (Pools, error)
 
 	Tokens(...Addr) (Tokens, error)

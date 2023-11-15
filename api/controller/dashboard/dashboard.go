@@ -38,6 +38,8 @@ func (c *dashboardController) register(route *gin.RouterGroup) {
 
 	route.GET("/txs/:poolAddress", c.TxsOfPool)
 	route.GET("/txs", c.Txs)
+
+	route.GET("/pools", c.Pools)
 }
 
 // Dashboard godoc
@@ -123,8 +125,31 @@ func (c *dashboardController) Statistic(ctx *gin.Context) {
 //	@Success		200	{object}	PoolsRes
 //	@Failure		400	{object}	httputil.BadRequestError
 //	@Failure		500	{object}	httputil.InternalServerError
+//	@Param			token		query	string	false	"token address"
 //	@Router			/dashboard/pools [get]
 func (c *dashboardController) Pools(ctx *gin.Context) {
+	token := ctx.Query("token")
+
+	var pools dashboardService.Pools
+	var err error
+	if len(token) > 0 {
+		pools, err = c.Dashboard.Pools(dashboardService.Addr(token))
+		if err != nil {
+			c.logger.Warn(err)
+			httputil.NewError(ctx, http.StatusInternalServerError, errors.New("internal server error"))
+			return
+		}
+	} else {
+		pools, err = c.Dashboard.Pools()
+		if err != nil {
+			c.logger.Warn(err)
+			httputil.NewError(ctx, http.StatusInternalServerError, errors.New("internal server error"))
+			return
+		}
+	}
+
+	res := c.poolsToRes(pools)
+	ctx.JSON(http.StatusOK, res)
 }
 
 // Dashboard godoc
