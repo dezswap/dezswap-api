@@ -428,7 +428,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/dashboard/token/{address}": {
+        "/dashboard/token": {
             "get": {
                 "description": "get Token data of dezswap (address, price, price_change, volume_24h,  volume_24h_change, volume_7d, volume_7d_change, tvl)",
                 "consumes": [
@@ -446,7 +446,7 @@ const docTemplate = `{
                         "type": "string",
                         "description": "token address",
                         "name": "address",
-                        "in": "path",
+                        "in": "query",
                         "required": true
                     }
                 ],
@@ -478,7 +478,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/dashboard/token_chart/{address}": {
+        "/dashboard/token_chart": {
             "get": {
                 "description": "get Token' chart data of Dezswap by designated interval",
                 "consumes": [
@@ -496,7 +496,7 @@ const docTemplate = `{
                         "type": "string",
                         "description": "token address",
                         "name": "address",
-                        "in": "path",
+                        "in": "query",
                         "required": true
                     },
                     {

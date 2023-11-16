@@ -32,9 +32,9 @@ func (c *dashboardController) register(route *gin.RouterGroup) {
 
 	route.GET("/statistics", c.Statistic)
 
-	route.GET("/token/:address", c.Token)
+	route.GET("/token", c.Token)
 	route.GET("/tokens", c.Tokens)
-	route.GET("/token_chart/:address", c.TokenChart)
+	route.GET("/token_chart", c.TokenChart)
 
 	route.GET("/txs/:poolAddress", c.TxsOfPool)
 	route.GET("/txs", c.Txs)
@@ -163,10 +163,10 @@ func (c *dashboardController) Pools(ctx *gin.Context) {
 //	@Failure		400	{object}	httputil.BadRequestError
 //	@Failure		404	{object}	httputil.NotFoundError
 //	@Failure		500	{object}	httputil.InternalServerError
-//	@Param			address		path	string	true	"token address"
-//	@Router			/dashboard/token/{address} [get]
+//	@Param			address		query	string	true	"token address"
+//	@Router			/dashboard/token [get]
 func (c *dashboardController) Token(ctx *gin.Context) {
-	address := ctx.Param("address")
+	address := ctx.Query("address")
 	if address == "" {
 		httputil.NewError(ctx, http.StatusBadRequest, errors.New("invalid address address"))
 		return
@@ -220,12 +220,12 @@ func (c *dashboardController) Tokens(ctx *gin.Context) {
 //	@Success		200	{object}	TokenChart
 //	@Failure		400	{object}	httputil.BadRequestError
 //	@Failure		500	{object}	httputil.InternalServerError
-//	@Router			/dashboard/token_chart/{address} [get]
-//	@Param			address		path	string	true	"token address"
+//	@Router			/dashboard/token_chart [get]
+//	@Param			address		query	string	true	"token address"
 //	@Param			data		query	string	true	"chart data type"				Enums(volume, tvl, price)
 //	@Param			duration	query	string	false	"default(empty) value is all"	Enums(year, quarter, month)
 func (c *dashboardController) TokenChart(ctx *gin.Context) {
-	address := ctx.Param("address")
+	address := ctx.Query("address")
 	if address == "" {
 		httputil.NewError(ctx, http.StatusBadRequest, errors.New("invalid address address"))
 		return

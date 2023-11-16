@@ -564,7 +564,7 @@ paths:
       summary: Dezswap's statistics
       tags:
       - dashboard
-  /dashboard/token/{address}:
+  /dashboard/token:
     get:
       consumes:
       - application/json
@@ -572,7 +572,7 @@ paths:
         volume_7d, volume_7d_change, tvl)
       parameters:
       - description: token address
-        in: path
+        in: query
         name: address
         required: true
         type: string
@@ -598,14 +598,14 @@ paths:
       summary: Dezswap's Token Stats
       tags:
       - dashboard
-  /dashboard/token_chart/{address}:
+  /dashboard/token_chart:
     get:
       consumes:
       - application/json
       description: get Token' chart data of Dezswap by designated interval
       parameters:
       - description: token address
-        in: path
+        in: query
         name: address
         required: true
         type: string
