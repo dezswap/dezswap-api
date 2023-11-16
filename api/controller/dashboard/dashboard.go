@@ -40,6 +40,7 @@ func (c *dashboardController) register(route *gin.RouterGroup) {
 	route.GET("/txs", c.Txs)
 
 	route.GET("/pools", c.Pools)
+	route.GET("/volumes", c.Volumes)
 }
 
 // Dashboard godoc
@@ -76,6 +77,17 @@ func (c *dashboardController) Recent(ctx *gin.Context) {
 //	@Failure		500	{object}	httputil.InternalServerError
 //	@Router			/dashboard/volumes [get]
 func (c *dashboardController) Volumes(ctx *gin.Context) {
+	duration := dashboardService.Duration(ctx.Query("duration"))
+	if len(duration) == 0 {
+		duration = dashboardService.All
+	}
+	volumes, err := c.Dashboard.Volumes(duration)
+	if err != nil {
+		c.logger.Warn(err)
+		httputil.NewError(ctx, http.StatusInternalServerError, errors.New("internal server error"))
+		return
+	}
+	ctx.JSON(http.StatusOK, c.volumesToRes(volumes))
 }
 
 // Dashboard godoc

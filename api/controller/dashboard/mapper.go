@@ -113,5 +113,14 @@ func (m *mapper) poolsToRes(pools dashboardService.Pools) PoolsRes {
 		}
 	}
 
+func (m *mapper) volumesToRes(volumes dashboardService.Volumes) VolumesRes {
+	res := make(VolumesRes, len(volumes))
+
+	for i, v := range volumes {
+		res[i] = VolumeRes{
+			Volume:    v.Volume,
+			Timestamp: v.Timestamp,
+		}
+	}
 	return res
 }
