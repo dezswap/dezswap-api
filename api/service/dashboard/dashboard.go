@@ -288,7 +288,10 @@ from tokens t
             join (
                 select max(id) id
                 from price
-                group by token_id) t on p.id = t.id) p on t.id = p.token_id
+                group by token_id) t on p.id = t.id
+        union
+        select distinct price_token_id as token_id, 1 as price
+        from price) p on t.id = p.token_id
     left join (
         select token_id, price
         from price p
@@ -297,7 +300,10 @@ from tokens t
                 from price
                 where height <= (select coalesce(max(height), 0) from parsed_tx
                   where chain_id = ? and timestamp <= extract(epoch from now() - interval '1 day'))
-                group by token_id) t on p.id = t.id) p24h on t.id = p24h.token_id
+                group by token_id) t on p.id = t.id
+        union
+        select distinct price_token_id as token_id, 1 as price
+        from price) p24h on t.id = p24h.token_id
 where t.chain_id = ? and t.symbol != 'uLP'
 `
 	if len(addrCond) > 0 {
@@ -606,7 +612,7 @@ from (select p.height,
           join parsed_tx pt on p.chain_id = pt.chain_id and p.height = pt.height
       where t.chain_id = ?
         and t.address= ?
-        and ps.timestamp >= extract(epoch from now() - interval '1 month')) t
+        and pt.timestamp >= extract(epoch from now() - interval '1 month')) t
 order by timestamp asc
 `
 	case quarter:
@@ -622,7 +628,7 @@ from (select p.height,
           join parsed_tx pt on p.chain_id = pt.chain_id and p.height = pt.height
       where t.chain_id = ?
         and t.address= ?
-        and ps.timestamp >= extract(epoch from now() - interval '3 month')) t
+        and pt.timestamp >= extract(epoch from now() - interval '3 month')) t
 order by timestamp asc
 `
 	case year:
@@ -638,7 +644,7 @@ from (select p.height,
           join (select least(ceil((extract(doy from to_timestamp(timestamp) at time zone 'UTC'))/7), 52) as week, * from parsed_tx) pt on p.chain_id = pt.chain_id and p.height = pt.height
       where t.chain_id = ?
         and t.address= ?
-        and ps.timestamp >= extract(epoch from now() - interval '1 year')) t
+        and pt.timestamp >= extract(epoch from now() - interval '1 year')) t
 order by timestamp asc
 `
 	}
