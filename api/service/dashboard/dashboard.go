@@ -16,7 +16,7 @@ type dashboard struct {
 	*gorm.DB
 }
 
-var chartCriteriaByDuration = map[ChartDuration]struct {
+var chartCriteriaByDuration = map[Duration]struct {
 	Ago     string
 	TruncBy time.Duration
 }{
@@ -419,7 +419,7 @@ group by year_utc, month_utc
 order by year_utc, month_utc
 `
 	switch itv {
-	case month:
+	case Month:
 		query = `
 select cast(extract(epoch from make_date(year_utc, month_utc, day_utc)::timestamp) as varchar) as timestamp, coalesce(sum(volume), 0) as value
 from (
@@ -436,7 +436,7 @@ from (
 group by year_utc, month_utc, day_utc
 order by year_utc, month_utc, day_utc
 `
-	case quarter:
+	case Quarter:
 		query = `
 select cast(extract(epoch from to_date(concat(year_utc, week), 'iyyyiw')::timestamp at time zone 'UTC' + interval '6 day') as varchar) as timestamp, coalesce(sum(volume), 0)  as value
 from (
@@ -454,10 +454,10 @@ from (
 group by year_utc, week
 order by year_utc, week
 `
-	case year:
+	case Year:
 		query = `
-select cast(extract(epoch from to_date(concat(year_utc, week2), 'iyyyiw')::timestamp at time zone 'UTC' + interval '15 day') as varchar) as timestamp,
-       coalesce(sum(volume), 0) as value
+		select cast(extract(epoch from to_date(concat(year_utc, week2), 'iyyyiw')::timestamp at time zone 'UTC' + interval '15 day') as varchar) as timestamp,
+		coalesce(sum(volume), 0) as value
 from (
     select year_utc,
            week-mod(cast(week+1 as bigint),2) week2,
@@ -500,7 +500,7 @@ group by year_utc, month_utc
 order by year_utc, month_utc
 `
 	switch itv {
-	case month:
+	case Month:
 		query = `
 select cast(extract(epoch from make_date(year_utc, month_utc, day_utc)::timestamp) as varchar) as timestamp, sum(tvl) as value
 from (select distinct pair_id, year_utc, month_utc, day_utc,
@@ -518,7 +518,7 @@ from (select distinct pair_id, year_utc, month_utc, day_utc,
 group by year_utc, month_utc, day_utc
 order by year_utc, month_utc, day_utc
 `
-	case quarter:
+	case Quarter:
 		query = `
 select cast(extract(epoch from to_date(concat(year_utc, week), 'iyyyiw')::timestamp at time zone 'UTC' + interval '6 day') as varchar) as timestamp, sum(tvl) as value
 from (select distinct pair_id, year_utc, week,
@@ -537,7 +537,7 @@ from (select distinct pair_id, year_utc, week,
 group by year_utc, week
 order by year_utc, week
 `
-	case year:
+	case Year:
 		query = `
 select cast(extract(epoch from to_date(concat(year_utc, week2), 'iyyyiw')::timestamp at time zone 'UTC' + interval '15 day') as varchar) as timestamp, sum(tvl) as value
 from (select distinct on (pair_id, year_utc, week-mod(cast(week+1 as bigint),2))
@@ -581,7 +581,7 @@ from (select p.height,
 order by timestamp asc
 `
 	switch itv {
-	case month:
+	case Month:
 		query = `
 select distinct cast(extract(epoch from make_date(year_utc, month_utc, day_utc)::timestamp) as varchar) as timestamp,
                 first_value(price) over (partition by year_utc, month_utc, day_utc order by height desc) as value
@@ -598,7 +598,7 @@ from (select p.height,
         and ps.timestamp >= extract(epoch from now() - interval '1 month')) t
 order by timestamp asc
 `
-	case quarter:
+	case Quarter:
 		query = `
 select distinct cast(extract(epoch from to_date(concat(year_utc, week), 'iyyyiw')::timestamp at time zone 'UTC' + interval '6 day') as varchar) as timestamp,
                 first_value(price) over (partition by year_utc, week order by height desc) as value
@@ -614,7 +614,7 @@ from (select p.height,
         and ps.timestamp >= extract(epoch from now() - interval '3 month')) t
 order by timestamp asc
 `
-	case year:
+	case Year:
 		query = `
 select distinct cast(extract(epoch from to_date(concat(year_utc, week2), 'iyyyiw')::timestamp at time zone 'UTC' + interval '15 day') as varchar) as timestamp,
                 first_value(price) over (partition by year_utc, week2 order by height desc) as value
@@ -640,7 +640,7 @@ order by timestamp asc
 }
 
 // Tvls implements Dashboard.
-func (d *dashboard) Tvls(addr ...Addr) ([]Tvl, error) {
+func (d *dashboard) Tvls(addr ...Addr) (Tvls, error) {
 	panic("unimplemented")
 }
 
@@ -680,7 +680,7 @@ func (d *dashboard) Txs(addr ...Addr) (Txs, error) {
 }
 
 // Volumes implements Dashboard.
-func (d *dashboard) Volumes(duration ChartDuration) (Volumes, error) {
+func (d *dashboard) Volumes(duration Duration) (Volumes, error) {
 	truncBy := int64(chartCriteriaByDuration[duration].TruncBy.Truncate(time.Second).Seconds())
 	intervalAgo := chartCriteriaByDuration[duration].Ago
 	query := fmt.Sprintf(`
@@ -706,7 +706,7 @@ func (d *dashboard) Volumes(duration ChartDuration) (Volumes, error) {
 }
 
 // Volumes implements Dashboard.
-func (d *dashboard) VolumesOf(addr Addr, duration ChartDuration) (Volumes, error) {
+func (d *dashboard) VolumesOf(addr Addr, duration Duration) (Volumes, error) {
 	truncBy := int64(chartCriteriaByDuration[duration].TruncBy.Truncate(time.Second).Seconds())
 	intervalAgo := chartCriteriaByDuration[duration].Ago
 	query := fmt.Sprintf(`

@@ -3,8 +3,8 @@ package dashboard
 type Dashboard interface {
 	Recent() (Recent, error)
 
-	Volumes(ChartDuration) (Volumes, error)
-	VolumesOf(Addr, ChartDuration) (Volumes, error)
+	Volumes(Duration) (Volumes, error)
+	VolumesOf(Addr, Duration) (Volumes, error)
 
 	Tvls(...Addr) (Tvls, error)
 

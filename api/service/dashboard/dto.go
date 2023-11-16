@@ -2,13 +2,14 @@ package dashboard
 
 import "time"
 
-type ChartDuration string
+type Addr string
+type Duration string
 
 const (
-	Month   ChartDuration = "month"
-	Quarter ChartDuration = "quarter"
-	Year    ChartDuration = "year"
-	All     ChartDuration = "all"
+	Month   Duration = "month"
+	Quarter Duration = "quarter"
+	Year    Duration = "year"
+	All     Duration = "all"
 )
 
 type ActiveAccounts = []ActiveAccount
@@ -16,17 +17,6 @@ type ActiveAccount struct {
 	ActiveAccount uint64
 	Timestamp     time.Time
 }
-
-type Addr string
-
-type Duration string
-
-const (
-	month   Duration = "month"
-	quarter Duration = "quarter"
-	year    Duration = "year"
-	all     Duration = "all"
-)
 
 type Recent struct {
 	Volume           string  `gorm:"volume"`
