@@ -20,6 +20,7 @@ func (m *mapper) tokenToRes(token dashboardService.Token) TokenRes {
 		Volume7dChange:  token.Volume7dChange,
 		Tvl:             token.Tvl,
 		TvlChange:       token.TvlChange,
+		Fee:             token.Commission,
 	}
 }
 
@@ -27,6 +28,16 @@ func (m *mapper) tokensToRes(tokens dashboardService.Tokens) TokensRes {
 	res := make(TokensRes, len(tokens))
 	for i, t := range tokens {
 		res[i] = m.tokenToRes(t)
+	}
+
+	return res
+}
+
+func (m *mapper) tokenChartToRes(chart dashboardService.TokenChart) TokenChart {
+	res := make(TokenChart, len(chart))
+
+	for i, v := range chart {
+		res[i] = [2]string{v.Timestamp, v.Value}
 	}
 
 	return res

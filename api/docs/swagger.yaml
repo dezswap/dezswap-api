@@ -182,6 +182,8 @@ definitions:
     properties:
       address:
         type: string
+      fee:
+        type: string
       price:
         type: string
       priceChange:
@@ -563,6 +565,12 @@ paths:
       - application/json
       description: get Token data of dezswap (address, price, price_change, volume_24h,  volume_24h_change,
         volume_7d, volume_7d_change, tvl)
+      parameters:
+      - description: token address
+        in: path
+        name: address
+        required: true
+        type: string
       produces:
       - application/json
       responses:
@@ -583,6 +591,56 @@ paths:
           schema:
             $ref: '#/definitions/httputil.InternalServerError'
       summary: Dezswap's Token Stats
+      tags:
+      - dashboard
+  /dashboard/token_chart/{address}:
+    get:
+      consumes:
+      - application/json
+      description: get Token' chart data of Dezswap by designated interval
+      parameters:
+      - description: token address
+        in: path
+        name: address
+        required: true
+        type: string
+      - description: chart data type
+        enum:
+        - volume
+        - tvl
+        - price
+        in: query
+        name: data
+        required: true
+        type: string
+      - description: default(empty) value is all
+        enum:
+        - year
+        - quarter
+        - month
+        in: query
+        name: duration
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              items:
+                type: string
+              type: array
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httputil.BadRequestError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httputil.InternalServerError'
+      summary: Dezswap's Token Chart Data
       tags:
       - dashboard
   /dashboard/tokens:

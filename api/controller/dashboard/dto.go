@@ -55,7 +55,12 @@ type TokenRes struct {
 	Volume7dChange  string  `json:"volume_7d_change,omitempty"`
 	Tvl             string  `json:"tvl"`
 	TvlChange       string  `json:"tvl_change,omitempty"`
+	Fee             string  `json:"fee,omitempty"`
 }
+
+type TokenChart []TimestampValue
+
+type TimestampValue [2]string
 
 type TxsRes []TxRes
 type TxRes struct {

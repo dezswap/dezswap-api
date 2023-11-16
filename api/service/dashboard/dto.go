@@ -19,6 +19,15 @@ type ActiveAccount struct {
 
 type Addr string
 
+type Duration string
+
+const (
+	month   Duration = "month"
+	quarter Duration = "quarter"
+	year    Duration = "year"
+	all     Duration = "all"
+)
+
 type Recent struct {
 	Volume           string  `gorm:"volume"`
 	VolumeChangeRate float32 `gorm:"volume_change_rate"`
@@ -68,7 +77,15 @@ type Token struct {
 	Volume7dChange string
 	Tvl            string
 	TvlChange      string
+	Commission     string
 }
+
+type TokenValue struct {
+	Timestamp string
+	Value     string
+}
+
+type TokenChart []TokenValue
 
 type Txs []Tx
 type Tx struct {

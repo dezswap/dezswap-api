@@ -34,6 +34,7 @@ func (c *dashboardController) register(route *gin.RouterGroup) {
 
 	route.GET("/token/:address", c.Token)
 	route.GET("/tokens", c.Tokens)
+	route.GET("/token_chart/:address", c.TokenChart)
 
 	route.GET("/txs/:poolAddress", c.TxsOfPool)
 	route.GET("/txs", c.Txs)
@@ -137,6 +138,7 @@ func (c *dashboardController) Pools(ctx *gin.Context) {
 //	@Failure		400	{object}	httputil.BadRequestError
 //	@Failure		404	{object}	httputil.NotFoundError
 //	@Failure		500	{object}	httputil.InternalServerError
+//	@Param			address		path	string	true	"token address"
 //	@Router			/dashboard/token/{address} [get]
 func (c *dashboardController) Token(ctx *gin.Context) {
 	address := ctx.Param("address")
@@ -180,6 +182,66 @@ func (c *dashboardController) Tokens(ctx *gin.Context) {
 	}
 	res := c.tokensToRes(tokens)
 
+	ctx.JSON(http.StatusOK, res)
+}
+
+// Dashboard godoc
+//
+//	@Summary		Dezswap's Token Chart Data
+//	@Description	get Token' chart data of Dezswap by designated interval
+//	@Tags			dashboard
+//	@Accept			json
+//	@Produce		json
+//	@Success		200	{object}	TokenChart
+//	@Failure		400	{object}	httputil.BadRequestError
+//	@Failure		500	{object}	httputil.InternalServerError
+//	@Router			/dashboard/token_chart/{address} [get]
+//	@Param			address		path	string	true	"token address"
+//	@Param			data		query	string	true	"chart data type"				Enums(volume, tvl, price)
+//	@Param			duration	query	string	false	"default(empty) value is all"	Enums(year, quarter, month)
+func (c *dashboardController) TokenChart(ctx *gin.Context) {
+	address := ctx.Param("address")
+	if address == "" {
+		httputil.NewError(ctx, http.StatusBadRequest, errors.New("invalid address address"))
+		return
+	}
+
+	data := ctx.Query("data")
+	duration := ctx.Query("duration")
+	if len(duration) == 0 {
+		duration = "all"
+	}
+
+	var chart dashboardService.TokenChart
+	var err error
+	switch data {
+	case "volume":
+		chart, err = c.Dashboard.TokenVolumes(dashboardService.Addr(address), dashboardService.Duration(duration))
+		if err != nil {
+			c.logger.Warn(err)
+			httputil.NewError(ctx, http.StatusInternalServerError, errors.New("internal server error"))
+			return
+		}
+	case "tvl":
+		chart, err = c.Dashboard.TokenTvls(dashboardService.Addr(address), dashboardService.Duration(duration))
+		if err != nil {
+			c.logger.Warn(err)
+			httputil.NewError(ctx, http.StatusInternalServerError, errors.New("internal server error"))
+			return
+		}
+	case "price":
+		chart, err = c.Dashboard.TokenPrices(dashboardService.Addr(address), dashboardService.Duration(duration))
+		if err != nil {
+			c.logger.Warn(err)
+			httputil.NewError(ctx, http.StatusInternalServerError, errors.New("internal server error"))
+			return
+		}
+	default:
+		httputil.NewError(ctx, http.StatusBadRequest, errors.New("unsupported data type"))
+		return
+	}
+
+	res := c.tokenChartToRes(chart)
 	ctx.JSON(http.StatusOK, res)
 }
 

@@ -433,6 +433,15 @@ const docTemplate = `{
                     "dashboard"
                 ],
                 "summary": "Dezswap's Token Stats",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "token address",
+                        "name": "address",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -450,6 +459,79 @@ const docTemplate = `{
                         "description": "Not Found",
                         "schema": {
                             "$ref": "#/definitions/httputil.NotFoundError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.InternalServerError"
+                        }
+                    }
+                }
+            }
+        },
+        "/dashboard/token_chart/{address}": {
+            "get": {
+                "description": "get Token' chart data of Dezswap by designated interval",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "dashboard"
+                ],
+                "summary": "Dezswap's Token Chart Data",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "token address",
+                        "name": "address",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "enum": [
+                            "volume",
+                            "tvl",
+                            "price"
+                        ],
+                        "type": "string",
+                        "description": "chart data type",
+                        "name": "data",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "enum": [
+                            "year",
+                            "quarter",
+                            "month"
+                        ],
+                        "type": "string",
+                        "description": "default(empty) value is all",
+                        "name": "duration",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "type": "array",
+                                "items": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.BadRequestError"
                         }
                     },
                     "500": {
@@ -1240,6 +1322,9 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "address": {
+                    "type": "string"
+                },
+                "fee": {
                     "type": "string"
                 },
                 "price": {

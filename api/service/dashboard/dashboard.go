@@ -305,6 +305,8 @@ with s as (
            sum(volume1_in_price) filter (where timestamp_before = 0) over w sum_vol1,
            sum(volume0_in_price) filter (where timestamp_before > 0) over w sum_vol0_before,
            sum(volume1_in_price) filter (where timestamp_before > 0) over w sum_vol1_before,
+           sum(commission0_in_price) filter (where timestamp_before = 0) over w sum_com0,
+           sum(commission1_in_price) filter (where timestamp_before = 0) over w sum_com1,
            first_value(liquidity0_in_price) over w_lp lp0,
            first_value(liquidity1_in_price) over w_lp lp1,
            first_value(liquidity0_in_price) over w_lp_before lp0_before,
@@ -335,7 +337,8 @@ select address,
        coalesce(sum(volume_7d)+sum(volume_24h),0) as volume_week,
        coalesce((sum(volume_7d)+sum(volume_24h)-sum(volume_7d_before))/(sum(volume_7d)+sum(volume_24h)),0) as volume_week_change,
        coalesce(sum(tvl),0) as tvl,
-       coalesce((sum(tvl)-sum(tvl_24h_before))/sum(tvl),0) as tvl_change
+       coalesce((sum(tvl)-sum(tvl_24h_before))/sum(tvl),0) as tvl_change,
+       coalesce(sum(commission),0) as commission
 from (
     select t.address,
            case when p.asset0 = t.address then sum(s.sum_vol0) else sum(s.sum_vol1) end as volume_24h,
@@ -343,7 +346,8 @@ from (
            case when p.asset0 = t.address then sum(s_7d.sum_vol0) else sum(s_7d.sum_vol1) end as volume_7d,
            case when p.asset0 = t.address then sum(s_7d.sum_vol0_before) else sum(s_7d.sum_vol1_before) end as volume_7d_before,
            case when p.asset0 = t.address then sum(s.lp0) else sum(s.lp1) end as tvl,
-           case when p.asset0 = t.address then sum(s.lp0_before) else sum(s.lp1_before) end as tvl_24h_before
+           case when p.asset0 = t.address then sum(s.lp0_before) else sum(s.lp1_before) end as tvl_24h_before,
+           case when p.asset0 = t.address then sum(s.sum_com0) else sum(s.sum_com1) end as commission
     from s
         join pair p on p.id = s.pair_id
         join s_7d  on p.id = s_7d.pair_id
@@ -362,6 +366,7 @@ from (
 		VolumeWeekChange string
 		Tvl              string
 		TvlChange        string
+		Commission       string
 	}
 	var stats []tokenStat
 	if tx := d.Raw(query, d.chainId, d.chainId).Find(&stats); tx.Error != nil {
@@ -381,6 +386,7 @@ from (
 			t.Volume7dChange = stat.VolumeWeekChange
 			t.Tvl = stat.Tvl
 			t.TvlChange = stat.TvlChange
+			t.Commission = stat.Commission
 		} else {
 			t.Volume = "0"
 			t.VolumeChange = "0"
@@ -388,11 +394,249 @@ from (
 			t.Volume7dChange = "0"
 			t.Tvl = "0"
 			t.TvlChange = "0"
+			t.Commission = "0"
 		}
 		tokens[i] = t
 	}
 
 	return tokens, nil
+}
+
+func (d *dashboard) TokenVolumes(addr Addr, itv Duration) (TokenChart, error) {
+	query := `
+select cast(extract(epoch from make_date(year_utc, month_utc, 1)::timestamp) as varchar) as timestamp, coalesce(sum(volume), 0) as value
+from (
+    select year_utc, month_utc,
+           case when p.asset0 = t.address then sum(ps.volume0_in_price) else sum(ps.volume1_in_price) end as volume
+    from pair_stats_30m ps
+    join pair p on p.id = ps.pair_id
+    join tokens t on p.chain_id = t.chain_id and (p.asset0 = t.address or p.asset1 = t.address)
+    where ps.chain_id = ?
+      and t.address = ?
+    group by year_utc, month_utc, day_utc, p.asset0, t.address
+) t
+group by year_utc, month_utc
+order by year_utc, month_utc
+`
+	switch itv {
+	case month:
+		query = `
+select cast(extract(epoch from make_date(year_utc, month_utc, day_utc)::timestamp) as varchar) as timestamp, coalesce(sum(volume), 0) as value
+from (
+    select year_utc, month_utc, day_utc,
+           case when p.asset0 = t.address then sum(ps.volume0_in_price) else sum(ps.volume1_in_price) end as volume
+    from pair_stats_30m ps
+    join pair p on p.id = ps.pair_id
+    join tokens t on p.chain_id = t.chain_id and (p.asset0 = t.address or p.asset1 = t.address)
+    where ps.chain_id = ?
+      and t.address = ?
+      and ps.timestamp >= extract(epoch from now() - interval '1 month')
+    group by year_utc, month_utc, day_utc, p.asset0, t.address
+) t
+group by year_utc, month_utc, day_utc
+order by year_utc, month_utc, day_utc
+`
+	case quarter:
+		query = `
+select cast(extract(epoch from to_date(concat(year_utc, week), 'iyyyiw')::timestamp at time zone 'UTC' + interval '6 day') as varchar) as timestamp, coalesce(sum(volume), 0)  as value
+from (
+    select year_utc,
+           least(ceil((extract(doy from to_timestamp(timestamp) at time zone 'UTC'))/7), 52) as week,
+           case when p.asset0 = t.address then sum(ps.volume0_in_price) else sum(ps.volume1_in_price) end as volume
+    from pair_stats_30m ps
+    join pair p on p.id = ps.pair_id
+    join tokens t on p.chain_id = t.chain_id and (p.asset0 = t.address or p.asset1 = t.address)
+    where ps.chain_id = ?
+      and t.address = ?
+      and ps.timestamp >= extract(epoch from now() - interval '3 month')
+    group by year_utc, week, p.asset0, t.address
+) t
+group by year_utc, week
+order by year_utc, week
+`
+	case year:
+		query = `
+select cast(extract(epoch from to_date(concat(year_utc, week2), 'iyyyiw')::timestamp at time zone 'UTC' + interval '15 day') as varchar) as timestamp,
+       coalesce(sum(volume), 0) as value
+from (
+    select year_utc,
+           week-mod(cast(week+1 as bigint),2) week2,
+           case when p.asset0 = t.address then sum(ps.volume0_in_price) else sum(ps.volume1_in_price) end as volume
+    from (select least(ceil((extract(doy from to_timestamp(timestamp) at time zone 'UTC'))/7), 52) as week, * from pair_stats_30m) ps
+    join pair p on p.id = ps.pair_id
+    join tokens t on p.chain_id = t.chain_id and (p.asset0 = t.address or p.asset1 = t.address)
+    where ps.chain_id = ?
+      and t.address = ?
+      and ps.timestamp >= extract(epoch from now() - interval '1 year')
+    group by year_utc, week, p.asset0, t.address
+) t
+group by year_utc, week2
+order by year_utc, week2
+`
+	}
+	var chart TokenChart
+	if tx := d.Raw(query, d.chainId, addr).Find(&chart); tx.Error != nil {
+		return TokenChart{}, errors.Wrap(tx.Error, "dashboard.TokenVolumes")
+	}
+
+	return chart, nil
+}
+
+func (d *dashboard) TokenTvls(addr Addr, itv Duration) (TokenChart, error) {
+	query := `
+select cast(extract(epoch from make_date(year_utc, month_utc, 1)::timestamp) as varchar) as timestamp, sum(tvl) as value
+from (select distinct pair_id, year_utc, month_utc,
+           case when p.asset0 = t.address then
+               first_value(ps.liquidity0_in_price) over (partition by pair_id, year_utc, month_utc order by timestamp desc)
+           else
+               first_value(ps.liquidity0_in_price) over (partition by pair_id, year_utc, month_utc order by timestamp desc)
+           end as tvl
+    from pair_stats_30m ps
+    join pair p on p.id = ps.pair_id
+    join tokens t on p.chain_id = t.chain_id and (p.asset0 = t.address or p.asset1 = t.address)
+    where ps.chain_id = ?
+      and t.address = ?) t
+group by year_utc, month_utc
+order by year_utc, month_utc
+`
+	switch itv {
+	case month:
+		query = `
+select cast(extract(epoch from make_date(year_utc, month_utc, day_utc)::timestamp) as varchar) as timestamp, sum(tvl) as value
+from (select distinct pair_id, year_utc, month_utc, day_utc,
+           case when p.asset0 = t.address then
+               first_value(ps.liquidity0_in_price) over (partition by pair_id, year_utc, month_utc, day_utc order by timestamp desc)
+           else
+               first_value(ps.liquidity0_in_price) over (partition by pair_id, year_utc, month_utc, day_utc order by timestamp desc)
+           end as tvl
+    from pair_stats_30m ps
+    join pair p on p.id = ps.pair_id
+    join tokens t on p.chain_id = t.chain_id and (p.asset0 = t.address or p.asset1 = t.address)
+    where ps.chain_id = ?
+      and t.address = ?
+      and ps.timestamp >= extract(epoch from now() - interval '1 month')) t
+group by year_utc, month_utc, day_utc
+order by year_utc, month_utc, day_utc
+`
+	case quarter:
+		query = `
+select cast(extract(epoch from to_date(concat(year_utc, week), 'iyyyiw')::timestamp at time zone 'UTC' + interval '6 day') as varchar) as timestamp, sum(tvl) as value
+from (select distinct pair_id, year_utc, week,
+           min(timestamp) over (partition by pair_id, year_utc, week) as start,
+           case when p.asset0 = t.address then
+               first_value(ps.liquidity0_in_price) over (partition by pair_id, year_utc, week order by timestamp desc)
+           else
+               first_value(ps.liquidity0_in_price) over (partition by pair_id, year_utc, week order by timestamp desc)
+           end as tvl
+    from (select least(ceil((extract(doy from to_timestamp(timestamp) at time zone 'UTC'))/7), 52) as week, * from pair_stats_30m) ps
+    join pair p on p.id = ps.pair_id
+    join tokens t on p.chain_id = t.chain_id and (p.asset0 = t.address or p.asset1 = t.address)
+    where ps.chain_id = ?
+      and t.address = ?
+      and ps.timestamp >= extract(epoch from now() - interval '3 month')) t
+group by year_utc, week
+order by year_utc, week
+`
+	case year:
+		query = `
+select cast(extract(epoch from to_date(concat(year_utc, week2), 'iyyyiw')::timestamp at time zone 'UTC' + interval '15 day') as varchar) as timestamp, sum(tvl) as value
+from (select distinct on (pair_id, year_utc, week-mod(cast(week+1 as bigint),2))
+           pair_id, year_utc, week-mod(cast(week+1 as bigint),2) as week2,
+           case when p.asset0 = t.address then
+               first_value(ps.liquidity0_in_price) over (partition by pair_id, year_utc, week-mod(cast(week as bigint),2) order by timestamp desc)
+           else
+               first_value(ps.liquidity0_in_price) over (partition by pair_id, year_utc, week-mod(cast(week as bigint),2) order by timestamp desc)
+           end as tvl
+    from (select least(ceil((extract(doy from to_timestamp(timestamp) at time zone 'UTC'))/7), 52) as week, * from pair_stats_30m) ps
+    join pair p on p.id = ps.pair_id
+    join tokens t on p.chain_id = t.chain_id and (p.asset0 = t.address or p.asset1 = t.address)
+    where ps.chain_id = ?
+      and t.address = ?
+      and ps.timestamp >= extract(epoch from now() - interval '1 year')) t
+group by year_utc, week2
+order by year_utc, week2
+`
+	}
+	var chart TokenChart
+	if tx := d.Raw(query, d.chainId, addr).Find(&chart); tx.Error != nil {
+		return TokenChart{}, errors.Wrap(tx.Error, "dashboard.TokenTvls")
+	}
+
+	return chart, nil
+}
+
+func (d *dashboard) TokenPrices(addr Addr, itv Duration) (TokenChart, error) {
+	query := `
+select distinct cast(extract(epoch from make_date(year_utc, month_utc, 1)::timestamp) as varchar) as timestamp,
+                first_value(price) over (partition by year_utc, month_utc order by height desc) as value
+from (select p.height,
+             cast(extract(year from to_timestamp(pt.timestamp) at time zone 'UTC') as int) year_utc,
+             cast(extract(month from to_timestamp(pt.timestamp) at time zone 'UTC') as int) month_utc,
+             p.price
+      from price p
+          join tokens t on p.token_id = t.id
+          join parsed_tx pt on p.chain_id = pt.chain_id and p.height = pt.height
+      where t.chain_id = ?
+        and t.address= ?) t
+order by timestamp asc
+`
+	switch itv {
+	case month:
+		query = `
+select distinct cast(extract(epoch from make_date(year_utc, month_utc, day_utc)::timestamp) as varchar) as timestamp,
+                first_value(price) over (partition by year_utc, month_utc, day_utc order by height desc) as value
+from (select p.height,
+             cast(extract(year from to_timestamp(pt.timestamp) at time zone 'UTC') as int) year_utc,
+             cast(extract(month from to_timestamp(pt.timestamp) at time zone 'UTC') as int) month_utc,
+             cast(extract(day from to_timestamp(pt.timestamp) at time zone 'UTC') as int) day_utc,
+             p.price
+      from price p
+          join tokens t on p.token_id = t.id
+          join parsed_tx pt on p.chain_id = pt.chain_id and p.height = pt.height
+      where t.chain_id = ?
+        and t.address= ?
+        and ps.timestamp >= extract(epoch from now() - interval '1 month')) t
+order by timestamp asc
+`
+	case quarter:
+		query = `
+select distinct cast(extract(epoch from to_date(concat(year_utc, week), 'iyyyiw')::timestamp at time zone 'UTC' + interval '6 day') as varchar) as timestamp,
+                first_value(price) over (partition by year_utc, week order by height desc) as value
+from (select p.height,
+             cast(extract(year from to_timestamp(pt.timestamp) at time zone 'UTC') as int) year_utc,
+             least(ceil((extract(doy from to_timestamp(timestamp) at time zone 'UTC'))/7), 52) as week,
+             p.price
+      from price p
+          join tokens t on p.token_id = t.id
+          join parsed_tx pt on p.chain_id = pt.chain_id and p.height = pt.height
+      where t.chain_id = ?
+        and t.address= ?
+        and ps.timestamp >= extract(epoch from now() - interval '3 month')) t
+order by timestamp asc
+`
+	case year:
+		query = `
+select distinct cast(extract(epoch from to_date(concat(year_utc, week2), 'iyyyiw')::timestamp at time zone 'UTC' + interval '15 day') as varchar) as timestamp,
+                first_value(price) over (partition by year_utc, week2 order by height desc) as value
+from (select p.height,
+             cast(extract(year from to_timestamp(pt.timestamp) at time zone 'UTC') as int) year_utc,
+             week-mod(cast(week+1 as bigint),2) week2,
+             p.price
+      from price p
+          join tokens t on p.token_id = t.id
+          join (select least(ceil((extract(doy from to_timestamp(timestamp) at time zone 'UTC'))/7), 52) as week, * from parsed_tx) pt on p.chain_id = pt.chain_id and p.height = pt.height
+      where t.chain_id = ?
+        and t.address= ?
+        and ps.timestamp >= extract(epoch from now() - interval '1 year')) t
+order by timestamp asc
+`
+	}
+	var chart TokenChart
+	if tx := d.Raw(query, d.chainId, addr).Find(&chart); tx.Error != nil {
+		return TokenChart{}, errors.Wrap(tx.Error, "dashboard.TokenTvls")
+	}
+
+	return chart, nil
 }
 
 // Tvls implements Dashboard.
