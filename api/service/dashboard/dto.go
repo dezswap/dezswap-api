@@ -2,6 +2,15 @@ package dashboard
 
 import "time"
 
+type ChartDuration string
+
+const (
+	Month   ChartDuration = "month"
+	Quarter ChartDuration = "quarter"
+	Year    ChartDuration = "year"
+	All     ChartDuration = "all"
+)
+
 type ActiveAccounts = []ActiveAccount
 type ActiveAccount struct {
 	ActiveAccount uint64

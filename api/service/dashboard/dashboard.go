@@ -16,6 +16,20 @@ type dashboard struct {
 	*gorm.DB
 }
 
+var chartCriteriaByDuration = map[ChartDuration]struct {
+	Ago     string
+	TruncBy time.Duration
+}{
+	// a month range with everyday data
+	Month: {"1 month", time.Hour * 24},
+	// 3 months range with every week data
+	Quarter: {"3 month", time.Hour * 24 * 7},
+	// 1 year range with every 2 weeks data
+	Year: {"1 year", time.Hour * 24 * 7 * 2},
+	// 10 years range with every month data
+	All: {"10 year", time.Hour * 24 * 31},
+}
+
 var _ Dashboard = &dashboard{}
 
 func NewDashboardService(chainId string, db *gorm.DB) Dashboard {
@@ -405,23 +419,14 @@ func (d *dashboard) Txs(addr ...Addr) (Txs, error) {
 		pt.asset1 AS asset1,
 		t1.symbol AS asset1_symbol,
 		pt.asset1_amount AS asset1_amount,
-		CASE WHEN pt."type" = 'swap' THEN
-			ABS(pt.asset0_amount * pr0.price)
-		WHEN pt."type" != 'swap' THEN
-			ABS(pt.asset0_amount * pr0.price) + ABS(pt.asset1_amount * pr1.price)
-		END AS total_value,
+		0 as total_value,
 		TO_TIMESTAMP(pt."timestamp") as timestamp`,
 	).Table("(?) as pt", subQuery).Joins(`
-		JOIN tokens AS t0 ON pt.asset0 = t0.address
-		JOIN tokens AS t1 ON pt.asset1 = t1.address
-		JOIN price AS pr0 ON t0.id = pr0.token_id
-			AND pt.height = pr0.height
-		JOIN price AS pr1 ON t1.id = pr1.token_id
-			AND pt.height = pr1.height
+		JOIN tokens AS t0 ON pt.asset0 = t0.address AND pt.chain_id = t0.chain_id
+		JOIN tokens AS t1 ON pt.asset1 = t1.address AND pt.chain_id = t0.chain_id
 		`,
-	).Order(
-		`pt. "timestamp" DESC`,
-	).Limit(100)
+	// TODO(join and find price for total_value when it is ready)
+	).Order(`pt. "timestamp" DESC`)
 
 	txs := Txs{}
 	if err := query.Scan(&txs).Error; err != nil {
@@ -431,28 +436,26 @@ func (d *dashboard) Txs(addr ...Addr) (Txs, error) {
 }
 
 // Volumes implements Dashboard.
-func (d *dashboard) Volumes(addr ...Addr) ([]Volume, error) {
-	m := aggregator.PairStats30m{}
-	query := d.DB.Model(
-		&m,
-	).Select(
-		"SUM(volume0_in_price) AS volume, DATE_TRUNC('day', TO_TIMESTAMP(timestamp)) AS timestamp",
-	).Where(
-		fmt.Sprintf("%s.chain_id = ?", m.TableName()), d.chainId,
-	).Where(
-		"DATE_TRUNC('day', TO_TIMESTAMP(timestamp)) >= DATE_TRUNC('day', NOW() - INTERVAL '1 year')",
-	).Group(
-		"DATE_TRUNC('day', TO_TIMESTAMP(timestamp))",
-	).Order(
-		"DATE_TRUNC('day', TO_TIMESTAMP(timestamp)) ASC",
-	)
+func (d *dashboard) Volumes(duration ChartDuration, addr ...Addr) (Volumes, error) {
+	truncBy := int64(chartCriteriaByDuration[duration].TruncBy.Truncate(time.Second).Seconds())
+	intervalAgo := chartCriteriaByDuration[duration].Ago
+	query := fmt.Sprintf(`
+		SELECT
+			SUM(volume0_in_price) AS volume,
+			TO_TIMESTAMP(FLOOR(ps."timestamp" / %d ) * %d) as timestamp
+		FROM
+			pair_stats_30m AS ps
+		WHERE
+			chain_id = ?
+			AND ps."timestamp" > EXTRACT(EPOCH FROM NOW() - INTERVAL '%s')
+		GROUP BY
+			FLOOR(ps."timestamp" / %d )
+		ORDER BY
+			FLOOR(ps."timestamp" / %d )
+	`, truncBy, truncBy, intervalAgo, truncBy, truncBy)
 
-	if len(addr) > 0 {
-		joinMsg := fmt.Sprintf("LEFT JOIN pair AS P ON %s.pair_id = P.id", m.TableName())
-		query = query.Where("P.contract = ?", string(addr[0])).Joins(joinMsg)
-	}
-	volumes := []Volume{}
-	if err := query.Scan(&volumes).Error; err != nil {
+	volumes := Volumes{}
+	if err := d.DB.Raw(query, d.chainId).Scan(&volumes).Error; err != nil {
 		return nil, errors.Wrap(err, "dashboard.Volumes")
 	}
 	return volumes, nil
