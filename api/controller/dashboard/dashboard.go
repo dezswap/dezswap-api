@@ -103,6 +103,17 @@ func (c *dashboardController) Volumes(ctx *gin.Context) {
 //	@Failure		500	{object}	httputil.InternalServerError
 //	@Router			/dashboard/TVLs [get]
 func (c *dashboardController) TVLs(ctx *gin.Context) {
+	duration := dashboardService.Duration(ctx.Query("duration"))
+	if len(duration) == 0 {
+		duration = dashboardService.All
+	}
+	tvls, err := c.Dashboard.Tvls(duration)
+	if err != nil {
+		c.logger.Warn(err)
+		httputil.NewError(ctx, http.StatusInternalServerError, errors.New("internal server error"))
+		return
+	}
+	ctx.JSON(http.StatusOK, c.tvlsToRes(tvls))
 }
 
 // Dashboard godoc

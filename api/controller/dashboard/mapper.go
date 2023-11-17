@@ -124,3 +124,15 @@ func (m *mapper) volumesToRes(volumes dashboardService.Volumes) VolumesRes {
 	}
 	return res
 }
+
+func (m *mapper) tvlsToRes(tvls dashboardService.Tvls) TvlsRes {
+	res := make(TvlsRes, len(tvls))
+
+	for i, v := range tvls {
+		res[i] = TvlRes{
+			Tvl:       v.Tvl,
+			Timestamp: v.Timestamp,
+		}
+	}
+	return res
+}

@@ -6,7 +6,7 @@ type Dashboard interface {
 	Volumes(Duration) (Volumes, error)
 	VolumesOf(Addr, Duration) (Volumes, error)
 
-	Tvls(...Addr) (Tvls, error)
+	Tvls(Duration) (Tvls, error)
 
 	Statistic(...Addr) (Statistic, error)
 
@@ -22,8 +22,6 @@ type Dashboard interface {
 	TokenPrices(addr Addr, itv Duration) (TokenChart, error)
 
 	Txs(...Addr) (Txs, error)
-
-	Prices(...Addr) (Prices, error)
 
 	Aprs(...Addr) (Aprs, error)
 }

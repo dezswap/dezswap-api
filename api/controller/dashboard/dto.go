@@ -22,8 +22,8 @@ type VolumeRes struct {
 
 type TvlsRes = []TvlRes
 type TvlRes struct {
-	Tvl       string `json:"tvl"`
-	Timestamp string `json:"timestamp"`
+	Tvl       string    `json:"tvl"`
+	Timestamp time.Time `json:"timestamp"`
 }
 
 type StatisticRes []StatisticResItem

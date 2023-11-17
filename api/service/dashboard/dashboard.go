@@ -171,11 +171,6 @@ func (*dashboard) Pool(addr Addr) (Pools, error) {
 	panic("unimplemented")
 }
 
-// Prices implements Dashboard.
-func (d *dashboard) Prices(...Addr) ([]Price, error) {
-	panic("unimplemented")
-}
-
 // Recent implements Dashboard.
 func (d *dashboard) Recent() (Recent, error) {
 	current, mins := time.Now().Truncate(time.Hour), time.Now().Minute()
@@ -654,8 +649,49 @@ order by timestamp asc
 }
 
 // Tvls implements Dashboard.
-func (d *dashboard) Tvls(addr ...Addr) (Tvls, error) {
-	panic("unimplemented")
+// TODO: must improve query performance
+func (d *dashboard) Tvls(duration Duration) (Tvls, error) {
+
+	interval := int64(chartCriteriaByDuration[duration].TruncBy.Truncate(time.Second).Seconds())
+	intervalAgo := chartCriteriaByDuration[duration].Ago
+
+	dateSeries := fmt.Sprintf(`
+		SELECT
+			generate_series(
+				CAST(FLOOR(EXTRACT(EPOCH FROM DATE_TRUNC('day', NOW() - INTERVAL '%s'))) AS int8),
+				CAST(FLOOR(EXTRACT(EPOCH FROM DATE_TRUNC('day', NOW() + INTERVAL '1 day'))) AS int8),
+			%d
+			) AS timestamp
+		`, intervalAgo, interval)
+
+	query := fmt.Sprintf(`
+		SELECT
+			SUM(liquidity) AS tvl,
+			TO_TIMESTAMP(t.timestamp) AT TIME ZONE 'UTC' AS timestamp
+		FROM ( SELECT DISTINCT ON (ps.pair_id, ds.timestamp)
+				ps.pair_id AS pair_id,
+				liquidity0_in_price + liquidity1_in_price  AS liquidity,
+				ds.timestamp AS timestamp,
+				ps. "timestamp" AS ps_timestamp
+			FROM
+				(%s) ds
+			LEFT JOIN pair_stats_30m AS ps ON ps. "timestamp" <= ds.timestamp
+			WHERE ps.chain_id = ?
+		ORDER BY
+			ds.timestamp DESC,
+			ps.pair_id,
+			ps. "timestamp" DESC) AS t
+		GROUP BY
+			t.timestamp
+		ORDER BY
+			t.timestamp
+	`, dateSeries)
+
+	tvls := Tvls{}
+	if err := d.DB.Raw(query, d.chainId).Scan(&tvls).Error; err != nil {
+		return nil, errors.Wrap(err, "dashboard.Volumes")
+	}
+	return tvls, nil
 }
 
 // Txs implements Dashboard.
