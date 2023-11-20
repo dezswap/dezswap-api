@@ -268,6 +268,59 @@ func (d *dashboard) Statistic(addr ...Addr) (st Statistic, err error) {
 
 // Tokens implements Dashboard.
 func (d *dashboard) Tokens(item string, ascending bool, limit int, offset int) (Tokens, error) {
+	var tokens []Token
+	var err error
+	if tokens, err = d.tokenPrice(); err != nil {
+		return nil, errors.Wrap(err, "dashboard.Tokens")
+	}
+
+	if offset > len(tokens) {
+		return Tokens{}, nil
+	}
+
+	var tokenDetails Tokens
+	if tokenDetails, err = d.tokenDetails(); err != nil {
+		return nil, errors.Wrap(err, "dashboard.Tokens")
+	}
+
+	statMap := make(map[Addr]Token, len(tokenDetails))
+	for _, s := range tokenDetails {
+		statMap[s.Addr] = s
+	}
+
+	for i, t := range tokens {
+		if stat, ok := statMap[t.Addr]; ok {
+			t.Volume = stat.Volume
+			t.VolumeChange = stat.VolumeChange
+			t.Volume7d = stat.Volume7d
+			t.Volume7dChange = stat.Volume7dChange
+			t.Tvl = stat.Tvl
+			t.TvlChange = stat.TvlChange
+			t.Commission = stat.Commission
+		} else {
+			t.Volume = "0"
+			t.VolumeChange = "0"
+			t.Volume7d = "0"
+			t.Volume7dChange = "0"
+			t.Tvl = "0"
+			t.TvlChange = "0"
+			t.Commission = "0"
+		}
+		tokens[i] = t
+	}
+
+	d.sortTokens(tokens, item, ascending)
+
+	if offset > 0 && limit > 0 {
+		limit += offset
+	}
+	if limit == 0 || limit > len(tokens) {
+		limit = len(tokens)
+	}
+	return tokens[offset:limit], nil
+}
+
+func (d *dashboard) tokenPrice(addr ...Addr) (Tokens, error) {
 	query := `
 select t.address as addr, coalesce(p.price, 0) price,
        floor((coalesce(p.price, 0)-coalesce(p24h.price, 0))/coalesce(p.price, 1)*10000)/100 as price_change
@@ -288,19 +341,27 @@ from tokens t
                 where height <= (select coalesce(max(height), 0) from parsed_tx
                   where chain_id = ? and timestamp <= extract(epoch from now() - interval '1 day'))
                 group by token_id) t on p.id = t.id) p24h on t.id = p24h.token_id
-where t.chain_id = ? and t.symbol != 'uLP'
-order by t.id
+where t.chain_id = ?
 `
 	var tokens []Token
-	if tx := d.Raw(query, d.chainId, d.chainId).Find(&tokens); tx.Error != nil {
-		return nil, errors.Wrap(tx.Error, "dashboard.Tokens")
+	var tx *gorm.DB
+	if len(addr) > 0 {
+		query += ` and t.address in ?`
+		tx = d.Raw(query, d.chainId, d.chainId, addr)
+	} else {
+		query += ` and t.symbol != 'uLP' order by t.id`
+		tx = d.Raw(query, d.chainId, d.chainId)
 	}
 
-	if offset > len(tokens) {
-		return Tokens{}, nil
+	if err := tx.Find(&tokens).Error; err != nil {
+		return nil, err
 	}
 
-	query = `
+	return tokens, nil
+}
+
+func (d *dashboard) tokenDetails(addr ...Addr) (Tokens, error) {
+	query := `
 with s as (
     select distinct pair_id,
            sum(volume0_in_price) filter (where timestamp_before = 0) over w sum_vol0,
@@ -354,8 +415,6 @@ from (
         join pair p on p.id = s.pair_id
         join s_7d  on p.id = s_7d.pair_id
         left join tokens t on p.chain_id = t.chain_id and (p.asset0 = t.address or p.asset1 = t.address)
-    group by t.address, p.asset0) t
-group by address
 `
 	type tokenStat struct {
 		Address          Addr
@@ -368,45 +427,34 @@ group by address
 		Commission       string
 	}
 	var stats []tokenStat
-	if tx := d.Raw(query, d.chainId, d.chainId).Find(&stats); tx.Error != nil {
-		return nil, errors.Wrap(tx.Error, "dashboard.Tokens")
+	var tx *gorm.DB
+	if len(addr) > 0 {
+		query += ` where t.address = ? group by t.address, p.asset0) t group by address`
+		tx = d.Raw(query, d.chainId, d.chainId, addr)
+	} else {
+		query += ` group by t.address, p.asset0) t group by address`
+		tx = d.Raw(query, d.chainId, d.chainId)
 	}
 
-	statMap := make(map[Addr]tokenStat, len(stats))
-	for _, s := range stats {
-		statMap[s.Address] = s
+	if err := tx.Find(&stats).Error; err != nil {
+		return nil, err
 	}
 
-	for i, t := range tokens {
-		if stat, ok := statMap[t.Addr]; ok {
-			t.Volume = stat.Volume
-			t.VolumeChange = stat.VolumeChange
-			t.Volume7d = stat.VolumeWeek
-			t.Volume7dChange = stat.VolumeWeekChange
-			t.Tvl = stat.Tvl
-			t.TvlChange = stat.TvlChange
-			t.Commission = stat.Commission
-		} else {
-			t.Volume = "0"
-			t.VolumeChange = "0"
-			t.Volume7d = "0"
-			t.Volume7dChange = "0"
-			t.Tvl = "0"
-			t.TvlChange = "0"
-			t.Commission = "0"
+	tokens := make(Tokens, len(stats))
+	for i, s := range stats {
+		tokens[i] = Token{
+			Addr:           s.Address,
+			Volume:         s.Volume,
+			VolumeChange:   s.VolumeChange,
+			Volume7d:       s.VolumeWeek,
+			Volume7dChange: s.VolumeWeekChange,
+			Tvl:            s.Tvl,
+			TvlChange:      s.TvlChange,
+			Commission:     s.Commission,
 		}
-		tokens[i] = t
 	}
 
-	d.sortTokens(tokens, item, ascending)
-
-	if offset > 0 && limit > 0 {
-		limit += offset
-	}
-	if limit == 0 || limit > len(tokens) {
-		limit = len(tokens)
-	}
-	return tokens[offset:limit], nil
+	return tokens, nil
 }
 
 func (d *dashboard) sortTokens(tokens Tokens, item string, ascending bool) {
@@ -469,114 +517,28 @@ func (d *dashboard) sortTokens(tokens Tokens, item string, ascending bool) {
 }
 
 func (d *dashboard) Token(addr Addr) (Token, error) {
-	query := `
-select t.address as addr, coalesce(p.price, 0) price,
-       floor((coalesce(p.price, 0)-coalesce(p24h.price, 0))/coalesce(p.price, 1)*10000)/100 as price_change
-from tokens t
-    left join (
-        select token_id, price
-        from price p
-            join (
-                select max(id) id
-                from price
-                group by token_id) t on p.id = t.id) p on t.id = p.token_id
-    left join (
-        select token_id, price
-        from price p
-            join (
-                select max(id) id
-                from price
-                where height <= (select coalesce(max(height), 0) from parsed_tx
-                  where chain_id = ? and timestamp <= extract(epoch from now() - interval '1 day'))
-                group by token_id) t on p.id = t.id) p24h on t.id = p24h.token_id
-where t.chain_id = ? and t.address = ?
-`
 	var token Token
-	if tx := d.Raw(query, d.chainId, d.chainId, addr).Find(&token); tx.Error != nil {
-		return Token{}, errors.Wrap(tx.Error, "dashboard.Tokens")
+	if tokens, err := d.tokenPrice(addr); err != nil {
+		return Token{}, errors.Wrap(err, "dashboard.Token")
+	} else {
+		token = tokens[0]
 	}
 
-	query = `
-with s as (
-    select distinct pair_id,
-           sum(volume0_in_price) filter (where timestamp_before = 0) over w sum_vol0,
-           sum(volume1_in_price) filter (where timestamp_before = 0) over w sum_vol1,
-           sum(volume0_in_price) filter (where timestamp_before > 0) over w sum_vol0_before,
-           sum(volume1_in_price) filter (where timestamp_before > 0) over w sum_vol1_before,
-           sum(commission0_in_price) filter (where timestamp_before = 0) over w sum_com0,
-           sum(commission1_in_price) filter (where timestamp_before = 0) over w sum_com1,
-           first_value(liquidity0_in_price) over w_lp lp0,
-           first_value(liquidity1_in_price) over w_lp lp1,
-           first_value(liquidity0_in_price) over w_lp_before lp0_before,
-           first_value(liquidity1_in_price) over w_lp_before lp1_before
-    from (
-        select *, case when timestamp < extract(epoch from now() - interval '1 day') then timestamp else 0 end as timestamp_before
-        from pair_stats_recent where chain_id = ?) t
-    window w as (partition by pair_id),
-           w_lp as (partition by pair_id order by timestamp desc),
-           w_lp_before as (partition by pair_id order by timestamp_before desc)),
-    s_7d as (
-    select distinct pair_id,
-           sum(volume0_in_price) filter (where timestamp >= extract(epoch from now() - interval '7 day')) over w sum_vol0,
-           sum(volume1_in_price) filter (where timestamp >= extract(epoch from now() - interval '7 day')) over w sum_vol1,
-           sum(volume0_in_price) filter (where timestamp < extract(epoch from now() - interval '7 day')) over w sum_vol0_before,
-           sum(volume1_in_price) filter (where timestamp < extract(epoch from now() - interval '7 day')) over w sum_vol1_before,
-           first_value(liquidity0_in_price) over w_lp lp0,
-           first_value(liquidity1_in_price) over w_lp lp1
-    from pair_stats_30m
-    where timestamp >= extract(epoch from now() - interval '14 day')
-      and timestamp < extract(epoch from now() - interval '1 day')
-      and chain_id = ?
-    window w as (partition by pair_id),
-           w_lp as (partition by pair_id))
-select address,
-       coalesce(sum(volume_24h),0) as volume,
-       coalesce((sum(volume_24h)-sum(volume_24h_before))/sum(volume_24h),0) as volume_change,
-       coalesce(sum(volume_7d)+sum(volume_24h),0) as volume_week,
-       coalesce((sum(volume_7d)+sum(volume_24h)-sum(volume_7d_before))/(sum(volume_7d)+sum(volume_24h)),0) as volume_week_change,
-       coalesce(sum(tvl),0) as tvl,
-       coalesce((sum(tvl)-sum(tvl_24h_before))/sum(tvl),0) as tvl_change,
-       coalesce(sum(commission),0) as commission
-from (
-    select t.address,
-           case when p.asset0 = t.address then sum(s.sum_vol0) else sum(s.sum_vol1) end as volume_24h,
-           case when p.asset0 = t.address then sum(s.sum_vol0_before) else sum(s.sum_vol1_before) end as volume_24h_before,
-           case when p.asset0 = t.address then sum(s_7d.sum_vol0) else sum(s_7d.sum_vol1) end as volume_7d,
-           case when p.asset0 = t.address then sum(s_7d.sum_vol0_before) else sum(s_7d.sum_vol1_before) end as volume_7d_before,
-           case when p.asset0 = t.address then sum(s.lp0) else sum(s.lp1) end as tvl,
-           case when p.asset0 = t.address then sum(s.lp0_before) else sum(s.lp1_before) end as tvl_24h_before,
-           case when p.asset0 = t.address then sum(s.sum_com0) else sum(s.sum_com1) end as commission
-    from s
-        join pair p on p.id = s.pair_id
-        join s_7d  on p.id = s_7d.pair_id
-        left join tokens t on p.chain_id = t.chain_id and (p.asset0 = t.address or p.asset1 = t.address)
-    where t.address = ?
-	group by t.address, p.asset0) t group by address
-`
-
-	type tokenStat struct {
-		Address          Addr
-		Volume           string
-		VolumeChange     string
-		VolumeWeek       string
-		VolumeWeekChange string
-		Tvl              string
-		TvlChange        string
-		Commission       string
-	}
-	var stat tokenStat
-	if tx := d.Raw(query, d.chainId, d.chainId, addr).Find(&stat); tx.Error != nil {
-		return Token{}, errors.Wrap(tx.Error, "dashboard.Tokens")
+	var tokenDetail Token
+	if details, err := d.tokenDetails(addr); err != nil {
+		return Token{}, errors.Wrap(err, "dashboard.Token")
+	} else {
+		tokenDetail = details[0]
 	}
 
-	if stat.Address == addr {
-		token.Volume = stat.Volume
-		token.VolumeChange = stat.VolumeChange
-		token.Volume7d = stat.VolumeWeek
-		token.Volume7dChange = stat.VolumeWeekChange
-		token.Tvl = stat.Tvl
-		token.TvlChange = stat.TvlChange
-		token.Commission = stat.Commission
+	if tokenDetail.Addr == addr {
+		token.Volume = tokenDetail.Volume
+		token.VolumeChange = tokenDetail.VolumeChange
+		token.Volume7d = tokenDetail.Volume7d
+		token.Volume7dChange = tokenDetail.Volume7dChange
+		token.Tvl = tokenDetail.Tvl
+		token.TvlChange = tokenDetail.TvlChange
+		token.Commission = tokenDetail.Commission
 	} else {
 		token.Volume = "0"
 		token.VolumeChange = "0"
