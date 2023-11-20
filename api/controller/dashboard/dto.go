@@ -1,6 +1,9 @@
 package dashboard
 
-import "time"
+import (
+	"strings"
+	"time"
+)
 
 type RecentRes struct {
 	Volume           string  `json:"volume"`
@@ -26,6 +29,12 @@ type TvlRes struct {
 	Timestamp time.Time `json:"timestamp"`
 }
 
+type AprsRes = []AprRes
+type AprRes struct {
+	Apr       string    `json:"apr"`
+	Timestamp time.Time `json:"timestamp"`
+}
+
 type StatisticRes []StatisticResItem
 type StatisticResItem struct {
 	AddressCount uint64    `json:"addressCount"`
@@ -43,6 +52,13 @@ type PoolRes struct {
 	Fee     string `json:"fee"`
 	Apr     string `json:"apr"`
 }
+
+type PoolDetailRes struct {
+	Recent RecentRes `json:"recent"`
+	Txs    TxsRes    `json:"txs"`
+}
+
+type ChartRequest struct{}
 
 type TokensRes []TokenRes
 type TokenRes struct {
@@ -74,4 +90,35 @@ type TxRes struct {
 	Asset1Amount string    `json:"asset1amount"`
 	Account      string    `json:"account"`
 	Timestamp    time.Time `json:"timestamp"`
+}
+
+type ChartType = string
+
+const (
+	ChartTypeVolume ChartType = "volume"
+	ChartTypeTvl    ChartType = "tvl"
+	ChartTypeApr    ChartType = "apr"
+	ChartTypeFee    ChartType = "fee"
+	ChartTypeNone   ChartType = ""
+)
+
+func ToChartType(s string) ChartType {
+	switch strings.ToLower(s) {
+	case "volume":
+		return ChartTypeVolume
+	case "tvl":
+		return ChartTypeTvl
+	case "apr":
+		return ChartTypeApr
+	case "fee":
+		return ChartTypeFee
+	default:
+		return ChartTypeNone
+	}
+}
+
+type ChartRes []ChartItem
+type ChartItem struct {
+	Timestamp time.Time `json:"t"`
+	Value     string    `json:"v"`
 }

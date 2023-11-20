@@ -116,6 +116,15 @@ func (m *mapper) poolsToRes(pools dashboardService.Pools) PoolsRes {
 	return res
 }
 
+func (m *mapper) poolDetailToRes(pool dashboardService.PoolDetail) PoolDetailRes {
+	res := PoolDetailRes{}
+
+	res.Recent = m.recentToRes(pool.Recent)
+	res.Txs = m.txsToRes(pool.Txs)
+
+	return res
+}
+
 func (m *mapper) volumesToRes(volumes dashboardService.Volumes) VolumesRes {
 	res := make(VolumesRes, len(volumes))
 
@@ -134,6 +143,66 @@ func (m *mapper) tvlsToRes(tvls dashboardService.Tvls) TvlsRes {
 	for i, v := range tvls {
 		res[i] = TvlRes{
 			Tvl:       v.Tvl,
+			Timestamp: v.Timestamp,
+		}
+	}
+	return res
+}
+
+func (m *mapper) aprsToRes(aprs dashboardService.Aprs) AprsRes {
+	res := make(AprsRes, len(aprs))
+
+	for i, v := range aprs {
+		res[i] = AprRes{
+			Apr:       v.Apr,
+			Timestamp: v.Timestamp,
+		}
+	}
+	return res
+}
+
+func (m *mapper) volumesToChartRes(volumes dashboardService.Volumes) ChartRes {
+	res := make(ChartRes, len(volumes))
+
+	for i, v := range volumes {
+		res[i] = ChartItem{
+			Value:     v.Volume,
+			Timestamp: v.Timestamp,
+		}
+	}
+	return res
+}
+
+func (m *mapper) tvlsToChartRes(tvls dashboardService.Tvls) ChartRes {
+	res := make(ChartRes, len(tvls))
+
+	for i, v := range tvls {
+		res[i] = ChartItem{
+			Value:     v.Tvl,
+			Timestamp: v.Timestamp,
+		}
+	}
+	return res
+}
+
+func (m *mapper) aprsToChartRes(aprs dashboardService.Aprs) ChartRes {
+	res := make(ChartRes, len(aprs))
+
+	for i, v := range aprs {
+		res[i] = ChartItem{
+			Value:     v.Apr,
+			Timestamp: v.Timestamp,
+		}
+	}
+	return res
+}
+
+func (m *mapper) feesToChartRes(aprs dashboardService.Fees) ChartRes {
+	res := make(ChartRes, len(aprs))
+
+	for i, v := range aprs {
+		res[i] = ChartItem{
+			Value:     v.Fee,
 			Timestamp: v.Timestamp,
 		}
 	}
