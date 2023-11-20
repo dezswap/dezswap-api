@@ -570,6 +570,18 @@ const docTemplate = `{
                         "description": "sorting e.g. price_change:asc",
                         "name": "sort",
                         "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "the number of returning data",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "the offset of returning data",
+                        "name": "offset",
+                        "in": "query"
                     }
                 ],
                 "responses": {

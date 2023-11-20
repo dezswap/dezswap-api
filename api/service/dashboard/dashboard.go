@@ -267,7 +267,7 @@ func (d *dashboard) Statistic(addr ...Addr) (st Statistic, err error) {
 }
 
 // Tokens implements Dashboard.
-func (d *dashboard) Tokens(item string, ascending bool) (Tokens, error) {
+func (d *dashboard) Tokens(item string, ascending bool, limit int, offset int) (Tokens, error) {
 	query := `
 select t.address as addr, coalesce(p.price, 0) price,
        floor((coalesce(p.price, 0)-coalesce(p24h.price, 0))/coalesce(p.price, 1)*10000)/100 as price_change
@@ -294,6 +294,10 @@ order by t.id
 	var tokens []Token
 	if tx := d.Raw(query, d.chainId, d.chainId).Find(&tokens); tx.Error != nil {
 		return nil, errors.Wrap(tx.Error, "dashboard.Tokens")
+	}
+
+	if offset > len(tokens) {
+		return Tokens{}, nil
 	}
 
 	query = `
@@ -396,7 +400,13 @@ group by address
 
 	d.sortTokens(tokens, item, ascending)
 
-	return tokens, nil
+	if offset > 0 && limit > 0 {
+		limit += offset
+	}
+	if limit == 0 || limit > len(tokens) {
+		limit = len(tokens)
+	}
+	return tokens[offset:limit], nil
 }
 
 func (d *dashboard) sortTokens(tokens Tokens, item string, ascending bool) {

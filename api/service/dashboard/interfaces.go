@@ -13,7 +13,7 @@ type Dashboard interface {
 	Pools(...Addr) (Pools, error)
 	Pool(addr Addr) (Pools, error)
 
-	Tokens(item string, ascending bool) (Tokens, error)
+	Tokens(item string, ascending bool, limit int, offset int) (Tokens, error)
 	Token(addr Addr) (Token, error)
 
 	TokenVolumes(addr Addr, itv Duration) (TokenChart, error)

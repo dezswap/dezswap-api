@@ -659,6 +659,14 @@ paths:
         in: query
         name: sort
         type: string
+      - description: the number of returning data
+        in: query
+        name: limit
+        type: integer
+      - description: the offset of returning data
+        in: query
+        name: offset
+        type: integer
       produces:
       - application/json
       responses:

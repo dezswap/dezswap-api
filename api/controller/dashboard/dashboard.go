@@ -2,6 +2,7 @@ package dashboard
 
 import (
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/dezswap/dezswap-api/api/controller"
@@ -218,9 +219,12 @@ func (c *dashboardController) Token(ctx *gin.Context) {
 //	@Failure		400	{object}	httputil.BadRequestError
 //	@Failure		500	{object}	httputil.InternalServerError
 //	@Param			sort		query	string	false	"sorting e.g. price_change:asc"
+//	@Param			limit		query	int		false	"the number of returning data"
+//	@Param			offset		query	int		false	"the offset of returning data"
 //	@Router			/dashboard/tokens [get]
 func (c *dashboardController) Tokens(ctx *gin.Context) {
 	var item string
+	var limit, offset int
 	ascending := true
 	sort := ctx.Query("sort")
 	if len(sort) > 0 {
@@ -232,8 +236,24 @@ func (c *dashboardController) Tokens(ctx *gin.Context) {
 			}
 		}
 	}
+	limitStr := ctx.Query("limit")
+	if len(limitStr) > 0 {
+		var err error
+		limit, err = strconv.Atoi(limitStr)
+		if err != nil {
+			httputil.NewError(ctx, http.StatusBadRequest, errors.New("invalid limit"))
+		}
+	}
+	offsetStr := ctx.Query("offset")
+	if len(offsetStr) > 0 {
+		var err error
+		offset, err = strconv.Atoi(offsetStr)
+		if err != nil {
+			httputil.NewError(ctx, http.StatusBadRequest, errors.New("invalid offset"))
+		}
+	}
 
-	tokens, err := c.Dashboard.Tokens(item, ascending)
+	tokens, err := c.Dashboard.Tokens(item, ascending, limit, offset)
 	if err != nil {
 		c.logger.Warn(err)
 		httputil.NewError(ctx, http.StatusInternalServerError, errors.New("internal server error"))
