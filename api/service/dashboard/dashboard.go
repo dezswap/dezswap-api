@@ -1029,6 +1029,60 @@ func (d *dashboard) VolumesOf(addr Addr, duration Duration) (Volumes, error) {
 	return volumes, nil
 }
 
+// Fees implements Dashboard.
+func (d *dashboard) Fees(duration Duration) ([]Fee, error) {
+	truncBy := int64(chartCriteriaByDuration[duration].TruncBy.Truncate(time.Second).Seconds())
+	intervalAgo := chartCriteriaByDuration[duration].Ago
+	query := fmt.Sprintf(`
+		SELECT
+			SUM(volume0_in_price) * %f AS fee,
+			TO_TIMESTAMP(FLOOR("timestamp" / %d ) * %d) AT TIME ZONE 'UTC' as timestamp
+		FROM
+			pair_stats_30m
+		WHERE
+			chain_id = ?
+			AND "timestamp" > EXTRACT(EPOCH FROM NOW() - INTERVAL '%s')
+		GROUP BY
+			FLOOR("timestamp" / %d )
+		ORDER BY
+			FLOOR("timestamp" / %d )
+	`, dezswap.SWAP_FEE, truncBy, truncBy, intervalAgo, truncBy, truncBy)
+
+	fees := Fees{}
+	if err := d.DB.Raw(query, d.chainId).Scan(&fees).Error; err != nil {
+		return nil, errors.Wrap(err, "dashboard.Volumes")
+	}
+	return fees, nil
+}
+
+// FeesOf implements Dashboard.
+func (d *dashboard) FeesOf(addr Addr, duration Duration) ([]Fee, error) {
+	truncBy := int64(chartCriteriaByDuration[duration].TruncBy.Truncate(time.Second).Seconds())
+	intervalAgo := chartCriteriaByDuration[duration].Ago
+	query := fmt.Sprintf(`
+		SELECT
+			SUM(volume0_in_price) * %f AS fee,
+			TO_TIMESTAMP(FLOOR(ps."timestamp" / %d ) * %d) AT TIME ZONE 'UTC' as timestamp
+		FROM
+			pair_stats_30m AS ps
+			JOIN pair as p on ps.pair_id = p.id
+		WHERE
+			ps.chain_id = ?
+			AND p.contract = ?
+			AND ps."timestamp" > EXTRACT(EPOCH FROM NOW() - INTERVAL '%s')
+		GROUP BY
+			FLOOR(ps."timestamp" / %d )
+		ORDER BY
+			FLOOR(ps."timestamp" / %d )
+	`, dezswap.SWAP_FEE, truncBy, truncBy, intervalAgo, truncBy, truncBy)
+
+	fees := Fees{}
+	if err := d.DB.Raw(query, d.chainId, addr).Scan(&fees).Error; err != nil {
+		return nil, errors.Wrap(err, "dashboard.VolumesOf")
+	}
+	return fees, nil
+}
+
 func (d *dashboard) fees(addr ...Addr) *gorm.DB {
 	m := aggregator.PairStats30m{}
 	query := d.DB.Model(

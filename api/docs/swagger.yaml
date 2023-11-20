@@ -541,6 +541,52 @@ paths:
       summary: Dezswap's Pool's APRs
       tags:
       - dashboard
+  /dashboard/chart/{type}:
+    get:
+      consumes:
+      - application/json
+      description: get Recent
+      parameters:
+      - description: default(empty) value is all
+        enum:
+        - year
+        - quarter
+        - month
+        in: query
+        name: duration
+        type: string
+      - description: Pool Address
+        in: query
+        name: pool
+        type: string
+      - description: chart type
+        enum:
+        - volume
+        - tvl
+        - apr
+        - fee
+        in: path
+        name: type
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dashboard.RecentRes'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httputil.BadRequestError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httputil.InternalServerError'
+      summary: Charts of Dezswap's Pool
+      tags:
+      - dashboard
   /dashboard/pools:
     get:
       consumes:

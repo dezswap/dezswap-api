@@ -27,6 +27,12 @@ type Recent struct {
 	TvlChangeRate    float32 `gorm:"tvl_change_rate"`
 }
 
+type Fees = []Fee
+type Fee struct {
+	Fee       string
+	Timestamp time.Time
+}
+
 type Volumes = []Volume
 type Volume struct {
 	Volume    string

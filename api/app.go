@@ -122,8 +122,10 @@ func (app *app) initApis(c configs.ApiConfig) {
 		Logger: logger.New(
 			log.New(writer, "\r\n", log.LstdFlags),
 			logger.Config{
-				Colorful: false,
-				LogLevel: logger.Info,
+				IgnoreRecordNotFoundError: true,
+				SlowThreshold:             time.Second,
+				Colorful:                  false,
+				LogLevel:                  logger.Warn,
 			},
 		),
 	})

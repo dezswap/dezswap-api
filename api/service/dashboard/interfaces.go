@@ -19,6 +19,9 @@ type Dashboard interface {
 	Volumes(Duration) (Volumes, error)
 	VolumesOf(Addr, Duration) (Volumes, error)
 
+	Fees(Duration) (Fees, error)
+	FeesOf(Addr, Duration) (Fees, error)
+
 	Tvls(Duration) (Tvls, error)
 	TvlsOf(Addr, Duration) (Tvls, error)
 

@@ -160,3 +160,51 @@ func (m *mapper) aprsToRes(aprs dashboardService.Aprs) AprsRes {
 	}
 	return res
 }
+
+func (m *mapper) volumesToChartRes(volumes dashboardService.Volumes) ChartRes {
+	res := make(ChartRes, len(volumes))
+
+	for i, v := range volumes {
+		res[i] = ChartItem{
+			Value:     v.Volume,
+			Timestamp: v.Timestamp,
+		}
+	}
+	return res
+}
+
+func (m *mapper) tvlsToChartRes(tvls dashboardService.Tvls) ChartRes {
+	res := make(ChartRes, len(tvls))
+
+	for i, v := range tvls {
+		res[i] = ChartItem{
+			Value:     v.Tvl,
+			Timestamp: v.Timestamp,
+		}
+	}
+	return res
+}
+
+func (m *mapper) aprsToChartRes(aprs dashboardService.Aprs) ChartRes {
+	res := make(ChartRes, len(aprs))
+
+	for i, v := range aprs {
+		res[i] = ChartItem{
+			Value:     v.Apr,
+			Timestamp: v.Timestamp,
+		}
+	}
+	return res
+}
+
+func (m *mapper) feesToChartRes(aprs dashboardService.Fees) ChartRes {
+	res := make(ChartRes, len(aprs))
+
+	for i, v := range aprs {
+		res[i] = ChartItem{
+			Value:     v.Fee,
+			Timestamp: v.Timestamp,
+		}
+	}
+	return res
+}

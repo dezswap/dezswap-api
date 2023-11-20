@@ -367,6 +367,73 @@ const docTemplate = `{
                 }
             }
         },
+        "/dashboard/chart/{type}": {
+            "get": {
+                "description": "get Recent",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "dashboard"
+                ],
+                "summary": "Charts of Dezswap's Pool",
+                "parameters": [
+                    {
+                        "enum": [
+                            "year",
+                            "quarter",
+                            "month"
+                        ],
+                        "type": "string",
+                        "description": "default(empty) value is all",
+                        "name": "duration",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Pool Address",
+                        "name": "pool",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "volume",
+                            "tvl",
+                            "apr",
+                            "fee"
+                        ],
+                        "type": "string",
+                        "description": "chart type",
+                        "name": "type",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dashboard.RecentRes"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.BadRequestError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.InternalServerError"
+                        }
+                    }
+                }
+            }
+        },
         "/dashboard/pools": {
             "get": {
                 "description": "get Pools data of dezswap (address, tvl, volume, fee, apr)",

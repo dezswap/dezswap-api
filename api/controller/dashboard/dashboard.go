@@ -28,6 +28,8 @@ type dashboardController struct {
 
 func (c *dashboardController) register(route *gin.RouterGroup) {
 
+	route.GET("/chart/:type", c.Chart)
+
 	route.GET("/aprs/:pool", c.APRsOf)
 	route.GET("/aprs", c.APRs)
 
@@ -71,6 +73,86 @@ func (c *dashboardController) Recent(ctx *gin.Context) {
 		return
 	}
 	ctx.JSON(http.StatusOK, c.recentToRes(recent))
+}
+
+// Dashboard godoc
+//
+//	@Summary		Charts of Dezswap's Pool
+//	@Description	get Recent
+//	@Tags			dashboard
+//	@Accept			json
+//	@Produce		json
+//	@Success		200	{object}	RecentRes
+//	@Failure		400	{object}	httputil.BadRequestError
+//	@Failure		500	{object}	httputil.InternalServerError
+//
+// @Param			duration	query	string	false	"default(empty) value is all"	Enums(year, quarter, month)
+// @Param			pool		query	string	false	"Pool Address"
+// @Param			type		path	string	true	"chart type"					Enums(volume, tvl, apr, fee)
+// @Router			/dashboard/chart/{type} [get]
+func (c *dashboardController) Chart(ctx *gin.Context) {
+	chartType := ToChartType(ctx.Param("type"))
+	if chartType == ChartTypeNone {
+		httputil.NewError(ctx, http.StatusBadRequest, errors.New("invalid chart type"))
+		return
+	}
+
+	duration := dashboardService.Duration(ctx.Query("duration"))
+	if len(duration) == 0 {
+		duration = dashboardService.All
+	}
+
+	poolAddr, ok := ctx.GetQuery("pool")
+	addr := dashboardService.Addr(poolAddr)
+
+	var err error
+	var res ChartRes
+
+	switch chartType {
+	case ChartTypeVolume:
+		var volumes dashboardService.Volumes
+		if ok {
+			volumes, err = c.Dashboard.VolumesOf(addr, duration)
+		} else {
+			volumes, err = c.Dashboard.Volumes(duration)
+		}
+		res = c.volumesToChartRes(volumes)
+	case ChartTypeTvl:
+		var tvls dashboardService.Tvls
+		if ok {
+			tvls, err = c.Dashboard.TvlsOf(addr, duration)
+		} else {
+			tvls, err = c.Dashboard.Tvls(duration)
+		}
+		res = c.tvlsToChartRes(tvls)
+	case ChartTypeApr:
+		var aprs dashboardService.Aprs
+		if ok {
+			aprs, err = c.Dashboard.AprsOf(addr, duration)
+		} else {
+			aprs, err = c.Dashboard.Aprs(duration)
+		}
+		res = c.aprsToChartRes(aprs)
+	case ChartTypeFee:
+		var fees dashboardService.Fees
+		if ok {
+			fees, err = c.Dashboard.FeesOf(addr, duration)
+		} else {
+			fees, err = c.Dashboard.Fees(duration)
+		}
+		res = c.feesToChartRes(fees)
+	default:
+		httputil.NewError(ctx, http.StatusBadRequest, errors.New("invalid chart type"))
+		return
+	}
+
+	if err != nil {
+		c.logger.Warn(err)
+		httputil.NewError(ctx, http.StatusInternalServerError, errors.New("internal server error"))
+		return
+	}
+
+	ctx.JSON(http.StatusOK, res)
 }
 
 // Dashboard godoc
