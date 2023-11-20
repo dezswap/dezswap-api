@@ -887,7 +887,7 @@ func (d *dashboard) Tvls(duration Duration) (Tvls, error) {
 
 	tvls := Tvls{}
 	if err := d.DB.Raw(query, d.chainId).Scan(&tvls).Error; err != nil {
-		return nil, errors.Wrap(err, "dashboard.Volumes")
+		return nil, errors.Wrap(err, "dashboard.Tvls")
 	}
 	return tvls, nil
 }
@@ -935,7 +935,7 @@ func (d *dashboard) TvlsOf(addr Addr, duration Duration) ([]Tvl, error) {
 
 	tvls := Tvls{}
 	if err := d.DB.Raw(query, d.chainId, addr).Scan(&tvls).Error; err != nil {
-		return nil, errors.Wrap(err, "dashboard.Volumes")
+		return nil, errors.Wrap(err, "dashboard.TvlsOf")
 	}
 	return tvls, nil
 }
@@ -960,7 +960,7 @@ func (d *dashboard) Txs(addr ...Addr) (Txs, error) {
 		t1.symbol AS asset1_symbol,
 		pt.asset1_amount AS asset1_amount,
 		0 as total_value,
-		TO_TIMESTAMP(pt."timestamp") as timestamp`,
+		TO_TIMESTAMP(pt."timestamp") AT TIME ZONE 'UTC' as timestamp`,
 	).Table("(?) as pt", subQuery).Joins(`
 		JOIN tokens AS t0 ON pt.asset0 = t0.address AND pt.chain_id = t0.chain_id
 		JOIN tokens AS t1 ON pt.asset1 = t1.address AND pt.chain_id = t0.chain_id
@@ -1001,7 +1001,7 @@ func (d *dashboard) Volumes(duration Duration) (Volumes, error) {
 	return volumes, nil
 }
 
-// Volumes implements Dashboard.
+// VolumesOf implements Dashboard.
 func (d *dashboard) VolumesOf(addr Addr, duration Duration) (Volumes, error) {
 	truncBy := int64(chartCriteriaByDuration[duration].TruncBy.Truncate(time.Second).Seconds())
 	intervalAgo := chartCriteriaByDuration[duration].Ago
@@ -1024,7 +1024,7 @@ func (d *dashboard) VolumesOf(addr Addr, duration Duration) (Volumes, error) {
 
 	volumes := Volumes{}
 	if err := d.DB.Raw(query, d.chainId, addr).Scan(&volumes).Error; err != nil {
-		return nil, errors.Wrap(err, "dashboard.Volumes")
+		return nil, errors.Wrap(err, "dashboard.VolumesOf")
 	}
 	return volumes, nil
 }

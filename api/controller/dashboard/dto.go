@@ -1,6 +1,8 @@
 package dashboard
 
-import "time"
+import (
+	"time"
+)
 
 type RecentRes struct {
 	Volume           string  `json:"volume"`
@@ -26,6 +28,12 @@ type TvlRes struct {
 	Timestamp time.Time `json:"timestamp"`
 }
 
+type AprsRes = []AprRes
+type AprRes struct {
+	Apr       string    `json:"apr"`
+	Timestamp time.Time `json:"timestamp"`
+}
+
 type StatisticRes []StatisticResItem
 type StatisticResItem struct {
 	AddressCount uint64    `json:"addressCount"`
@@ -43,6 +51,13 @@ type PoolRes struct {
 	Fee     string `json:"fee"`
 	Apr     string `json:"apr"`
 }
+
+type PoolDetailRes struct {
+	Recent RecentRes `json:"recent"`
+	Txs    TxsRes    `json:"txs"`
+}
+
+type ChartRequest struct{}
 
 type TokensRes []TokenRes
 type TokenRes struct {

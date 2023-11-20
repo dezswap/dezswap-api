@@ -116,6 +116,15 @@ func (m *mapper) poolsToRes(pools dashboardService.Pools) PoolsRes {
 	return res
 }
 
+func (m *mapper) poolDetailToRes(pool dashboardService.PoolDetail) PoolDetailRes {
+	res := PoolDetailRes{}
+
+	res.Recent = m.recentToRes(pool.Recent)
+	res.Txs = m.txsToRes(pool.Txs)
+
+	return res
+}
+
 func (m *mapper) volumesToRes(volumes dashboardService.Volumes) VolumesRes {
 	res := make(VolumesRes, len(volumes))
 
@@ -134,6 +143,18 @@ func (m *mapper) tvlsToRes(tvls dashboardService.Tvls) TvlsRes {
 	for i, v := range tvls {
 		res[i] = TvlRes{
 			Tvl:       v.Tvl,
+			Timestamp: v.Timestamp,
+		}
+	}
+	return res
+}
+
+func (m *mapper) aprsToRes(aprs dashboardService.Aprs) AprsRes {
+	res := make(AprsRes, len(aprs))
+
+	for i, v := range aprs {
+		res[i] = AprRes{
+			Apr:       v.Apr,
 			Timestamp: v.Timestamp,
 		}
 	}
