@@ -56,6 +56,11 @@ type Pools []struct {
 	Apr     string
 }
 
+type PoolDetail struct {
+	Recent Recent
+	Txs    Txs
+}
+
 type Tokens []Token
 type Token struct {
 	Addr           Addr

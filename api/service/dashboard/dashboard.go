@@ -37,28 +37,140 @@ func NewDashboardService(chainId string, db *gorm.DB) Dashboard {
 }
 
 // Aprs implements Dashboard.
-func (d *dashboard) Aprs(addr ...Addr) (Aprs, error) {
-	m := aggregator.PairStats30m{}
-	query := d.DB.Model(
-		&m,
-	).Select(
-		"SUM(volume0_in_price) over AS volume, DATE_TRUNC('day', TO_TIMESTAMP(timestamp)) AS timestamp",
-	).Where(
-		fmt.Sprintf("%s.chain_id = ?", m.TableName()), d.chainId,
-	).Where(
-		"DATE_TRUNC('day', TO_TIMESTAMP(timestamp)) >= DATE_TRUNC('day', NOW() - INTERVAL '1 year')",
-	).Group(
-		"DATE_TRUNC('day', TO_TIMESTAMP(timestamp))",
-	).Order(
-		"DATE_TRUNC('day', TO_TIMESTAMP(timestamp)) DESC",
-	)
+func (d *dashboard) Aprs(duration Duration) (Aprs, error) {
+	truncBy := int64(chartCriteriaByDuration[duration].TruncBy.Truncate(time.Second).Seconds())
+	intervalAgo := chartCriteriaByDuration[duration].Ago
 
-	if len(addr) > 0 {
-		joinMsg := fmt.Sprintf("LEFT JOIN pair AS P ON %s.pair_id = P.id", m.TableName())
-		query = query.Where("P.contract = ?", string(addr[0])).Joins(joinMsg)
-	}
+	dateSeries := fmt.Sprintf(`
+		SELECT
+			generate_series(
+				CAST(FLOOR(EXTRACT(EPOCH FROM DATE_TRUNC('day', NOW() ))) AS int8),
+				CAST(FLOOR(EXTRACT(EPOCH FROM DATE_TRUNC('day', NOW() - INTERVAL '%s'))) AS int8),
+			-%d
+			) AS timestamp
+		`, intervalAgo, truncBy)
+	query := fmt.Sprintf(`
+	WITH ds AS (%s),
+	tvl AS (
+		SELECT
+			SUM(liquidity) AS tvl,
+			t.timestamp
+		FROM (
+			SELECT DISTINCT ON (ps.pair_id, ds.timestamp)
+				ps.pair_id AS pair_id,
+				liquidity0_in_price + liquidity1_in_price AS liquidity,
+				ds.timestamp AS timestamp
+			FROM
+				ds
+			LEFT JOIN pair_stats_30m AS ps ON ps. "timestamp" < ds.timestamp
+			WHERE
+				ps.chain_id = '%s'
+			ORDER BY
+				ds.timestamp DESC,
+				ps.pair_id,
+				ps. "timestamp" DESC
+		) AS t
+	GROUP BY
+		t.timestamp
+	ORDER BY
+		t.timestamp
+	),
+	volume7d AS (
+		SELECT
+			COALESCE(SUM(ps.volume0_in_price),0) AS volume,
+			ds.timestamp
+		FROM
+			ds
+		LEFT JOIN pair_stats_30m AS ps ON ps. "timestamp" < ds.timestamp
+			AND ps. "timestamp" >= (ds.timestamp - EXTRACT(EPOCH FROM INTERVAL '7 days'))
+		GROUP BY
+			ds.timestamp
+		ORDER BY
+			ds.timestamp
+	)
+	SELECT
+		v.volume / t.tvl * %f AS apr,
+		TO_TIMESTAMP(ds.timestamp) at time zone 'UTC' AS timestamp
+	FROM
+		ds
+	JOIN tvl AS t ON ds.timestamp = t.timestamp
+	JOIN volume7d AS v ON ds.timestamp = v.timestamp;
+	`, dateSeries, d.chainId, dezswap.SWAP_FEE)
+
 	aprs := Aprs{}
-	if err := query.Scan(&aprs).Error; err != nil {
+	if err := d.DB.Raw(query).Scan(&aprs).Error; err != nil {
+		return nil, errors.Wrap(err, "dashboard.Volumes")
+	}
+	return aprs, nil
+}
+
+// AprsOf implements Dashboard.
+func (d *dashboard) AprsOf(pool Addr, duration Duration) ([]Apr, error) {
+	truncBy := int64(chartCriteriaByDuration[duration].TruncBy.Truncate(time.Second).Seconds())
+	intervalAgo := chartCriteriaByDuration[duration].Ago
+
+	dateSeries := fmt.Sprintf(`
+		SELECT
+			generate_series(
+				CAST(FLOOR(EXTRACT(EPOCH FROM DATE_TRUNC('day', NOW() ))) AS int8),
+				CAST(FLOOR(EXTRACT(EPOCH FROM DATE_TRUNC('day', NOW() - INTERVAL '%s'))) AS int8),
+			-%d
+			) AS timestamp
+		`, intervalAgo, truncBy)
+
+	query := fmt.Sprintf(`
+	WITH ds AS (%s),
+	tvl AS (
+		SELECT
+			SUM(liquidity) AS tvl,
+			t.timestamp
+		FROM (
+			SELECT DISTINCT ON (ps.pair_id, ds.timestamp)
+				ps.pair_id AS pair_id,
+				liquidity0_in_price + liquidity1_in_price AS liquidity,
+				ds.timestamp AS timestamp
+			FROM
+				ds
+			LEFT JOIN pair_stats_30m AS ps ON ps. "timestamp" < ds.timestamp
+			LEFT JOIN pair AS p ON ps.pair_id = p.id
+			WHERE
+				ps.chain_id = '%s'
+			AND
+				p.contract = ?
+			ORDER BY
+				ds.timestamp DESC,
+				ps.pair_id,
+				ps. "timestamp" DESC
+		) AS t
+	GROUP BY
+		t.timestamp
+	ORDER BY
+		t.timestamp
+	),
+	volume7d AS (
+		SELECT
+			COALESCE(SUM(ps.volume0_in_price),0) AS volume,
+			ds.timestamp
+		FROM
+			ds
+		LEFT JOIN pair_stats_30m AS ps ON ps. "timestamp" < ds.timestamp
+			AND ps. "timestamp" >= (ds.timestamp - EXTRACT(EPOCH FROM INTERVAL '7 days'))
+		GROUP BY
+			ds.timestamp
+		ORDER BY
+			ds.timestamp
+	)
+	SELECT
+		v.volume / t.tvl * %f AS apr,
+		TO_TIMESTAMP(ds.timestamp) at time zone 'UTC' AS timestamp
+	FROM
+		ds
+	JOIN tvl AS t ON ds.timestamp = t.timestamp
+	JOIN volume7d AS v ON ds.timestamp = v.timestamp;
+	`, dateSeries, d.chainId, dezswap.SWAP_FEE)
+
+	aprs := Aprs{}
+	if err := d.DB.Raw(query, pool).Scan(&aprs).Error; err != nil {
 		return nil, errors.Wrap(err, "dashboard.Volumes")
 	}
 	return aprs, nil
@@ -166,11 +278,26 @@ func (d *dashboard) Pools(tokens ...Addr) (Pools, error) {
 	return pools, nil
 }
 
-// Pool implements Dashboard.
-func (*dashboard) Pool(addr Addr) (Pools, error) {
-	panic("unimplemented")
+// PoolDetail implements Dashboard.
+func (d *dashboard) PoolDetail(addr Addr) (PoolDetail, error) {
+	detail := PoolDetail{}
+	var err error
+
+	detail.Recent, err = d.RecentOf(addr)
+	if err != nil {
+		return detail, errors.Wrap(err, "dashboard.PoolDetail")
+	}
+	detail.Txs, err = d.Txs(addr)
+	if err != nil {
+		return detail, errors.Wrap(err, "dashboard.PoolDetail")
+	}
+
+	return detail, nil
 }
 
+// TODO(): try to use gorm to implement this and RecentOf when the bug is fixed
+// /	   currently subQuery seems to be broken in gorm. result from the raw query and gorm is different
+//
 // Recent implements Dashboard.
 func (d *dashboard) Recent() (Recent, error) {
 	current, mins := time.Now().Truncate(time.Hour), time.Now().Minute()
@@ -231,6 +358,77 @@ func (d *dashboard) Recent() (Recent, error) {
 	`, tvl(current), tvl(dayAgo), volume(dayAgo, current), volume(twoDaysAgo, dayAgo))
 	recent := Recent{}
 	if err := d.DB.Raw(query, dezswap.SWAP_FEE).Scan(&recent).Error; err != nil {
+		return recent, errors.Wrap(err, "dashboard.Recent")
+	}
+	return recent, nil
+}
+
+// TODO(): try to use gorm to implement this and RecentOf when the bug is fixed
+// /	   currently subquery seems to be broken in gorm. result from the raw query and gorm is different
+// Recent implements Dashboard.
+func (d *dashboard) RecentOf(addr Addr) (Recent, error) {
+	current, mins := time.Now().Truncate(time.Hour), time.Now().Minute()
+	if mins >= 30 {
+		current = current.Add(time.Minute * -30)
+	}
+	dayAgo, twoDaysAgo := current.Add(time.Hour*-24), current.Add(time.Hour*-48)
+	tvl := func(at time.Time) string {
+		return fmt.Sprintf(`
+		SELECT
+			SUM(ps.liquidity0_in_price + ps.liquidity1_in_price) AS tvl
+		FROM
+			pair_stats_30m as ps
+			JOIN (
+				SELECT
+					ps0.pair_id,
+					MAX(ps0.timestamp) AS timestamp
+				FROM
+					pair_stats_30m as ps0
+				JOIN pair as p ON ps0.pair_id = p.id
+				WHERE
+					ps0.chain_id = '%s'
+				AND p.contract = ?
+				AND
+					TO_TIMESTAMP(ps0.timestamp) <= '%s'
+				GROUP BY
+					ps0.pair_id) AS latests ON ps.pair_id = latests.pair_id
+			AND ps.timestamp = latests.timestamp`, d.chainId, at.UTC().Format(time.DateTime),
+		)
+	}
+	volume := func(from, to time.Time) string {
+		return fmt.Sprintf(`
+		SELECT
+			SUM(ps0.volume0_in_price) AS volume
+		FROM
+			pair_stats_30m as ps0
+			JOIN pair as p ON ps0.pair_id = p.id
+		WHERE
+			ps0.chain_id = '%s'
+		AND p.contract = ?
+		AND
+			'%s' < TO_TIMESTAMP(ps0."timestamp")
+		AND
+			TO_TIMESTAMP(ps0."timestamp") <= '%s'
+		`, d.chainId, from.UTC().Format(time.DateTime), to.UTC().Format(time.DateTime))
+	}
+
+	query := fmt.Sprintf(`
+		WITH tvl AS (%s),
+			prev_tvl AS (%s),
+			volume AS (%s),
+			prev_volume AS (%s)
+		SELECT
+			tvl.tvl AS tvl,
+			CAST((tvl.tvl / prev_tvl.tvl - 1) AS float4) AS tvl_change_rate,
+			volume.volume AS volume,
+			CAST((volume.volume / prev_volume.volume - 1) AS float4) AS volume_change_rate,
+			volume.volume * ? as fee,
+			CAST((volume.volume / prev_volume.volume - 1) AS float4) AS fee_change_rate
+		FROM
+			tvl, prev_tvl, volume, prev_volume;
+	`, tvl(current), tvl(dayAgo), volume(dayAgo, current), volume(twoDaysAgo, dayAgo))
+	recent := Recent{}
+	if err := d.DB.Raw(query, addr, addr, addr, addr, dezswap.SWAP_FEE).Scan(&recent).Error; err != nil {
 		return recent, errors.Wrap(err, "dashboard.Recent")
 	}
 	return recent, nil
@@ -649,7 +847,7 @@ order by timestamp asc
 }
 
 // Tvls implements Dashboard.
-// TODO: must improve query performance
+// TODO: improve query performance
 func (d *dashboard) Tvls(duration Duration) (Tvls, error) {
 
 	interval := int64(chartCriteriaByDuration[duration].TruncBy.Truncate(time.Second).Seconds())
@@ -658,16 +856,16 @@ func (d *dashboard) Tvls(duration Duration) (Tvls, error) {
 	dateSeries := fmt.Sprintf(`
 		SELECT
 			generate_series(
-				CAST(FLOOR(EXTRACT(EPOCH FROM DATE_TRUNC('day', NOW() - INTERVAL '%s'))) AS int8),
 				CAST(FLOOR(EXTRACT(EPOCH FROM DATE_TRUNC('day', NOW() + INTERVAL '1 day'))) AS int8),
-			%d
+				CAST(FLOOR(EXTRACT(EPOCH FROM DATE_TRUNC('day', NOW() - INTERVAL '%s'))) AS int8),
+			-%d
 			) AS timestamp
 		`, intervalAgo, interval)
 
 	query := fmt.Sprintf(`
 		SELECT
 			SUM(liquidity) AS tvl,
-			TO_TIMESTAMP(t.timestamp) AT TIME ZONE 'UTC' AS timestamp
+			TO_TIMESTAMP(t.timestamp)  AT TIME ZONE 'UTC' - INTERVAL '1 day' AS timestamp
 		FROM ( SELECT DISTINCT ON (ps.pair_id, ds.timestamp)
 				ps.pair_id AS pair_id,
 				liquidity0_in_price + liquidity1_in_price  AS liquidity,
@@ -675,7 +873,7 @@ func (d *dashboard) Tvls(duration Duration) (Tvls, error) {
 				ps. "timestamp" AS ps_timestamp
 			FROM
 				(%s) ds
-			LEFT JOIN pair_stats_30m AS ps ON ps. "timestamp" <= ds.timestamp
+			LEFT JOIN pair_stats_30m AS ps ON ps. "timestamp" < ds.timestamp
 			WHERE ps.chain_id = ?
 		ORDER BY
 			ds.timestamp DESC,
@@ -689,6 +887,54 @@ func (d *dashboard) Tvls(duration Duration) (Tvls, error) {
 
 	tvls := Tvls{}
 	if err := d.DB.Raw(query, d.chainId).Scan(&tvls).Error; err != nil {
+		return nil, errors.Wrap(err, "dashboard.Volumes")
+	}
+	return tvls, nil
+}
+
+// TvlsOf implements Dashboard.
+func (d *dashboard) TvlsOf(addr Addr, duration Duration) ([]Tvl, error) {
+	interval := int64(chartCriteriaByDuration[duration].TruncBy.Truncate(time.Second).Seconds())
+	intervalAgo := chartCriteriaByDuration[duration].Ago
+
+	dateSeries := fmt.Sprintf(`
+		SELECT
+			generate_series(
+				CAST(FLOOR(EXTRACT(EPOCH FROM DATE_TRUNC('day', NOW() + INTERVAL '1 day'))) AS int8),
+				CAST(FLOOR(EXTRACT(EPOCH FROM DATE_TRUNC('day', NOW() - INTERVAL '%s'))) AS int8),
+			-%d
+			) AS timestamp
+		`, intervalAgo, interval)
+
+	query := fmt.Sprintf(`
+		SELECT
+			SUM(liquidity) AS tvl,
+			TO_TIMESTAMP(t.timestamp)  AT TIME ZONE 'UTC' - INTERVAL '1 day' AS timestamp
+		FROM ( SELECT DISTINCT ON (ps.pair_id, ds.timestamp)
+				ps.pair_id AS pair_id,
+				liquidity0_in_price + liquidity1_in_price  AS liquidity,
+				ds.timestamp AS timestamp,
+				ps. "timestamp" AS ps_timestamp
+			FROM
+				(%s) ds
+			LEFT JOIN pair_stats_30m AS ps ON ps. "timestamp" < ds.timestamp
+			LEFT JOIN pair AS p ON ps.pair_id = p.id
+			WHERE
+				ps.chain_id = ?
+			AND
+				p.contract = ?
+		ORDER BY
+			ds.timestamp DESC,
+			ps.pair_id,
+			ps. "timestamp" DESC) AS t
+		GROUP BY
+			t.timestamp
+		ORDER BY
+			t.timestamp
+	`, dateSeries)
+
+	tvls := Tvls{}
+	if err := d.DB.Raw(query, d.chainId, addr).Scan(&tvls).Error; err != nil {
 		return nil, errors.Wrap(err, "dashboard.Volumes")
 	}
 	return tvls, nil

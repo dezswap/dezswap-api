@@ -113,6 +113,9 @@ func (m *mapper) poolsToRes(pools dashboardService.Pools) PoolsRes {
 		}
 	}
 
+	return res
+}
+
 func (m *mapper) volumesToRes(volumes dashboardService.Volumes) VolumesRes {
 	res := make(VolumesRes, len(volumes))
 
