@@ -564,6 +564,14 @@ const docTemplate = `{
                     "dashboard"
                 ],
                 "summary": "Dezswap's Tokens",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "sorting e.g. price_change:asc",
+                        "name": "sort",
+                        "in": "query"
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -1338,7 +1346,7 @@ const docTemplate = `{
                 "price": {
                     "type": "string"
                 },
-                "priceChange": {
+                "price_change": {
                     "type": "number"
                 },
                 "tvl": {

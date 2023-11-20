@@ -186,7 +186,7 @@ definitions:
         type: string
       price:
         type: string
-      priceChange:
+      price_change:
         type: number
       tvl:
         type: string
@@ -654,6 +654,11 @@ paths:
       - application/json
       description: get Tokens data of dezswap (address, price, priceChange, volume,
         tvl)
+      parameters:
+      - description: sorting e.g. price_change:asc
+        in: query
+        name: sort
+        type: string
       produces:
       - application/json
       responses:

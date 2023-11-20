@@ -48,7 +48,7 @@ type TokensRes []TokenRes
 type TokenRes struct {
 	Address         string  `json:"address"`
 	Price           string  `json:"price"`
-	PriceChange     float32 `json:"priceChange"`
+	PriceChange     float32 `json:"price_change"`
 	Volume24h       string  `json:"volume_24h"`
 	Volume24hChange string  `json:"volume_24h_change,omitempty"`
 	Volume7d        string  `json:"volume_7d,omitempty"`

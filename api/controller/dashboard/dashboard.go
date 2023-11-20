@@ -2,6 +2,7 @@ package dashboard
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/dezswap/dezswap-api/api/controller"
 	dashboardService "github.com/dezswap/dezswap-api/api/service/dashboard"
@@ -195,17 +196,13 @@ func (c *dashboardController) Token(ctx *gin.Context) {
 		return
 	}
 
-	tokens, err := c.Dashboard.Tokens(dashboardService.Addr(address))
+	token, err := c.Dashboard.Token(dashboardService.Addr(address))
 	if err != nil {
 		c.logger.Warn(err)
 		httputil.NewError(ctx, http.StatusInternalServerError, errors.New("internal server error"))
 		return
 	}
-	if len(tokens) == 0 {
-		httputil.NewError(ctx, http.StatusNotFound, errors.New("token not found"))
-		return
-	}
-	res := c.tokenToRes(tokens[0])
+	res := c.tokenToRes(token)
 
 	ctx.JSON(http.StatusOK, res)
 }
@@ -220,9 +217,23 @@ func (c *dashboardController) Token(ctx *gin.Context) {
 //	@Success		200	{object}	TokensRes
 //	@Failure		400	{object}	httputil.BadRequestError
 //	@Failure		500	{object}	httputil.InternalServerError
+//	@Param			sort		query	string	false	"sorting e.g. price_change:asc"
 //	@Router			/dashboard/tokens [get]
 func (c *dashboardController) Tokens(ctx *gin.Context) {
-	tokens, err := c.Dashboard.Tokens()
+	var item string
+	ascending := true
+	sort := ctx.Query("sort")
+	if len(sort) > 0 {
+		orderItem := strings.Split(sort, ":")
+		if len(orderItem) > 1 {
+			item = orderItem[0]
+			if orderItem[1] == "desc" {
+				ascending = false
+			}
+		}
+	}
+
+	tokens, err := c.Dashboard.Tokens(item, ascending)
 	if err != nil {
 		c.logger.Warn(err)
 		httputil.NewError(ctx, http.StatusInternalServerError, errors.New("internal server error"))
