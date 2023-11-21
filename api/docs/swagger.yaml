@@ -139,25 +139,11 @@ definitions:
       verified:
         type: boolean
     type: object
-  dashboard.AprRes:
-    properties:
-      apr:
-        type: string
-      timestamp:
-        type: string
-    type: object
   dashboard.ChartItem:
     properties:
       t:
         type: string
       v:
-        type: string
-    type: object
-  dashboard.FeeRes:
-    properties:
-      fee:
-        type: string
-      timestamp:
         type: string
     type: object
   dashboard.PoolDetailRes:
@@ -231,13 +217,6 @@ definitions:
       volume_24h_change:
         type: string
     type: object
-  dashboard.TvlRes:
-    properties:
-      timestamp:
-        type: string
-      tvl:
-        type: string
-    type: object
   dashboard.TxRes:
     properties:
       account:
@@ -259,13 +238,6 @@ definitions:
       timestamp:
         type: string
       totalValue:
-        type: string
-    type: object
-  dashboard.VolumeRes:
-    properties:
-      timestamp:
-        type: string
-      volume:
         type: string
     type: object
   dezswap.AssetInfoRes:
@@ -482,11 +454,11 @@ paths:
       summary: Get a ticker
       tags:
       - coinmarketcap
-  /dashboard/aprs:
+  /dashboard/chart/{type}:
     get:
       consumes:
       - application/json
-      description: get APRs
+      description: get Charts data
       parameters:
       - description: default(empty) value is all
         enum:
@@ -496,6 +468,16 @@ paths:
         in: query
         name: duration
         type: string
+      - description: chart type
+        enum:
+        - volume
+        - tvl
+        - apr
+        - fee
+        in: path
+        name: type
+        required: true
+        type: string
       produces:
       - application/json
       responses:
@@ -503,7 +485,7 @@ paths:
           description: OK
           schema:
             items:
-              $ref: '#/definitions/dashboard.AprRes'
+              $ref: '#/definitions/dashboard.ChartItem'
             type: array
         "400":
           description: Bad Request
@@ -513,14 +495,14 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/httputil.InternalServerError'
-      summary: APRs of dezswap selected duration
+      summary: Charts of Dezswap's Pools
       tags:
       - dashboard
-  /dashboard/aprs/{pool}:
+  /dashboard/chart/pools/{address}/{type}:
     get:
       consumes:
       - application/json
-      description: get APRs of a dezswap pool
+      description: get Charts data
       parameters:
       - description: default(empty) value is all
         enum:
@@ -532,46 +514,8 @@ paths:
         type: string
       - description: Pool Address
         in: path
-        name: pool
+        name: address
         required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            items:
-              $ref: '#/definitions/dashboard.AprRes'
-            type: array
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/httputil.BadRequestError'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/httputil.InternalServerError'
-      summary: Dezswap's Pool's APRs
-      tags:
-      - dashboard
-  /dashboard/chart/{type}:
-    get:
-      consumes:
-      - application/json
-      description: get Recent
-      parameters:
-      - description: default(empty) value is all
-        enum:
-        - year
-        - quarter
-        - month
-        in: query
-        name: duration
-        type: string
-      - description: Pool Address
-        in: query
-        name: pool
         type: string
       - description: chart type
         enum:
@@ -603,11 +547,11 @@ paths:
       summary: Charts of Dezswap's Pool
       tags:
       - dashboard
-  /dashboard/fees:
+  /dashboard/chart/tokens/{address}/{type}:
     get:
       consumes:
       - application/json
-      description: get Fees
+      description: get Charts data
       parameters:
       - description: default(empty) value is all
         enum:
@@ -617,43 +561,18 @@ paths:
         in: query
         name: duration
         type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            items:
-              $ref: '#/definitions/dashboard.FeeRes'
-            type: array
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/httputil.BadRequestError'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/httputil.InternalServerError'
-      summary: Fees of user selected duration
-      tags:
-      - dashboard
-  /dashboard/fees/{pool}:
-    get:
-      consumes:
-      - application/json
-      description: get Fees
-      parameters:
-      - description: default(empty) value is all
-        enum:
-        - year
-        - quarter
-        - month
-        in: query
-        name: duration
-        type: string
-      - description: Pool Address
+      - description: Token Address
         in: path
-        name: pool
+        name: address
+        required: true
+        type: string
+      - description: chart type
+        enum:
+        - volume
+        - tvl
+        - price
+        in: path
+        name: type
         required: true
         type: string
       produces:
@@ -663,7 +582,7 @@ paths:
           description: OK
           schema:
             items:
-              $ref: '#/definitions/dashboard.FeeRes'
+              $ref: '#/definitions/dashboard.ChartItem'
             type: array
         "400":
           description: Bad Request
@@ -673,7 +592,7 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/httputil.InternalServerError'
-      summary: Pool's Fees of user selected duration
+      summary: Charts of Dezswap's Pool related a given token
       tags:
       - dashboard
   /dashboard/pools:
@@ -714,7 +633,7 @@ paths:
       parameters:
       - description: Pool Address
         in: path
-        name: pool
+        name: address
         required: true
         type: string
       produces:
@@ -817,56 +736,6 @@ paths:
       summary: Dezswap's Token Stats
       tags:
       - dashboard
-  /dashboard/token_chart/{address}:
-    get:
-      consumes:
-      - application/json
-      description: get Token' chart data of Dezswap by designated interval
-      parameters:
-      - description: token address
-        in: path
-        name: address
-        required: true
-        type: string
-      - description: chart data type
-        enum:
-        - volume
-        - tvl
-        - price
-        in: query
-        name: data
-        required: true
-        type: string
-      - description: default(empty) value is all
-        enum:
-        - year
-        - quarter
-        - month
-        in: query
-        name: duration
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            items:
-              items:
-                type: string
-              type: array
-            type: array
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/httputil.BadRequestError'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/httputil.InternalServerError'
-      summary: Dezswap's Token Chart Data
-      tags:
-      - dashboard
   /dashboard/tokens:
     get:
       consumes:
@@ -891,79 +760,6 @@ paths:
           schema:
             $ref: '#/definitions/httputil.InternalServerError'
       summary: Dezswap's Tokens
-      tags:
-      - dashboard
-  /dashboard/tvls:
-    get:
-      consumes:
-      - application/json
-      description: get TVLs
-      parameters:
-      - description: default(empty) value is all
-        enum:
-        - year
-        - quarter
-        - month
-        in: query
-        name: duration
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            items:
-              $ref: '#/definitions/dashboard.TvlRes'
-            type: array
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/httputil.BadRequestError'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/httputil.InternalServerError'
-      summary: TVLs of dezswap selected duration
-      tags:
-      - dashboard
-  /dashboard/tvls/{pool}:
-    get:
-      consumes:
-      - application/json
-      description: get TVLs
-      parameters:
-      - description: default(empty) value is all
-        enum:
-        - year
-        - quarter
-        - month
-        in: query
-        name: duration
-        type: string
-      - description: Pool Address
-        in: path
-        name: pool
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            items:
-              $ref: '#/definitions/dashboard.TvlRes'
-            type: array
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/httputil.BadRequestError'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/httputil.InternalServerError'
-      summary: TVLs of dezswap selected duration
       tags:
       - dashboard
   /dashboard/txs:
@@ -998,79 +794,6 @@ paths:
           schema:
             $ref: '#/definitions/httputil.InternalServerError'
       summary: Dezswap's Transactions
-      tags:
-      - dashboard
-  /dashboard/volumes:
-    get:
-      consumes:
-      - application/json
-      description: get Volumes
-      parameters:
-      - description: default(empty) value is all
-        enum:
-        - year
-        - quarter
-        - month
-        in: query
-        name: duration
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            items:
-              $ref: '#/definitions/dashboard.VolumeRes'
-            type: array
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/httputil.BadRequestError'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/httputil.InternalServerError'
-      summary: Volumes of user selected duration
-      tags:
-      - dashboard
-  /dashboard/volumes/{pool}:
-    get:
-      consumes:
-      - application/json
-      description: get Volumes
-      parameters:
-      - description: default(empty) value is all
-        enum:
-        - year
-        - quarter
-        - month
-        in: query
-        name: duration
-        type: string
-      - description: Pool Address
-        in: path
-        name: pool
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            items:
-              $ref: '#/definitions/dashboard.VolumeRes'
-            type: array
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/httputil.BadRequestError'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/httputil.InternalServerError'
-      summary: Pool's Volumes of user selected duration
       tags:
       - dashboard
   /pairs:

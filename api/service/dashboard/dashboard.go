@@ -99,7 +99,7 @@ func (d *dashboard) Aprs(duration Duration) (Aprs, error) {
 
 	aprs := Aprs{}
 	if err := d.DB.Raw(query).Scan(&aprs).Error; err != nil {
-		return nil, errors.Wrap(err, "dashboard.Volumes")
+		return nil, errors.Wrap(err, "dashboard.Aprs")
 	}
 	return aprs, nil
 }
@@ -171,7 +171,7 @@ func (d *dashboard) AprsOf(pool Addr, duration Duration) ([]Apr, error) {
 
 	aprs := Aprs{}
 	if err := d.DB.Raw(query, pool).Scan(&aprs).Error; err != nil {
-		return nil, errors.Wrap(err, "dashboard.Volumes")
+		return nil, errors.Wrap(err, "dashboard.AprsOf")
 	}
 	return aprs, nil
 }
@@ -429,7 +429,7 @@ func (d *dashboard) RecentOf(addr Addr) (Recent, error) {
 	`, tvl(current), tvl(dayAgo), volume(dayAgo, current), volume(twoDaysAgo, dayAgo))
 	recent := Recent{}
 	if err := d.DB.Raw(query, addr, addr, addr, addr, dezswap.SWAP_FEE).Scan(&recent).Error; err != nil {
-		return recent, errors.Wrap(err, "dashboard.Recent")
+		return recent, errors.Wrap(err, "dashboard.RecentOf")
 	}
 	return recent, nil
 }
@@ -458,7 +458,7 @@ func (d *dashboard) Statistic(addr ...Addr) (st Statistic, err error) {
 
 	st = Statistic{}
 	if err := d.DB.Raw(query, subDau, subTxCnts, subFees).Scan(&st).Error; err != nil {
-		return nil, errors.Wrap(err, "dashboard.Pools")
+		return nil, errors.Wrap(err, "dashboard.Statistic")
 	}
 	return st, nil
 }
@@ -840,7 +840,7 @@ order by timestamp asc
 	}
 	var chart TokenChart
 	if tx := d.Raw(query, d.chainId, addr).Find(&chart); tx.Error != nil {
-		return TokenChart{}, errors.Wrap(tx.Error, "dashboard.TokenTvls")
+		return TokenChart{}, errors.Wrap(tx.Error, "dashboard.TokenPrices")
 	}
 
 	return chart, nil
@@ -1085,7 +1085,7 @@ func (d *dashboard) Fees(duration Duration) ([]Fee, error) {
 
 	fees := Fees{}
 	if err := d.DB.Raw(query, d.chainId).Scan(&fees).Error; err != nil {
-		return nil, errors.Wrap(err, "dashboard.Volumes")
+		return nil, errors.Wrap(err, "dashboard.Fees")
 	}
 	return fees, nil
 }
@@ -1113,7 +1113,7 @@ func (d *dashboard) FeesOf(addr Addr, duration Duration) ([]Fee, error) {
 
 	fees := Fees{}
 	if err := d.DB.Raw(query, d.chainId, addr).Scan(&fees).Error; err != nil {
-		return nil, errors.Wrap(err, "dashboard.VolumesOf")
+		return nil, errors.Wrap(err, "dashboard.FeesOf")
 	}
 	return fees, nil
 }
