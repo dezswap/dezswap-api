@@ -434,6 +434,115 @@ const docTemplate = `{
                 }
             }
         },
+        "/dashboard/fees": {
+            "get": {
+                "description": "get Fees",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "dashboard"
+                ],
+                "summary": "Fees of user selected duration",
+                "parameters": [
+                    {
+                        "enum": [
+                            "year",
+                            "quarter",
+                            "month"
+                        ],
+                        "type": "string",
+                        "description": "default(empty) value is all",
+                        "name": "duration",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/dashboard.FeeRes"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.BadRequestError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.InternalServerError"
+                        }
+                    }
+                }
+            }
+        },
+        "/dashboard/fees/{pool}": {
+            "get": {
+                "description": "get Fees",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "dashboard"
+                ],
+                "summary": "Pool's Fees of user selected duration",
+                "parameters": [
+                    {
+                        "enum": [
+                            "year",
+                            "quarter",
+                            "month"
+                        ],
+                        "type": "string",
+                        "description": "default(empty) value is all",
+                        "name": "duration",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Pool Address",
+                        "name": "pool",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/dashboard.FeeRes"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.BadRequestError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.InternalServerError"
+                        }
+                    }
+                }
+            }
+        },
         "/dashboard/pools": {
             "get": {
                 "description": "get Pools data of dezswap (address, tvl, volume, fee, apr)",
@@ -976,7 +1085,7 @@ const docTemplate = `{
                 "tags": [
                     "dashboard"
                 ],
-                "summary": "Volumes of user selected duration",
+                "summary": "Pool's Volumes of user selected duration",
                 "parameters": [
                     {
                         "enum": [
@@ -1576,6 +1685,17 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "apr": {
+                    "type": "string"
+                },
+                "timestamp": {
+                    "type": "string"
+                }
+            }
+        },
+        "dashboard.FeeRes": {
+            "type": "object",
+            "properties": {
+                "fee": {
                     "type": "string"
                 },
                 "timestamp": {

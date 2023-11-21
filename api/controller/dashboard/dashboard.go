@@ -39,6 +39,9 @@ func (c *dashboardController) register(route *gin.RouterGroup) {
 	route.GET("/volumes/:pool", c.VolumesOf)
 	route.GET("/volumes", c.Volumes)
 
+	route.GET("/fees/:pool", c.FeesOf)
+	route.GET("/fees", c.Fees)
+
 	route.GET("/recent", c.Recent)
 
 	route.GET("/statistics", c.Statistic)
@@ -183,7 +186,7 @@ func (c *dashboardController) Volumes(ctx *gin.Context) {
 
 // Dashboard godoc
 //
-//	@Summary		Volumes of user selected duration
+//	@Summary		Pool's Volumes of user selected duration
 //	@Description	get Volumes
 //	@Tags			dashboard
 //	@Accept			json
@@ -214,6 +217,67 @@ func (c *dashboardController) VolumesOf(ctx *gin.Context) {
 		return
 	}
 	ctx.JSON(http.StatusOK, c.volumesToRes(volumes))
+}
+
+// Dashboard godoc
+//
+//	@Summary		Fees of user selected duration
+//	@Description	get Fees
+//	@Tags			dashboard
+//	@Param			duration	query	string	false	"default(empty) value is all"	Enums(year, quarter, month)
+//	@Accept			json
+//	@Produce		json
+//	@Success		200	{object}	FeesRes
+//	@Failure		400	{object}	httputil.BadRequestError
+//	@Failure		500	{object}	httputil.InternalServerError
+//	@Router			/dashboard/fees [get]
+func (c *dashboardController) Fees(ctx *gin.Context) {
+	duration := dashboardService.Duration(ctx.Query("duration"))
+	if len(duration) == 0 {
+		duration = dashboardService.All
+	}
+	fees, err := c.Dashboard.Fees(duration)
+	if err != nil {
+		c.logger.Warn(err)
+		httputil.NewError(ctx, http.StatusInternalServerError, errors.New("internal server error"))
+		return
+	}
+	ctx.JSON(http.StatusOK, c.feesToRes(fees))
+}
+
+// Dashboard godoc
+//
+//	@Summary		Pool's Fees of user selected duration
+//	@Description	get Fees
+//	@Tags			dashboard
+//	@Accept			json
+//	@Produce		json
+//	@Success		200	{object}	FeesRes
+//	@Failure		400	{object}	httputil.BadRequestError
+//	@Failure		500	{object}	httputil.InternalServerError
+//
+// @Param			duration	query	string	false	"default(empty) value is all"	Enums(year, quarter, month)
+// @Param			pool	path		string	true	"Pool Address"
+//
+//	@Router			/dashboard/fees/{pool} [get]
+func (c *dashboardController) FeesOf(ctx *gin.Context) {
+	duration := dashboardService.Duration(ctx.Query("duration"))
+	if len(duration) == 0 {
+		duration = dashboardService.All
+	}
+	address := ctx.Param("pool")
+	if address == "" {
+		httputil.NewError(ctx, http.StatusBadRequest, errors.New("invalid address"))
+		return
+	}
+
+	fees, err := c.Dashboard.FeesOf(dashboardService.Addr(address), duration)
+	if err != nil {
+		c.logger.Warn(err)
+		httputil.NewError(ctx, http.StatusInternalServerError, errors.New("internal server error"))
+		return
+	}
+	ctx.JSON(http.StatusOK, c.feesToRes(fees))
 }
 
 // Dashboard godoc

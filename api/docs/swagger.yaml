@@ -146,6 +146,13 @@ definitions:
       timestamp:
         type: string
     type: object
+  dashboard.FeeRes:
+    properties:
+      fee:
+        type: string
+      timestamp:
+        type: string
+    type: object
   dashboard.PoolDetailRes:
     properties:
       recent:
@@ -587,6 +594,79 @@ paths:
       summary: Charts of Dezswap's Pool
       tags:
       - dashboard
+  /dashboard/fees:
+    get:
+      consumes:
+      - application/json
+      description: get Fees
+      parameters:
+      - description: default(empty) value is all
+        enum:
+        - year
+        - quarter
+        - month
+        in: query
+        name: duration
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/dashboard.FeeRes'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httputil.BadRequestError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httputil.InternalServerError'
+      summary: Fees of user selected duration
+      tags:
+      - dashboard
+  /dashboard/fees/{pool}:
+    get:
+      consumes:
+      - application/json
+      description: get Fees
+      parameters:
+      - description: default(empty) value is all
+        enum:
+        - year
+        - quarter
+        - month
+        in: query
+        name: duration
+        type: string
+      - description: Pool Address
+        in: path
+        name: pool
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/dashboard.FeeRes'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httputil.BadRequestError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httputil.InternalServerError'
+      summary: Pool's Fees of user selected duration
+      tags:
+      - dashboard
   /dashboard/pools:
     get:
       consumes:
@@ -978,7 +1058,7 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/httputil.InternalServerError'
-      summary: Volumes of user selected duration
+      summary: Pool's Volumes of user selected duration
       tags:
       - dashboard
   /pairs:

@@ -137,6 +137,18 @@ func (m *mapper) volumesToRes(volumes dashboardService.Volumes) VolumesRes {
 	return res
 }
 
+func (m *mapper) feesToRes(fees dashboardService.Fees) FeesRes {
+	res := make(FeesRes, len(fees))
+
+	for i, v := range fees {
+		res[i] = FeeRes{
+			Fee:       v.Fee,
+			Timestamp: v.Timestamp,
+		}
+	}
+	return res
+}
+
 func (m *mapper) tvlsToRes(tvls dashboardService.Tvls) TvlsRes {
 	res := make(TvlsRes, len(tvls))
 

@@ -23,6 +23,12 @@ type VolumeRes struct {
 	Timestamp time.Time `json:"timestamp"`
 }
 
+type FeesRes = []FeeRes
+type FeeRes struct {
+	Fee       string    `json:"fee"`
+	Timestamp time.Time `json:"timestamp"`
+}
+
 type TvlsRes = []TvlRes
 type TvlRes struct {
 	Tvl       string    `json:"tvl"`
