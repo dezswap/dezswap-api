@@ -71,12 +71,12 @@ type TokenRes struct {
 	Address         string  `json:"address"`
 	Price           string  `json:"price"`
 	PriceChange     float32 `json:"priceChange"`
-	Volume24h       string  `json:"volume_24h"`
-	Volume24hChange string  `json:"volume_24h_change,omitempty"`
-	Volume7d        string  `json:"volume_7d,omitempty"`
-	Volume7dChange  string  `json:"volume_7d_change,omitempty"`
+	Volume24h       string  `json:"volume24h"`
+	Volume24hChange string  `json:"volume24hChange,omitempty"`
+	Volume7d        string  `json:"volume7d,omitempty"`
+	Volume7dChange  string  `json:"volume7dChange,omitempty"`
 	Tvl             string  `json:"tvl"`
-	TvlChange       string  `json:"tvl_change,omitempty"`
+	TvlChange       string  `json:"tvlChange,omitempty"`
 	Fee             string  `json:"fee,omitempty"`
 }
 
