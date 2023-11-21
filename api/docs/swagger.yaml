@@ -319,6 +319,17 @@ definitions:
         example: not found
         type: string
     type: object
+  notice.noticeItem:
+    properties:
+      description:
+        type: string
+      id:
+        type: string
+      timestamp:
+        type: string
+      title:
+        type: string
+    type: object
 info:
   contact: {}
 paths:
@@ -1070,6 +1081,48 @@ paths:
       summary: Pool's Volumes of user selected duration
       tags:
       - dashboard
+  /notices:
+    get:
+      consumes:
+      - application/json
+      description: get Notices
+      parameters:
+      - description: target chain name e.g. (dimension, cube), default (dimension)
+        in: query
+        name: chain
+        type: string
+      - description: condition to get items after the id
+        in: query
+        name: after
+        type: integer
+      - description: 'the number of items to return (default: 10)'
+        in: query
+        name: limit
+        type: integer
+      - description: 'order of items to return (default: descending order)'
+        in: query
+        name: asc
+        type: boolean
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/notice.noticeItem'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httputil.BadRequestError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httputil.InternalServerError'
+      summary: Notices of the chain
+      tags:
+      - notice
   /pairs:
     get:
       consumes:

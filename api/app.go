@@ -12,10 +12,12 @@ import (
 	geckoController "github.com/dezswap/dezswap-api/api/controller/coingecko"
 	comarcapController "github.com/dezswap/dezswap-api/api/controller/coinmarketcap"
 	dashboardController "github.com/dezswap/dezswap-api/api/controller/dashboard"
+	nc "github.com/dezswap/dezswap-api/api/controller/notice"
 
 	"github.com/dezswap/dezswap-api/api/service/coingecko"
 	"github.com/dezswap/dezswap-api/api/service/coinmarketcap"
 	"github.com/dezswap/dezswap-api/api/service/dashboard"
+	ns "github.com/dezswap/dezswap-api/api/service/notice"
 
 	"github.com/dezswap/dezswap-api/api/controller"
 	"github.com/dezswap/dezswap-api/api/docs"
@@ -163,6 +165,9 @@ func (app *app) initApis(c configs.ApiConfig) {
 
 	dashboardService := dashboard.NewDashboardService(chainId, db)
 	dashboardController.InitDashboardController(dashboardService, router.Group("/dashboard"), app.logger)
+
+	noticeService := ns.NewService(db)
+	nc.InitNoticeController(noticeService, router.Group("/notices"), app.logger)
 }
 
 func (app *app) configureReporter(dsn, env string, tags map[string]string) error {
