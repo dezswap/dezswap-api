@@ -2,6 +2,7 @@ package dashboard
 
 import (
 	"fmt"
+	"sort"
 	"time"
 
 	"github.com/dezswap/dezswap-api/pkg/db/aggregator"
@@ -464,16 +465,48 @@ func (d *dashboard) Statistic(addr ...Addr) (st Statistic, err error) {
 }
 
 // Tokens implements Dashboard.
-func (d *dashboard) Tokens(addrs ...Addr) (Tokens, error) {
-	var addrCond string
-	if len(addrs) > 0 {
-		addrCond += "t.address in ('" + string(addrs[0])
-		for _, a := range addrs[1:] {
-			addrCond += "','" + string(a)
-		}
-		addrCond += "')"
+func (d *dashboard) Tokens() (Tokens, error) {
+	var tokens []Token
+	var err error
+	if tokens, err = d.tokenPrice(); err != nil {
+		return nil, errors.Wrap(err, "dashboard.Tokens")
 	}
 
+	var tokenDetails Tokens
+	if tokenDetails, err = d.tokenDetails(); err != nil {
+		return nil, errors.Wrap(err, "dashboard.Tokens")
+	}
+
+	statMap := make(map[Addr]Token, len(tokenDetails))
+	for _, s := range tokenDetails {
+		statMap[s.Addr] = s
+	}
+
+	for i, t := range tokens {
+		if stat, ok := statMap[t.Addr]; ok {
+			t.Volume = stat.Volume
+			t.VolumeChange = stat.VolumeChange
+			t.Volume7d = stat.Volume7d
+			t.Volume7dChange = stat.Volume7dChange
+			t.Tvl = stat.Tvl
+			t.TvlChange = stat.TvlChange
+			t.Commission = stat.Commission
+		} else {
+			t.Volume = "0"
+			t.VolumeChange = "0"
+			t.Volume7d = "0"
+			t.Volume7dChange = "0"
+			t.Tvl = "0"
+			t.TvlChange = "0"
+			t.Commission = "0"
+		}
+		tokens[i] = t
+	}
+
+	return tokens, nil
+}
+
+func (d *dashboard) tokenPrice(addr ...Addr) (Tokens, error) {
 	query := `
 select t.address as addr, coalesce(p.price, 0) price,
        floor((coalesce(p.price, 0)-coalesce(p24h.price, 0))/coalesce(p.price, 1)*10000)/100 as price_change
@@ -494,18 +527,27 @@ from tokens t
                 where height <= (select coalesce(max(height), 0) from parsed_tx
                   where chain_id = ? and timestamp <= extract(epoch from now() - interval '1 day'))
                 group by token_id) t on p.id = t.id) p24h on t.id = p24h.token_id
-where t.chain_id = ? and t.symbol != 'uLP'
+where t.chain_id = ?
 `
-	if len(addrCond) > 0 {
-		query += " and " + addrCond
-	}
-
 	var tokens []Token
-	if tx := d.Raw(query, d.chainId, d.chainId).Find(&tokens); tx.Error != nil {
-		return nil, errors.Wrap(tx.Error, "dashboard.Tokens")
+	var tx *gorm.DB
+	if len(addr) > 0 {
+		query += ` and t.address in ?`
+		tx = d.Raw(query, d.chainId, d.chainId, addr)
+	} else {
+		query += ` and t.symbol != 'uLP' order by t.id`
+		tx = d.Raw(query, d.chainId, d.chainId)
 	}
 
-	query = `
+	if err := tx.Find(&tokens).Error; err != nil {
+		return nil, err
+	}
+
+	return tokens, nil
+}
+
+func (d *dashboard) tokenDetails(addr ...Addr) (Tokens, error) {
+	query := `
 with s as (
     select distinct pair_id,
            sum(volume0_in_price) filter (where timestamp_before = 0) over w sum_vol0,
@@ -560,11 +602,6 @@ from (
         join s_7d  on p.id = s_7d.pair_id
         left join tokens t on p.chain_id = t.chain_id and (p.asset0 = t.address or p.asset1 = t.address)
 `
-	if len(addrs) > 0 {
-		query += " where " + addrCond
-	}
-	query += " group by t.address, p.asset0) t group by address"
-
 	type tokenStat struct {
 		Address          Addr
 		Volume           string
@@ -576,37 +613,134 @@ from (
 		Commission       string
 	}
 	var stats []tokenStat
-	if tx := d.Raw(query, d.chainId, d.chainId).Find(&stats); tx.Error != nil {
-		return nil, errors.Wrap(tx.Error, "dashboard.Tokens")
+	var tx *gorm.DB
+	if len(addr) > 0 {
+		query += ` where t.address = ? group by t.address, p.asset0) t group by address`
+		tx = d.Raw(query, d.chainId, d.chainId, addr)
+	} else {
+		query += ` group by t.address, p.asset0) t group by address`
+		tx = d.Raw(query, d.chainId, d.chainId)
 	}
 
-	statMap := make(map[Addr]tokenStat, len(stats))
-	for _, s := range stats {
-		statMap[s.Address] = s
+	if err := tx.Find(&stats).Error; err != nil {
+		return nil, err
 	}
 
-	for i, t := range tokens {
-		if stat, ok := statMap[t.Addr]; ok {
-			t.Volume = stat.Volume
-			t.VolumeChange = stat.VolumeChange
-			t.Volume7d = stat.VolumeWeek
-			t.Volume7dChange = stat.VolumeWeekChange
-			t.Tvl = stat.Tvl
-			t.TvlChange = stat.TvlChange
-			t.Commission = stat.Commission
-		} else {
-			t.Volume = "0"
-			t.VolumeChange = "0"
-			t.Volume7d = "0"
-			t.Volume7dChange = "0"
-			t.Tvl = "0"
-			t.TvlChange = "0"
-			t.Commission = "0"
+	tokens := make(Tokens, len(stats))
+	for i, s := range stats {
+		tokens[i] = Token{
+			Addr:           s.Address,
+			Volume:         s.Volume,
+			VolumeChange:   s.VolumeChange,
+			Volume7d:       s.VolumeWeek,
+			Volume7dChange: s.VolumeWeekChange,
+			Tvl:            s.Tvl,
+			TvlChange:      s.TvlChange,
+			Commission:     s.Commission,
 		}
-		tokens[i] = t
 	}
 
 	return tokens, nil
+}
+
+func (d *dashboard) sortTokens(tokens Tokens, item string, ascending bool) {
+	var sortFunc func(i, j int) bool
+	switch item {
+	case "address":
+		if ascending {
+			sortFunc = func(i, j int) bool {
+				return tokens[i].Addr < tokens[j].Addr
+			}
+		} else {
+			sortFunc = func(i, j int) bool {
+				return tokens[i].Addr > tokens[j].Addr
+			}
+		}
+	case "price":
+		if ascending {
+			sortFunc = func(i, j int) bool {
+				return tokens[i].Price < tokens[j].Price
+			}
+		} else {
+			sortFunc = func(i, j int) bool {
+				return tokens[i].Price > tokens[j].Price
+			}
+		}
+	case "price_change":
+		if ascending {
+			sortFunc = func(i, j int) bool {
+				return tokens[i].PriceChange < tokens[j].PriceChange
+			}
+		} else {
+			sortFunc = func(i, j int) bool {
+				return tokens[i].PriceChange > tokens[j].PriceChange
+			}
+		}
+	case "volume":
+		if ascending {
+			sortFunc = func(i, j int) bool {
+				return tokens[i].Volume < tokens[j].Volume
+			}
+		} else {
+			sortFunc = func(i, j int) bool {
+				return tokens[i].Volume > tokens[j].Volume
+			}
+		}
+	case "tvl":
+		if ascending {
+			sortFunc = func(i, j int) bool {
+				return tokens[i].Tvl < tokens[j].Tvl
+			}
+		} else {
+			sortFunc = func(i, j int) bool {
+				return tokens[i].Tvl > tokens[j].Tvl
+			}
+		}
+	}
+	if sortFunc != nil {
+		sort.Slice(tokens, sortFunc)
+	}
+}
+
+func (d *dashboard) Token(addr Addr) (Token, error) {
+	var token Token
+	if tokens, err := d.tokenPrice(addr); err != nil {
+		return Token{}, errors.Wrap(err, "dashboard.Token")
+	} else {
+		if len(tokens) == 0 {
+			return Token{}, nil
+		}
+		token = tokens[0]
+	}
+
+	var tokenDetail Token
+	if details, err := d.tokenDetails(addr); err != nil {
+		return Token{}, errors.Wrap(err, "dashboard.Token")
+	} else {
+		if len(details) > 0 {
+			tokenDetail = details[0]
+		}
+	}
+
+	if tokenDetail.Addr == addr {
+		token.Volume = tokenDetail.Volume
+		token.VolumeChange = tokenDetail.VolumeChange
+		token.Volume7d = tokenDetail.Volume7d
+		token.Volume7dChange = tokenDetail.Volume7dChange
+		token.Tvl = tokenDetail.Tvl
+		token.TvlChange = tokenDetail.TvlChange
+		token.Commission = tokenDetail.Commission
+	} else {
+		token.Volume = "0"
+		token.VolumeChange = "0"
+		token.Volume7d = "0"
+		token.Volume7dChange = "0"
+		token.Tvl = "0"
+		token.TvlChange = "0"
+		token.Commission = "0"
+	}
+
+	return token, nil
 }
 
 func (d *dashboard) TokenVolumes(addr Addr, itv Duration) (TokenChart, error) {

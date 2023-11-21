@@ -9,7 +9,9 @@ type Dashboard interface {
 	Pools(tokens ...Addr) (Pools, error)
 	PoolDetail(Addr) (PoolDetail, error)
 
-	Tokens(...Addr) (Tokens, error)
+	Tokens() (Tokens, error)
+	Token(addr Addr) (Token, error)
+
 	TokenVolumes(addr Addr, itv Duration) (TokenChart, error)
 	TokenTvls(addr Addr, itv Duration) (TokenChart, error)
 	TokenPrices(addr Addr, itv Duration) (TokenChart, error)
