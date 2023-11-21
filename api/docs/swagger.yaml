@@ -970,12 +970,15 @@ paths:
     get:
       consumes:
       - application/json
-      description: get Transactions data of dezswap (action, totalValue, asset0amount,
-        asset1amount, time)
+      description: get Transactions data of dezswap
       parameters:
       - description: Pool address
         in: query
         name: pool
+        type: string
+      - description: Token address
+        in: query
+        name: token
         type: string
       produces:
       - application/json

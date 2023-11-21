@@ -963,8 +963,43 @@ func (d *dashboard) Txs(addr ...Addr) (Txs, error) {
 		TO_TIMESTAMP(pt."timestamp") AT TIME ZONE 'UTC' as timestamp`,
 	).Table("(?) as pt", subQuery).Joins(`
 		JOIN tokens AS t0 ON pt.asset0 = t0.address AND pt.chain_id = t0.chain_id
-		JOIN tokens AS t1 ON pt.asset1 = t1.address AND pt.chain_id = t0.chain_id
+		JOIN tokens AS t1 ON pt.asset1 = t1.address AND pt.chain_id = t1.chain_id
 		`,
+	// TODO(join and find price for total_value when it is ready)
+	).Order(`pt. "timestamp" DESC`)
+
+	txs := Txs{}
+	if err := query.Scan(&txs).Error; err != nil {
+		return nil, errors.Wrap(err, "dashboard.Txs")
+	}
+	return txs, nil
+}
+
+// TxsOfToken implements Dashboard.
+func (d *dashboard) TxsOfToken(addr Addr) (Txs, error) {
+	m := parser.ParsedTx{}
+	subQuery := d.DB.Model(&m).Select("*").Where("chain_id = ?", d.chainId).Order("timestamp DESC").Limit(100)
+	if len(addr) > 0 {
+		subQuery = subQuery.Where("asset0 = ? OR asset1 = ?", string(addr), string(addr))
+	}
+
+	query := d.DB.Select(`
+		pt.type AS action,
+		pt.hash AS hash,
+		pt.contract AS address,
+		pt.sender AS sender,
+		pt.asset0 AS asset0,
+		t0.symbol AS asset0_symbol,
+		pt.asset0_amount AS asset0_amount,
+		pt.asset1 AS asset1,
+		t1.symbol AS asset1_symbol,
+		pt.asset1_amount AS asset1_amount,
+		0 as total_value,
+		TO_TIMESTAMP(pt."timestamp") AT TIME ZONE 'UTC' as timestamp`,
+	).Table("(?) as pt", subQuery).Joins(`
+		JOIN tokens AS t0 ON pt.asset0 = t0.address AND pt.chain_id = t0.chain_id
+		JOIN tokens AS t1 ON pt.asset1 = t1.address AND pt.chain_id = t1.chain_id
+	`,
 	// TODO(join and find price for total_value when it is ready)
 	).Order(`pt. "timestamp" DESC`)
 

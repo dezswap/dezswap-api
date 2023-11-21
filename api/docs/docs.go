@@ -981,7 +981,7 @@ const docTemplate = `{
         },
         "/dashboard/txs": {
             "get": {
-                "description": "get Transactions data of dezswap (action, totalValue, asset0amount, asset1amount, time)",
+                "description": "get Transactions data of dezswap",
                 "consumes": [
                     "application/json"
                 ],
@@ -997,6 +997,12 @@ const docTemplate = `{
                         "type": "string",
                         "description": "Pool address",
                         "name": "pool",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Token address",
+                        "name": "token",
                         "in": "query"
                     }
                 ],
