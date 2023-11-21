@@ -110,6 +110,27 @@ indexer-generate-migration:
 	mkdir -p $(PATH)
 	$(shell sed 's/DATE_TIME/$(VERSION)/g' $(PATH)/template.txt > $(PATH)/$(VERSION)_SUMMARY.go)
 
+# Migrate database.
+.PHONY: api-migrate-test api-migrate-up api-migrate-down api-generate-migration
+
+api-migrate-test:
+	go test -count=1 -tags=mig ./db/migration/api
+
+api-migrate-up:
+	go run -tags=mig db/migration/api/*
+
+api-migrate-down:
+	go run -tags=mig db/migration/api/* down
+
+# Create a new empty migration file.
+api-generate-migration:
+	$(eval VERSION := $(shell date +"%Y%m%d_%H%M%S"))
+	$(eval PATH := db/migration/api)
+	mkdir -p $(PATH)
+	$(shell sed 's/DATE_TIME/$(VERSION)/g' $(PATH)/template.txt > $(PATH)/$(VERSION)_SUMMARY.go)
+
+
+# Generate docs
 api-prepare-swagger:
 	go install github.com/swaggo/swag/cmd/swag@latest
 
