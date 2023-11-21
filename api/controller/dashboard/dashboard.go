@@ -510,17 +510,17 @@ func (c *dashboardController) Token(ctx *gin.Context) {
 		return
 	}
 
-	tokens, err := c.Dashboard.Tokens(dashboardService.Addr(address))
+	token, err := c.Dashboard.Token(dashboardService.Addr(address))
 	if err != nil {
 		c.logger.Warn(err)
 		httputil.NewError(ctx, http.StatusInternalServerError, errors.New("internal server error"))
 		return
 	}
-	if len(tokens) == 0 {
+	if string(token.Addr) != address {
 		httputil.NewError(ctx, http.StatusNotFound, errors.New("token not found"))
 		return
 	}
-	res := c.tokenToRes(tokens[0])
+	res := c.tokenToRes(token)
 
 	ctx.JSON(http.StatusOK, res)
 }

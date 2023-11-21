@@ -1809,19 +1809,19 @@ const docTemplate = `{
                 "tvl": {
                     "type": "string"
                 },
-                "tvl_change": {
+                "tvlChange": {
                     "type": "string"
                 },
-                "volume_24h": {
+                "volume24h": {
                     "type": "string"
                 },
-                "volume_24h_change": {
+                "volume24hChange": {
                     "type": "string"
                 },
-                "volume_7d": {
+                "volume7d": {
                     "type": "string"
                 },
-                "volume_7d_change": {
+                "volume7dChange": {
                     "type": "string"
                 }
             }
