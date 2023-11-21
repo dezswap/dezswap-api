@@ -24,7 +24,7 @@ func NewService(db *gorm.DB) Notice {
 func (n *notice) Notices(chain string, cond PaginationCond) ([]NoticeItem, error) {
 	cond.Trim()
 
-	query := n.DB.Model(&models.Notice{}).Where("chain = ?", chain).Select("id, title, description, date")
+	query := n.DB.Model(&models.Notice{}).Where("chain = ?", chain).Select("id, title, description, date AT TIME ZONE 'UTC' as date")
 	if cond.Asc {
 		query = query.Where("id > ?", cond.After).Limit(int(cond.Limit)).Order("id asc")
 	} else {
