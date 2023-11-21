@@ -802,7 +802,7 @@ from (select p.height,
           join parsed_tx pt on p.chain_id = pt.chain_id and p.height = pt.height
       where t.chain_id = ?
         and t.address= ?
-        and ps.timestamp >= extract(epoch from now() - interval '1 month')) t
+        and pt.timestamp >= extract(epoch from now() - interval '1 month')) t
 order by timestamp asc
 `
 	case Quarter:
@@ -818,7 +818,7 @@ from (select p.height,
           join parsed_tx pt on p.chain_id = pt.chain_id and p.height = pt.height
       where t.chain_id = ?
         and t.address= ?
-        and ps.timestamp >= extract(epoch from now() - interval '3 month')) t
+        and pt.timestamp >= extract(epoch from now() - interval '3 month')) t
 order by timestamp asc
 `
 	case Year:
@@ -834,7 +834,7 @@ from (select p.height,
           join (select least(ceil((extract(doy from to_timestamp(timestamp) at time zone 'UTC'))/7), 52) as week, * from parsed_tx) pt on p.chain_id = pt.chain_id and p.height = pt.height
       where t.chain_id = ?
         and t.address= ?
-        and ps.timestamp >= extract(epoch from now() - interval '1 year')) t
+        and pt.timestamp >= extract(epoch from now() - interval '1 year')) t
 order by timestamp asc
 `
 	}
