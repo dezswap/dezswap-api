@@ -85,7 +85,7 @@ func (c *dashboardController) Recent(ctx *gin.Context) {
 //	@Tags			dashboard
 //	@Accept			json
 //	@Produce		json
-//	@Success		200	{object}	RecentRes
+//	@Success		200	{object}	ChartRes
 //	@Failure		400	{object}	httputil.BadRequestError
 //	@Failure		500	{object}	httputil.InternalServerError
 //

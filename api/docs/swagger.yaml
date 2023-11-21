@@ -146,6 +146,13 @@ definitions:
       timestamp:
         type: string
     type: object
+  dashboard.ChartItem:
+    properties:
+      t:
+        type: string
+      v:
+        type: string
+    type: object
   dashboard.FeeRes:
     properties:
       fee:
@@ -582,7 +589,9 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/dashboard.RecentRes'
+            items:
+              $ref: '#/definitions/dashboard.ChartItem'
+            type: array
         "400":
           description: Bad Request
           schema:

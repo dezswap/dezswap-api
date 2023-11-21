@@ -416,7 +416,10 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/dashboard.RecentRes"
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/dashboard.ChartItem"
+                            }
                         }
                     },
                     "400": {
@@ -1688,6 +1691,17 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "timestamp": {
+                    "type": "string"
+                }
+            }
+        },
+        "dashboard.ChartItem": {
+            "type": "object",
+            "properties": {
+                "t": {
+                    "type": "string"
+                },
+                "v": {
                     "type": "string"
                 }
             }
