@@ -1226,7 +1226,7 @@ func (d *dashboard) fees(addr ...Addr) *gorm.DB {
 	).Where(
 		fmt.Sprintf("%s.chain_id = ?", m.TableName()), d.chainId,
 	).Where(
-		"DATE_TRUNC('day', TO_TIMESTAMP(timestamp)) >= DATE_TRUNC('day', NOW() - INTERVAL '1 month')",
+		"timestamp >= extract(epoch from DATE_TRUNC('day', NOW() - INTERVAL '1 month'))",
 	).Group(
 		"DATE_TRUNC('day', TO_TIMESTAMP(timestamp))",
 	).Order(
@@ -1251,7 +1251,7 @@ func (d *dashboard) dau(addr ...Addr) *gorm.DB {
 	).Where(
 		fmt.Sprintf("%s.chain_id = ?", m.TableName()), d.chainId,
 	).Where(
-		"DATE_TRUNC('day', TO_TIMESTAMP(timestamp)) >= DATE_TRUNC('day', NOW() - INTERVAL '1 month')",
+		"timestamp >= extract(epoch from DATE_TRUNC('day', NOW() - INTERVAL '1 month'))",
 	).Group(
 		"DATE_TRUNC('day', TO_TIMESTAMP(timestamp))",
 	).Order(
@@ -1274,7 +1274,7 @@ func (d *dashboard) txCounts(addr ...Addr) *gorm.DB {
 	).Where(
 		fmt.Sprintf("%s.chain_id = ?", m.TableName()), d.chainId,
 	).Where(
-		"DATE_TRUNC('day', TO_TIMESTAMP(timestamp)) >= DATE_TRUNC('day', NOW() - INTERVAL '1 month')",
+		"timestamp >= extract(epoch from DATE_TRUNC('day', NOW() - INTERVAL '1 month'))",
 	).Group(
 		"DATE_TRUNC('day', TO_TIMESTAMP(timestamp))",
 	).Order(
