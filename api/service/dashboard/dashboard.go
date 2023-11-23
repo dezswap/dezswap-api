@@ -2,7 +2,6 @@ package dashboard
 
 import (
 	"fmt"
-	"sort"
 	"time"
 
 	"github.com/dezswap/dezswap-api/pkg/db/aggregator"
@@ -641,65 +640,6 @@ from (
 	}
 
 	return tokens, nil
-}
-
-func (d *dashboard) sortTokens(tokens Tokens, item string, ascending bool) {
-	var sortFunc func(i, j int) bool
-	switch item {
-	case "address":
-		if ascending {
-			sortFunc = func(i, j int) bool {
-				return tokens[i].Addr < tokens[j].Addr
-			}
-		} else {
-			sortFunc = func(i, j int) bool {
-				return tokens[i].Addr > tokens[j].Addr
-			}
-		}
-	case "price":
-		if ascending {
-			sortFunc = func(i, j int) bool {
-				return tokens[i].Price < tokens[j].Price
-			}
-		} else {
-			sortFunc = func(i, j int) bool {
-				return tokens[i].Price > tokens[j].Price
-			}
-		}
-	case "price_change":
-		if ascending {
-			sortFunc = func(i, j int) bool {
-				return tokens[i].PriceChange < tokens[j].PriceChange
-			}
-		} else {
-			sortFunc = func(i, j int) bool {
-				return tokens[i].PriceChange > tokens[j].PriceChange
-			}
-		}
-	case "volume":
-		if ascending {
-			sortFunc = func(i, j int) bool {
-				return tokens[i].Volume < tokens[j].Volume
-			}
-		} else {
-			sortFunc = func(i, j int) bool {
-				return tokens[i].Volume > tokens[j].Volume
-			}
-		}
-	case "tvl":
-		if ascending {
-			sortFunc = func(i, j int) bool {
-				return tokens[i].Tvl < tokens[j].Tvl
-			}
-		} else {
-			sortFunc = func(i, j int) bool {
-				return tokens[i].Tvl > tokens[j].Tvl
-			}
-		}
-	}
-	if sortFunc != nil {
-		sort.Slice(tokens, sortFunc)
-	}
 }
 
 func (d *dashboard) Token(addr Addr) (Token, error) {

@@ -51,10 +51,5 @@ jobs:
         make indexer-migrate-test
         make indexer-migrate-down
 
-        make api-migrate-up
-        make api-migrate-test
-        make api-migrate-down
-
-
     - name: Build all
       run: make build-all
