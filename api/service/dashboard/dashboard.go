@@ -196,44 +196,40 @@ func (d *dashboard) AprsOf(pool Addr, duration Duration) ([]Apr, error) {
 func (d *dashboard) Pools(tokens ...Addr) (Pools, error) {
 	var tokensCond string
 	if len(tokens) > 0 {
-		tokensCond = " and (p.asset0 in ? or p.asset1 in ?)"
+		tokensCond = " WHERE p.asset0 in ? OR p.asset1 in ?"
 	}
 
 	timeRangeWith := `
 		WITH time_range AS (
 			SELECT
 			CASE WHEN EXTRACT(MINUTE FROM now()) >= 30 THEN
-				DATE_TRUNC('hour',now())
+				EXTRACT(EPOCH FROM DATE_TRUNC('hour', NOW() AT TIME ZONE 'UTC'))
 			ELSE
-				DATE_TRUNC('hour',now()) - INTERVAL '30 min'
+				EXTRACT(EPOCH FROM DATE_TRUNC('hour', NOW() AT TIME ZONE 'UTC') - INTERVAL '30 min')
 			END AS end_time,
 			CASE WHEN EXTRACT(MINUTE FROM now()) >= 30 THEN
-				DATE_TRUNC('hour',now()) - INTERVAL '7 day'
+				EXTRACT(EPOCH FROM  DATE_TRUNC('hour', NOW() AT TIME ZONE 'UTC') - INTERVAL '7 day')
 			ELSE
-				DATE_TRUNC('hour',now()) - INTERVAL '7 day' - INTERVAL '30 min'
+				EXTRACT(EPOCH FROM  DATE_TRUNC('hour', NOW() AT TIME ZONE 'UTC') - INTERVAL '7 day' - INTERVAL '30 min')
 			END AS start_time
 		)
 	`
 	latestTvls := `
-		SELECT DISTINCT ON (ps.pair_id)
-			ps.pair_id AS pair_id,
-			p.contract AS address,
-			CONCAT(t0.symbol, '-', t1.symbol) AS symbols,
-			(ps.liquidity0_in_price + ps.liquidity1_in_price) AS tvl
+		SELECT DISTINCT ON (pair_id)
+			pair_id,
+			(liquidity0_in_price + liquidity1_in_price) AS tvl
 		FROM
-			"pair_stats_30m" AS ps
-			JOIN pair AS p ON ps.pair_id = p.id
-			JOIN tokens AS t0 ON p.asset0 = t0.address
-			JOIN tokens AS t1 ON p.asset1 = t1.address
+			pair_stats_30m
 		WHERE
-			p.chain_id = ?
+			chain_id = ?
 		AND
-			TO_TIMESTAMP(ps. "timestamp") <= (
+			timestamp <= (
 				SELECT
 					end_time
 				FROM
 					time_range)
-	` + tokensCond + ` ORDER BY ps.pair_id, ps.timestamp DESC`
+		ORDER BY pair_id, timestamp DESC
+	`
 	volume1d := `
 		SELECT
 			ps0.pair_id AS pair_id,
@@ -241,12 +237,10 @@ func (d *dashboard) Pools(tokens ...Addr) (Pools, error) {
 		FROM
 			pair_stats_30m AS ps0
 		WHERE
-			(SELECT end_time FROM time_range) - INTERVAL '1 day' < TO_TIMESTAMP(ps0. "timestamp")
+			(SELECT end_time FROM time_range) - EXTRACT(EPOCH FROM INTERVAL '1 day') < ps0."timestamp"
 			AND
-			TO_TIMESTAMP(ps0. "timestamp") <= (SELECT end_time FROM time_range)
+			ps0."timestamp" <= (SELECT end_time FROM time_range)
 		GROUP BY
-			ps0.pair_id
-		ORDER BY
 			ps0.pair_id
 	`
 	volume7d := `
@@ -256,19 +250,17 @@ func (d *dashboard) Pools(tokens ...Addr) (Pools, error) {
 		FROM
 			pair_stats_30m AS v
 		WHERE
-			(SELECT start_time FROM time_range) < TO_TIMESTAMP(v.timestamp)
+			(SELECT start_time FROM time_range) < v.timestamp
 		AND
-			TO_TIMESTAMP(v.timestamp) <= (SELECT end_time FROM time_range)
+			v.timestamp <= (SELECT end_time FROM time_range)
 		GROUP BY
-			v.pair_id
-		ORDER BY
 			v.pair_id
 	`
 	query := fmt.Sprintf(
 		`%s
 		SELECT
-			t.address,
-			t.symbols,
+			p.contract AS address,
+	        CONCAT(t0.symbol, '-', t1.symbol) AS symbols,
 			coalesce(t.tvl,0) as tvl,
 			coalesce(v1.volume,0) as volume,
 			coalesce(v1.volume * %f,0) as fee,
@@ -277,13 +269,16 @@ func (d *dashboard) Pools(tokens ...Addr) (Pools, error) {
 			(%s) AS t
 			LEFT JOIN (%s) AS v1 ON v1.pair_id = t.pair_id
 			LEFT JOIN (%s) AS v7 ON v7.pair_id = t.pair_id
+            LEFT JOIN pair AS p ON t.pair_id = p.id
+            LEFT JOIN tokens AS t0 ON p.chain_id = t0.chain_id AND p.asset0 = t0.address
+            LEFT JOIN tokens AS t1 ON p.chain_id = t1.chain_id AND p.asset1 = t1.address
 		`,
 		timeRangeWith, dezswap.SWAP_FEE, latestTvls, volume1d, volume7d,
 	)
 	pools := Pools{}
 	var tx *gorm.DB
 	if len(tokensCond) > 0 {
-		tx = d.DB.Raw(query, d.chainId, tokens, tokens)
+		tx = d.DB.Raw(query+tokensCond, d.chainId, tokens, tokens)
 	} else {
 		tx = d.DB.Raw(query, d.chainId)
 	}
@@ -937,7 +932,6 @@ order by timestamp asc
 }
 
 // Tvls implements Dashboard.
-// TODO: improve query performance
 func (d *dashboard) Tvls(duration Duration) (Tvls, error) {
 	interval := int64(chartCriteriaByDuration[duration].TruncBy.Truncate(time.Second).Seconds())
 	intervalAgo := chartCriteriaByDuration[duration].Ago
