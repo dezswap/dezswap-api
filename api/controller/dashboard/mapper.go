@@ -2,9 +2,12 @@ package dashboard
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
+	"time"
 
 	dashboardService "github.com/dezswap/dezswap-api/api/service/dashboard"
+	"github.com/pkg/errors"
 )
 
 type mapper struct{}
@@ -28,16 +31,6 @@ func (m *mapper) tokensToRes(tokens dashboardService.Tokens) TokensRes {
 	res := make(TokensRes, len(tokens))
 	for i, t := range tokens {
 		res[i] = m.tokenToRes(t)
-	}
-
-	return res
-}
-
-func (m *mapper) tokenChartToRes(chart dashboardService.TokenChart) TokenChart {
-	res := make(TokenChart, len(chart))
-
-	for i, v := range chart {
-		res[i] = [2]string{v.Timestamp, v.Value}
 	}
 
 	return res
@@ -125,54 +118,6 @@ func (m *mapper) poolDetailToRes(pool dashboardService.PoolDetail) PoolDetailRes
 	return res
 }
 
-func (m *mapper) volumesToRes(volumes dashboardService.Volumes) VolumesRes {
-	res := make(VolumesRes, len(volumes))
-
-	for i, v := range volumes {
-		res[i] = VolumeRes{
-			Volume:    v.Volume,
-			Timestamp: v.Timestamp,
-		}
-	}
-	return res
-}
-
-func (m *mapper) feesToRes(fees dashboardService.Fees) FeesRes {
-	res := make(FeesRes, len(fees))
-
-	for i, v := range fees {
-		res[i] = FeeRes{
-			Fee:       v.Fee,
-			Timestamp: v.Timestamp,
-		}
-	}
-	return res
-}
-
-func (m *mapper) tvlsToRes(tvls dashboardService.Tvls) TvlsRes {
-	res := make(TvlsRes, len(tvls))
-
-	for i, v := range tvls {
-		res[i] = TvlRes{
-			Tvl:       v.Tvl,
-			Timestamp: v.Timestamp,
-		}
-	}
-	return res
-}
-
-func (m *mapper) aprsToRes(aprs dashboardService.Aprs) AprsRes {
-	res := make(AprsRes, len(aprs))
-
-	for i, v := range aprs {
-		res[i] = AprRes{
-			Apr:       v.Apr,
-			Timestamp: v.Timestamp,
-		}
-	}
-	return res
-}
-
 func (m *mapper) volumesToChartRes(volumes dashboardService.Volumes) ChartRes {
 	res := make(ChartRes, len(volumes))
 
@@ -219,4 +164,19 @@ func (m *mapper) feesToChartRes(aprs dashboardService.Fees) ChartRes {
 		}
 	}
 	return res
+}
+
+func (m *mapper) tokenChartToChartRes(chart dashboardService.TokenChart) (ChartRes, error) {
+	res := make(ChartRes, len(chart))
+
+	for i, v := range chart {
+		timestamp, err := strconv.ParseInt(v.Timestamp, 10, 64)
+		if err != nil {
+			return nil, errors.Wrap(err, "mapper.tokenChartToChartRes")
+		}
+		t := time.Unix(timestamp, 0).UTC()
+		res[i] = ChartItem{Timestamp: t, Value: v.Value}
+	}
+
+	return res, nil
 }

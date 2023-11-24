@@ -99,7 +99,7 @@ func (d *dashboard) Aprs(duration Duration) (Aprs, error) {
 
 	aprs := Aprs{}
 	if err := d.DB.Raw(query).Scan(&aprs).Error; err != nil {
-		return nil, errors.Wrap(err, "dashboard.Volumes")
+		return nil, errors.Wrap(err, "dashboard.Aprs")
 	}
 	return aprs, nil
 }
@@ -171,7 +171,7 @@ func (d *dashboard) AprsOf(pool Addr, duration Duration) ([]Apr, error) {
 
 	aprs := Aprs{}
 	if err := d.DB.Raw(query, pool).Scan(&aprs).Error; err != nil {
-		return nil, errors.Wrap(err, "dashboard.Volumes")
+		return nil, errors.Wrap(err, "dashboard.AprsOf")
 	}
 	return aprs, nil
 }
@@ -429,7 +429,7 @@ func (d *dashboard) RecentOf(addr Addr) (Recent, error) {
 	`, tvl(current), tvl(dayAgo), volume(dayAgo, current), volume(twoDaysAgo, dayAgo))
 	recent := Recent{}
 	if err := d.DB.Raw(query, addr, addr, addr, addr, dezswap.SWAP_FEE).Scan(&recent).Error; err != nil {
-		return recent, errors.Wrap(err, "dashboard.Recent")
+		return recent, errors.Wrap(err, "dashboard.RecentOf")
 	}
 	return recent, nil
 }
@@ -458,22 +458,54 @@ func (d *dashboard) Statistic(addr ...Addr) (st Statistic, err error) {
 
 	st = Statistic{}
 	if err := d.DB.Raw(query, subDau, subTxCnts, subFees).Scan(&st).Error; err != nil {
-		return nil, errors.Wrap(err, "dashboard.Pools")
+		return nil, errors.Wrap(err, "dashboard.Statistic")
 	}
 	return st, nil
 }
 
 // Tokens implements Dashboard.
-func (d *dashboard) Tokens(addrs ...Addr) (Tokens, error) {
-	var addrCond string
-	if len(addrs) > 0 {
-		addrCond += "t.address in ('" + string(addrs[0])
-		for _, a := range addrs[1:] {
-			addrCond += "','" + string(a)
-		}
-		addrCond += "')"
+func (d *dashboard) Tokens() (Tokens, error) {
+	var tokens []Token
+	var err error
+	if tokens, err = d.tokenPrice(); err != nil {
+		return nil, errors.Wrap(err, "dashboard.Tokens")
 	}
 
+	var tokenDetails Tokens
+	if tokenDetails, err = d.tokenDetails(); err != nil {
+		return nil, errors.Wrap(err, "dashboard.Tokens")
+	}
+
+	statMap := make(map[Addr]Token, len(tokenDetails))
+	for _, s := range tokenDetails {
+		statMap[s.Addr] = s
+	}
+
+	for i, t := range tokens {
+		if stat, ok := statMap[t.Addr]; ok {
+			t.Volume = stat.Volume
+			t.VolumeChange = stat.VolumeChange
+			t.Volume7d = stat.Volume7d
+			t.Volume7dChange = stat.Volume7dChange
+			t.Tvl = stat.Tvl
+			t.TvlChange = stat.TvlChange
+			t.Commission = stat.Commission
+		} else {
+			t.Volume = "0"
+			t.VolumeChange = "0"
+			t.Volume7d = "0"
+			t.Volume7dChange = "0"
+			t.Tvl = "0"
+			t.TvlChange = "0"
+			t.Commission = "0"
+		}
+		tokens[i] = t
+	}
+
+	return tokens, nil
+}
+
+func (d *dashboard) tokenPrice(addr ...Addr) (Tokens, error) {
 	query := `
 select t.address as addr, coalesce(p.price, 0) price,
        floor((coalesce(p.price, 0)-coalesce(p24h.price, 0))/coalesce(p.price, 1)*10000)/100 as price_change
@@ -494,18 +526,27 @@ from tokens t
                 where height <= (select coalesce(max(height), 0) from parsed_tx
                   where chain_id = ? and timestamp <= extract(epoch from now() - interval '1 day'))
                 group by token_id) t on p.id = t.id) p24h on t.id = p24h.token_id
-where t.chain_id = ? and t.symbol != 'uLP'
+where t.chain_id = ?
 `
-	if len(addrCond) > 0 {
-		query += " and " + addrCond
-	}
-
 	var tokens []Token
-	if tx := d.Raw(query, d.chainId, d.chainId).Find(&tokens); tx.Error != nil {
-		return nil, errors.Wrap(tx.Error, "dashboard.Tokens")
+	var tx *gorm.DB
+	if len(addr) > 0 {
+		query += ` and t.address in ?`
+		tx = d.Raw(query, d.chainId, d.chainId, addr)
+	} else {
+		query += ` and t.symbol != 'uLP' order by t.id`
+		tx = d.Raw(query, d.chainId, d.chainId)
 	}
 
-	query = `
+	if err := tx.Find(&tokens).Error; err != nil {
+		return nil, err
+	}
+
+	return tokens, nil
+}
+
+func (d *dashboard) tokenDetails(addr ...Addr) (Tokens, error) {
+	query := `
 with s as (
     select distinct pair_id,
            sum(volume0_in_price) filter (where timestamp_before = 0) over w sum_vol0,
@@ -560,11 +601,6 @@ from (
         join s_7d  on p.id = s_7d.pair_id
         left join tokens t on p.chain_id = t.chain_id and (p.asset0 = t.address or p.asset1 = t.address)
 `
-	if len(addrs) > 0 {
-		query += " where " + addrCond
-	}
-	query += " group by t.address, p.asset0) t group by address"
-
 	type tokenStat struct {
 		Address          Addr
 		Volume           string
@@ -576,37 +612,75 @@ from (
 		Commission       string
 	}
 	var stats []tokenStat
-	if tx := d.Raw(query, d.chainId, d.chainId).Find(&stats); tx.Error != nil {
-		return nil, errors.Wrap(tx.Error, "dashboard.Tokens")
+	var tx *gorm.DB
+	if len(addr) > 0 {
+		query += ` where t.address = ? group by t.address, p.asset0) t group by address`
+		tx = d.Raw(query, d.chainId, d.chainId, addr)
+	} else {
+		query += ` group by t.address, p.asset0) t group by address`
+		tx = d.Raw(query, d.chainId, d.chainId)
 	}
 
-	statMap := make(map[Addr]tokenStat, len(stats))
-	for _, s := range stats {
-		statMap[s.Address] = s
+	if err := tx.Find(&stats).Error; err != nil {
+		return nil, err
 	}
 
-	for i, t := range tokens {
-		if stat, ok := statMap[t.Addr]; ok {
-			t.Volume = stat.Volume
-			t.VolumeChange = stat.VolumeChange
-			t.Volume7d = stat.VolumeWeek
-			t.Volume7dChange = stat.VolumeWeekChange
-			t.Tvl = stat.Tvl
-			t.TvlChange = stat.TvlChange
-			t.Commission = stat.Commission
-		} else {
-			t.Volume = "0"
-			t.VolumeChange = "0"
-			t.Volume7d = "0"
-			t.Volume7dChange = "0"
-			t.Tvl = "0"
-			t.TvlChange = "0"
-			t.Commission = "0"
+	tokens := make(Tokens, len(stats))
+	for i, s := range stats {
+		tokens[i] = Token{
+			Addr:           s.Address,
+			Volume:         s.Volume,
+			VolumeChange:   s.VolumeChange,
+			Volume7d:       s.VolumeWeek,
+			Volume7dChange: s.VolumeWeekChange,
+			Tvl:            s.Tvl,
+			TvlChange:      s.TvlChange,
+			Commission:     s.Commission,
 		}
-		tokens[i] = t
 	}
 
 	return tokens, nil
+}
+
+func (d *dashboard) Token(addr Addr) (Token, error) {
+	var token Token
+	if tokens, err := d.tokenPrice(addr); err != nil {
+		return Token{}, errors.Wrap(err, "dashboard.Token")
+	} else {
+		if len(tokens) == 0 {
+			return Token{}, nil
+		}
+		token = tokens[0]
+	}
+
+	var tokenDetail Token
+	if details, err := d.tokenDetails(addr); err != nil {
+		return Token{}, errors.Wrap(err, "dashboard.Token")
+	} else {
+		if len(details) > 0 {
+			tokenDetail = details[0]
+		}
+	}
+
+	if tokenDetail.Addr == addr {
+		token.Volume = tokenDetail.Volume
+		token.VolumeChange = tokenDetail.VolumeChange
+		token.Volume7d = tokenDetail.Volume7d
+		token.Volume7dChange = tokenDetail.Volume7dChange
+		token.Tvl = tokenDetail.Tvl
+		token.TvlChange = tokenDetail.TvlChange
+		token.Commission = tokenDetail.Commission
+	} else {
+		token.Volume = "0"
+		token.VolumeChange = "0"
+		token.Volume7d = "0"
+		token.Volume7dChange = "0"
+		token.Tvl = "0"
+		token.TvlChange = "0"
+		token.Commission = "0"
+	}
+
+	return token, nil
 }
 
 func (d *dashboard) TokenVolumes(addr Addr, itv Duration) (TokenChart, error) {
@@ -802,7 +876,7 @@ from (select p.height,
           join parsed_tx pt on p.chain_id = pt.chain_id and p.height = pt.height
       where t.chain_id = ?
         and t.address= ?
-        and ps.timestamp >= extract(epoch from now() - interval '1 month')) t
+        and pt.timestamp >= extract(epoch from now() - interval '1 month')) t
 order by timestamp asc
 `
 	case Quarter:
@@ -818,7 +892,7 @@ from (select p.height,
           join parsed_tx pt on p.chain_id = pt.chain_id and p.height = pt.height
       where t.chain_id = ?
         and t.address= ?
-        and ps.timestamp >= extract(epoch from now() - interval '3 month')) t
+        and pt.timestamp >= extract(epoch from now() - interval '3 month')) t
 order by timestamp asc
 `
 	case Year:
@@ -834,13 +908,13 @@ from (select p.height,
           join (select least(ceil((extract(doy from to_timestamp(timestamp) at time zone 'UTC'))/7), 52) as week, * from parsed_tx) pt on p.chain_id = pt.chain_id and p.height = pt.height
       where t.chain_id = ?
         and t.address= ?
-        and ps.timestamp >= extract(epoch from now() - interval '1 year')) t
+        and pt.timestamp >= extract(epoch from now() - interval '1 year')) t
 order by timestamp asc
 `
 	}
 	var chart TokenChart
 	if tx := d.Raw(query, d.chainId, addr).Find(&chart); tx.Error != nil {
-		return TokenChart{}, errors.Wrap(tx.Error, "dashboard.TokenTvls")
+		return TokenChart{}, errors.Wrap(tx.Error, "dashboard.TokenPrices")
 	}
 
 	return chart, nil
@@ -963,8 +1037,43 @@ func (d *dashboard) Txs(addr ...Addr) (Txs, error) {
 		TO_TIMESTAMP(pt."timestamp") AT TIME ZONE 'UTC' as timestamp`,
 	).Table("(?) as pt", subQuery).Joins(`
 		JOIN tokens AS t0 ON pt.asset0 = t0.address AND pt.chain_id = t0.chain_id
-		JOIN tokens AS t1 ON pt.asset1 = t1.address AND pt.chain_id = t0.chain_id
+		JOIN tokens AS t1 ON pt.asset1 = t1.address AND pt.chain_id = t1.chain_id
 		`,
+	// TODO(join and find price for total_value when it is ready)
+	).Order(`pt. "timestamp" DESC`)
+
+	txs := Txs{}
+	if err := query.Scan(&txs).Error; err != nil {
+		return nil, errors.Wrap(err, "dashboard.Txs")
+	}
+	return txs, nil
+}
+
+// TxsOfToken implements Dashboard.
+func (d *dashboard) TxsOfToken(addr Addr) (Txs, error) {
+	m := parser.ParsedTx{}
+	subQuery := d.DB.Model(&m).Select("*").Where("chain_id = ?", d.chainId).Order("timestamp DESC").Limit(100)
+	if len(addr) > 0 {
+		subQuery = subQuery.Where("asset0 = ? OR asset1 = ?", string(addr), string(addr))
+	}
+
+	query := d.DB.Select(`
+		pt.type AS action,
+		pt.hash AS hash,
+		pt.contract AS address,
+		pt.sender AS sender,
+		pt.asset0 AS asset0,
+		t0.symbol AS asset0_symbol,
+		pt.asset0_amount AS asset0_amount,
+		pt.asset1 AS asset1,
+		t1.symbol AS asset1_symbol,
+		pt.asset1_amount AS asset1_amount,
+		0 as total_value,
+		TO_TIMESTAMP(pt."timestamp") AT TIME ZONE 'UTC' as timestamp`,
+	).Table("(?) as pt", subQuery).Joins(`
+		JOIN tokens AS t0 ON pt.asset0 = t0.address AND pt.chain_id = t0.chain_id
+		JOIN tokens AS t1 ON pt.asset1 = t1.address AND pt.chain_id = t1.chain_id
+	`,
 	// TODO(join and find price for total_value when it is ready)
 	).Order(`pt. "timestamp" DESC`)
 
@@ -1050,7 +1159,7 @@ func (d *dashboard) Fees(duration Duration) ([]Fee, error) {
 
 	fees := Fees{}
 	if err := d.DB.Raw(query, d.chainId).Scan(&fees).Error; err != nil {
-		return nil, errors.Wrap(err, "dashboard.Volumes")
+		return nil, errors.Wrap(err, "dashboard.Fees")
 	}
 	return fees, nil
 }
@@ -1078,7 +1187,7 @@ func (d *dashboard) FeesOf(addr Addr, duration Duration) ([]Fee, error) {
 
 	fees := Fees{}
 	if err := d.DB.Raw(query, d.chainId, addr).Scan(&fees).Error; err != nil {
-		return nil, errors.Wrap(err, "dashboard.VolumesOf")
+		return nil, errors.Wrap(err, "dashboard.FeesOf")
 	}
 	return fees, nil
 }
@@ -1092,7 +1201,7 @@ func (d *dashboard) fees(addr ...Addr) *gorm.DB {
 	).Where(
 		fmt.Sprintf("%s.chain_id = ?", m.TableName()), d.chainId,
 	).Where(
-		"DATE_TRUNC('day', TO_TIMESTAMP(timestamp)) >= DATE_TRUNC('day', NOW() - INTERVAL '1 month')",
+		"timestamp >= extract(epoch from DATE_TRUNC('day', NOW() - INTERVAL '1 month'))",
 	).Group(
 		"DATE_TRUNC('day', TO_TIMESTAMP(timestamp))",
 	).Order(
@@ -1117,7 +1226,7 @@ func (d *dashboard) dau(addr ...Addr) *gorm.DB {
 	).Where(
 		fmt.Sprintf("%s.chain_id = ?", m.TableName()), d.chainId,
 	).Where(
-		"DATE_TRUNC('day', TO_TIMESTAMP(timestamp)) >= DATE_TRUNC('day', NOW() - INTERVAL '1 month')",
+		"timestamp >= extract(epoch from DATE_TRUNC('day', NOW() - INTERVAL '1 month'))",
 	).Group(
 		"DATE_TRUNC('day', TO_TIMESTAMP(timestamp))",
 	).Order(
@@ -1140,7 +1249,7 @@ func (d *dashboard) txCounts(addr ...Addr) *gorm.DB {
 	).Where(
 		fmt.Sprintf("%s.chain_id = ?", m.TableName()), d.chainId,
 	).Where(
-		"DATE_TRUNC('day', TO_TIMESTAMP(timestamp)) >= DATE_TRUNC('day', NOW() - INTERVAL '1 month')",
+		"timestamp >= extract(epoch from DATE_TRUNC('day', NOW() - INTERVAL '1 month'))",
 	).Group(
 		"DATE_TRUNC('day', TO_TIMESTAMP(timestamp))",
 	).Order(

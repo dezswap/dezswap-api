@@ -144,6 +144,8 @@ func (app *app) initApis(c configs.ApiConfig) {
 	statService := service.NewStatService(chainId, db)
 
 	version := c.Server.Version
+	app.engine.UseRawPath = true
+
 	router := app.engine.Group(version)
 	controller.InitPairController(pairService, router, app.logger)
 	controller.InitPoolController(poolService, router, app.logger)
