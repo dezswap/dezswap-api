@@ -49,8 +49,25 @@ func (d *dashboard) Aprs(duration Duration) (Aprs, error) {
 			-%d
 			) AS timestamp
 		`, intervalAgo, truncBy)
+
+	var lastQuery string
+	joinClause := `LEFT JOIN pair_stats_30m AS ps ON ps."timestamp" < ds.timestamp`
+	if duration != All {
+		lastQuery = fmt.Sprintf(`
+		last AS (SELECT p.id pair_id, COALESCE(MAX(ps.timestamp), 0) ts
+		FROM pair p
+    	LEFT JOIN (
+        	SELECT pair_id, timestamp
+        	FROM pair_stats_30m
+        	WHERE chain_id = '%s'
+          	AND timestamp < FLOOR(EXTRACT(EPOCH FROM DATE_TRUNC('day', NOW() - INTERVAL '%s')))) ps ON p.id = ps.pair_id
+		GROUP BY p.id),
+		`, d.chainId, intervalAgo)
+		joinClause = `JOIN last ON true ` + joinClause + ` AND last.pair_id = ps.pair_id AND ps."timestamp" >= last.ts`
+	}
+
 	query := fmt.Sprintf(`
-	WITH ds AS (%s),
+	WITH ds AS (%s), %s
 	tvl AS (
 		SELECT
 			SUM(liquidity) AS tvl,
@@ -61,10 +78,9 @@ func (d *dashboard) Aprs(duration Duration) (Aprs, error) {
 				liquidity0_in_price + liquidity1_in_price AS liquidity,
 				ds.timestamp AS timestamp
 			FROM
-				ds
-			LEFT JOIN pair_stats_30m AS ps ON ps. "timestamp" < ds.timestamp
+				ds %s
 			WHERE
-				ps.chain_id = '%s'
+				ps.chain_id = ?
 			ORDER BY
 				ds.timestamp DESC,
 				ps.pair_id,
@@ -95,10 +111,10 @@ func (d *dashboard) Aprs(duration Duration) (Aprs, error) {
 		ds
 	JOIN tvl AS t ON ds.timestamp = t.timestamp
 	JOIN volume7d AS v ON ds.timestamp = v.timestamp;
-	`, dateSeries, d.chainId, dezswap.SWAP_FEE)
+	`, dateSeries, lastQuery, joinClause, dezswap.SWAP_FEE)
 
 	aprs := Aprs{}
-	if err := d.DB.Raw(query).Scan(&aprs).Error; err != nil {
+	if err := d.DB.Raw(query, d.chainId).Scan(&aprs).Error; err != nil {
 		return nil, errors.Wrap(err, "dashboard.Aprs")
 	}
 	return aprs, nil
@@ -923,7 +939,6 @@ order by timestamp asc
 // Tvls implements Dashboard.
 // TODO: improve query performance
 func (d *dashboard) Tvls(duration Duration) (Tvls, error) {
-
 	interval := int64(chartCriteriaByDuration[duration].TruncBy.Truncate(time.Second).Seconds())
 	intervalAgo := chartCriteriaByDuration[duration].Ago
 
@@ -936,7 +951,24 @@ func (d *dashboard) Tvls(duration Duration) (Tvls, error) {
 			) AS timestamp
 		`, intervalAgo, interval)
 
+	var lastQuery string
+	joinClause := `LEFT JOIN pair_stats_30m AS ps ON ps."timestamp" < ds.timestamp`
+	if duration != All {
+		lastQuery = fmt.Sprintf(`
+		, last AS (SELECT p.id pair_id, COALESCE(MAX(ps.timestamp), 0) ts
+		FROM pair p
+    	LEFT JOIN (
+        	SELECT pair_id, timestamp
+        	FROM pair_stats_30m
+        	WHERE chain_id = '%s'
+          	AND timestamp < FLOOR(EXTRACT(EPOCH FROM DATE_TRUNC('day', NOW() - INTERVAL '%s')))) ps ON p.id = ps.pair_id
+		GROUP BY p.id)
+		`, d.chainId, intervalAgo)
+		joinClause = `JOIN last ON true ` + joinClause + ` AND last.pair_id = ps.pair_id AND ps.timestamp >= last.ts`
+	}
+
 	query := fmt.Sprintf(`
+        WITH ds AS (%s)%s
 		SELECT
 			SUM(liquidity) AS tvl,
 			TO_TIMESTAMP(t.timestamp)  AT TIME ZONE 'UTC' - INTERVAL '1 day' AS timestamp
@@ -945,19 +977,17 @@ func (d *dashboard) Tvls(duration Duration) (Tvls, error) {
 				liquidity0_in_price + liquidity1_in_price  AS liquidity,
 				ds.timestamp AS timestamp,
 				ps. "timestamp" AS ps_timestamp
-			FROM
-				(%s) ds
-			LEFT JOIN pair_stats_30m AS ps ON ps. "timestamp" < ds.timestamp
+			FROM ds %s
 			WHERE ps.chain_id = ?
 		ORDER BY
 			ds.timestamp DESC,
 			ps.pair_id,
-			ps. "timestamp" DESC) AS t
+			ps."timestamp" DESC) AS t
 		GROUP BY
 			t.timestamp
 		ORDER BY
 			t.timestamp
-	`, dateSeries)
+	`, dateSeries, lastQuery, joinClause)
 
 	tvls := Tvls{}
 	if err := d.DB.Raw(query, d.chainId).Scan(&tvls).Error; err != nil {
