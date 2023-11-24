@@ -611,7 +611,7 @@ func (c *dashboardController) TokenChart(ctx *gin.Context) {
 // Dashboard godoc
 //
 //	@Summary		Dezswap's Transactions
-//	@Description	get Transactions data of dezswap (action, totalValue, asset0amount, asset1amount, time)
+//	@Description	get Transactions data of dezswap
 //	@Tags			dashboard
 //	@Accept			json
 //	@Produce		json
@@ -619,14 +619,23 @@ func (c *dashboardController) TokenChart(ctx *gin.Context) {
 //	@Failure		400	{object}	httputil.BadRequestError
 //	@Failure		500	{object}	httputil.InternalServerError
 //	@Param			pool		query	string	false	"Pool address"
+//	@Param			token		query	string	false	"Token address"
 //	@Router			/dashboard/txs [get]
 func (c *dashboardController) Txs(ctx *gin.Context) {
 
 	pool := dashboardService.Addr(ctx.Query("pool"))
+	token := dashboardService.Addr(ctx.Query("token"))
+
+	if len(pool) > 0 && len(token) > 0 {
+		httputil.NewError(ctx, http.StatusBadRequest, errors.New("invalid query, must choose one of (pool or token, not both)"))
+		return
+	}
 
 	var txs dashboardService.Txs
 	var err error
-	if len(pool) > 0 {
+	if len(token) > 0 {
+		txs, err = c.Dashboard.TxsOfToken(token)
+	} else if len(pool) > 0 {
 		txs, err = c.Dashboard.Txs(pool)
 	} else {
 		txs, err = c.Dashboard.Txs()
