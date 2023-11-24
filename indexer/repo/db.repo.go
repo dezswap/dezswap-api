@@ -218,7 +218,9 @@ func (r *dbRepoImpl) SaveTokens(tokens []indexer.Token) error {
 // SyncedHeight implements indexer.DbRepo
 func (r *dbRepoImpl) SyncedHeight() (uint64, error) {
 	height := parser.SyncedHeight{}
-	if err := r.FirstOrCreate(height, parser.SyncedHeight{ChainId: r.chainId}).Error; err != nil {
+	cond := parser.SyncedHeight{}
+	cond.ChainId = r.chainId
+	if err := r.FirstOrCreate(&height, cond).Error; err != nil {
 		return 0, errors.Wrap(err, "dbRepoImpl.SyncedHeight")
 	}
 	return height.Height, nil

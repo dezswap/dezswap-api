@@ -2,13 +2,20 @@ package api
 
 import (
 	"fmt"
+	"io"
+	"log"
 	"net/http"
+	"os"
 	"regexp"
+	"time"
 
 	geckoController "github.com/dezswap/dezswap-api/api/controller/coingecko"
 	comarcapController "github.com/dezswap/dezswap-api/api/controller/coinmarketcap"
+	dashboardController "github.com/dezswap/dezswap-api/api/controller/dashboard"
+
 	"github.com/dezswap/dezswap-api/api/service/coingecko"
 	"github.com/dezswap/dezswap-api/api/service/coinmarketcap"
+	"github.com/dezswap/dezswap-api/api/service/dashboard"
 
 	"github.com/dezswap/dezswap-api/api/controller"
 	"github.com/dezswap/dezswap-api/api/docs"
@@ -24,6 +31,7 @@ import (
 	ginSwagger "github.com/swaggo/gin-swagger" // gin-swagger middleware
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 	// swagger embed files
 )
 
@@ -106,8 +114,21 @@ func (app *app) initApis(c configs.ApiConfig) {
 		"host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
 		dbConfig.Host, dbConfig.Port, dbConfig.Username, dbConfig.Password, dbConfig.Database,
 	)
-
-	db, err := gorm.Open(postgres.Open(dbDsn), &gorm.Config{})
+	writer := io.MultiWriter(os.Stdout)
+	db, err := gorm.Open(postgres.Open(dbDsn), &gorm.Config{
+		NowFunc: func() time.Time {
+			return time.Now().UTC()
+		},
+		Logger: logger.New(
+			log.New(writer, "\r\n", log.LstdFlags),
+			logger.Config{
+				IgnoreRecordNotFoundError: true,
+				SlowThreshold:             time.Second,
+				Colorful:                  false,
+				LogLevel:                  logger.Warn,
+			},
+		),
+	})
 	if err != nil {
 		panic(err)
 	}
@@ -139,6 +160,9 @@ func (app *app) initApis(c configs.ApiConfig) {
 	r = router.Group("/coinmarketcap")
 	coinMarketCapTickerService := coinmarketcap.NewTickerService(chainId, db)
 	comarcapController.InitTickerController(coinMarketCapTickerService, r, app.logger)
+
+	dashboardService := dashboard.NewDashboardService(chainId, db)
+	dashboardController.InitDashboardController(dashboardService, router.Group("/dashboard"), app.logger)
 }
 
 func (app *app) configureReporter(dsn, env string, tags map[string]string) error {

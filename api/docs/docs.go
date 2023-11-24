@@ -258,6 +258,294 @@ const docTemplate = `{
                 }
             }
         },
+        "/dashboard/aprs": {
+            "get": {
+                "description": "get APRs",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "dashboard"
+                ],
+                "summary": "APRs of dezswap selected duration",
+                "parameters": [
+                    {
+                        "enum": [
+                            "year",
+                            "quarter",
+                            "month"
+                        ],
+                        "type": "string",
+                        "description": "default(empty) value is all",
+                        "name": "duration",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/dashboard.AprRes"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.BadRequestError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.InternalServerError"
+                        }
+                    }
+                }
+            }
+        },
+        "/dashboard/aprs/{pool}": {
+            "get": {
+                "description": "get APRs of a dezswap pool",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "dashboard"
+                ],
+                "summary": "Dezswap's Pool's APRs",
+                "parameters": [
+                    {
+                        "enum": [
+                            "year",
+                            "quarter",
+                            "month"
+                        ],
+                        "type": "string",
+                        "description": "default(empty) value is all",
+                        "name": "duration",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Pool Address",
+                        "name": "pool",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/dashboard.AprRes"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.BadRequestError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.InternalServerError"
+                        }
+                    }
+                }
+            }
+        },
+        "/dashboard/chart/{type}": {
+            "get": {
+                "description": "get Recent",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "dashboard"
+                ],
+                "summary": "Charts of Dezswap's Pool",
+                "parameters": [
+                    {
+                        "enum": [
+                            "year",
+                            "quarter",
+                            "month"
+                        ],
+                        "type": "string",
+                        "description": "default(empty) value is all",
+                        "name": "duration",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Pool Address",
+                        "name": "pool",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "volume",
+                            "tvl",
+                            "apr",
+                            "fee"
+                        ],
+                        "type": "string",
+                        "description": "chart type",
+                        "name": "type",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/dashboard.ChartItem"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.BadRequestError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.InternalServerError"
+                        }
+                    }
+                }
+            }
+        },
+        "/dashboard/fees": {
+            "get": {
+                "description": "get Fees",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "dashboard"
+                ],
+                "summary": "Fees of user selected duration",
+                "parameters": [
+                    {
+                        "enum": [
+                            "year",
+                            "quarter",
+                            "month"
+                        ],
+                        "type": "string",
+                        "description": "default(empty) value is all",
+                        "name": "duration",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/dashboard.FeeRes"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.BadRequestError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.InternalServerError"
+                        }
+                    }
+                }
+            }
+        },
+        "/dashboard/fees/{pool}": {
+            "get": {
+                "description": "get Fees",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "dashboard"
+                ],
+                "summary": "Pool's Fees of user selected duration",
+                "parameters": [
+                    {
+                        "enum": [
+                            "year",
+                            "quarter",
+                            "month"
+                        ],
+                        "type": "string",
+                        "description": "default(empty) value is all",
+                        "name": "duration",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Pool Address",
+                        "name": "pool",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/dashboard.FeeRes"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.BadRequestError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.InternalServerError"
+                        }
+                    }
+                }
+            }
+        },
         "/dashboard/pools": {
             "get": {
                 "description": "get Pools data of dezswap (address, tvl, volume, fee, apr)",
@@ -271,6 +559,14 @@ const docTemplate = `{
                     "dashboard"
                 ],
                 "summary": "Dezswap's Pools",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "token address",
+                        "name": "token",
+                        "in": "query"
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -279,6 +575,50 @@ const docTemplate = `{
                             "items": {
                                 "$ref": "#/definitions/dashboard.PoolRes"
                             }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.BadRequestError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.InternalServerError"
+                        }
+                    }
+                }
+            }
+        },
+        "/dashboard/pools/{address}": {
+            "get": {
+                "description": "get Pool's detail information of dezswap",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "dashboard"
+                ],
+                "summary": "Dezswap's Pool Detail",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Pool Address",
+                        "name": "pool",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dashboard.PoolDetailRes"
                         }
                     },
                     "400": {
@@ -348,7 +688,133 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/dashboard.StatisticRes"
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/dashboard.StatisticResItem"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.BadRequestError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.InternalServerError"
+                        }
+                    }
+                }
+            }
+        },
+        "/dashboard/token/{address}": {
+            "get": {
+                "description": "get Token data of dezswap (address, price, price_change, volume_24h,  volume_24h_change, volume_7d, volume_7d_change, tvl)",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "dashboard"
+                ],
+                "summary": "Dezswap's Token Stats",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "token address",
+                        "name": "address",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dashboard.TokenRes"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.BadRequestError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.NotFoundError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.InternalServerError"
+                        }
+                    }
+                }
+            }
+        },
+        "/dashboard/token_chart/{address}": {
+            "get": {
+                "description": "get Token' chart data of Dezswap by designated interval",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "dashboard"
+                ],
+                "summary": "Dezswap's Token Chart Data",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "token address",
+                        "name": "address",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "enum": [
+                            "volume",
+                            "tvl",
+                            "price"
+                        ],
+                        "type": "string",
+                        "description": "chart data type",
+                        "name": "data",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "enum": [
+                            "year",
+                            "quarter",
+                            "month"
+                        ],
+                        "type": "string",
+                        "description": "default(empty) value is all",
+                        "name": "duration",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "type": "array",
+                                "items": {
+                                    "type": "string"
+                                }
+                            }
                         }
                     },
                     "400": {
@@ -436,7 +902,65 @@ const docTemplate = `{
                         "schema": {
                             "type": "array",
                             "items": {
-                                "$ref": "#/definitions/dashboard.TVLRes"
+                                "$ref": "#/definitions/dashboard.TvlRes"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.BadRequestError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.InternalServerError"
+                        }
+                    }
+                }
+            }
+        },
+        "/dashboard/tvls/{pool}": {
+            "get": {
+                "description": "get TVLs",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "dashboard"
+                ],
+                "summary": "TVLs of dezswap selected duration",
+                "parameters": [
+                    {
+                        "enum": [
+                            "year",
+                            "quarter",
+                            "month"
+                        ],
+                        "type": "string",
+                        "description": "default(empty) value is all",
+                        "name": "duration",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Pool Address",
+                        "name": "pool",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/dashboard.TvlRes"
                             }
                         }
                     },
@@ -468,6 +992,14 @@ const docTemplate = `{
                     "dashboard"
                 ],
                 "summary": "Dezswap's Transactions",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Pool address",
+                        "name": "pool",
+                        "in": "query"
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -517,6 +1049,64 @@ const docTemplate = `{
                         "description": "default(empty) value is all",
                         "name": "duration",
                         "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/dashboard.VolumeRes"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.BadRequestError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.InternalServerError"
+                        }
+                    }
+                }
+            }
+        },
+        "/dashboard/volumes/{pool}": {
+            "get": {
+                "description": "get Volumes",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "dashboard"
+                ],
+                "summary": "Pool's Volumes of user selected duration",
+                "parameters": [
+                    {
+                        "enum": [
+                            "year",
+                            "quarter",
+                            "month"
+                        ],
+                        "type": "string",
+                        "description": "default(empty) value is all",
+                        "name": "duration",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Pool Address",
+                        "name": "pool",
+                        "in": "path",
+                        "required": true
                     }
                 ],
                 "responses": {
@@ -903,13 +1493,13 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "base_volume": {
-                    "type": "number"
+                    "type": "string"
                 },
                 "last_price": {
-                    "type": "number"
+                    "type": "string"
                 },
                 "liquidity_in_usd": {
-                    "type": "number"
+                    "type": "string"
                 },
                 "pool_id": {
                     "type": "string"
@@ -918,7 +1508,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "target_volume": {
-                    "type": "number"
+                    "type": "string"
                 },
                 "ticker_id": {
                     "type": "string"
@@ -1094,13 +1684,24 @@ const docTemplate = `{
                 }
             }
         },
-        "dashboard.AddressCountRes": {
+        "dashboard.AprRes": {
             "type": "object",
             "properties": {
-                "addressCount": {
-                    "type": "integer"
+                "apr": {
+                    "type": "string"
                 },
                 "timestamp": {
+                    "type": "string"
+                }
+            }
+        },
+        "dashboard.ChartItem": {
+            "type": "object",
+            "properties": {
+                "t": {
+                    "type": "string"
+                },
+                "v": {
                     "type": "string"
                 }
             }
@@ -1113,6 +1714,20 @@ const docTemplate = `{
                 },
                 "timestamp": {
                     "type": "string"
+                }
+            }
+        },
+        "dashboard.PoolDetailRes": {
+            "type": "object",
+            "properties": {
+                "recent": {
+                    "$ref": "#/definitions/dashboard.RecentRes"
+                },
+                "txs": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dashboard.TxRes"
+                    }
                 }
             }
         },
@@ -1159,37 +1774,20 @@ const docTemplate = `{
                 }
             }
         },
-        "dashboard.StatisticRes": {
+        "dashboard.StatisticResItem": {
             "type": "object",
             "properties": {
-                "addressCounts": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/dashboard.AddressCountRes"
-                    }
+                "addressCount": {
+                    "type": "integer"
                 },
-                "fees": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/dashboard.FeeRes"
-                    }
+                "fee": {
+                    "type": "string"
                 },
-                "txCounts": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/dashboard.TxCountRes"
-                    }
-                }
-            }
-        },
-        "dashboard.TVLRes": {
-            "type": "object",
-            "properties": {
                 "timestamp": {
                     "type": "string"
                 },
-                "tvl": {
-                    "type": "string"
+                "txCount": {
+                    "type": "integer"
                 }
             }
         },
@@ -1197,6 +1795,9 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "address": {
+                    "type": "string"
+                },
+                "fee": {
                     "type": "string"
                 },
                 "price": {
@@ -1208,38 +1809,62 @@ const docTemplate = `{
                 "tvl": {
                     "type": "string"
                 },
-                "volume": {
+                "tvlChange": {
+                    "type": "string"
+                },
+                "volume24h": {
+                    "type": "string"
+                },
+                "volume24hChange": {
+                    "type": "string"
+                },
+                "volume7d": {
+                    "type": "string"
+                },
+                "volume7dChange": {
                     "type": "string"
                 }
             }
         },
-        "dashboard.TxCountRes": {
+        "dashboard.TvlRes": {
             "type": "object",
             "properties": {
                 "timestamp": {
                     "type": "string"
                 },
-                "txCount": {
-                    "type": "integer"
+                "tvl": {
+                    "type": "string"
                 }
             }
         },
         "dashboard.TxRes": {
             "type": "object",
             "properties": {
+                "account": {
+                    "type": "string"
+                },
                 "action": {
+                    "type": "string"
+                },
+                "address": {
+                    "type": "string"
+                },
+                "asset0": {
                     "type": "string"
                 },
                 "asset0amount": {
                     "type": "string"
                 },
+                "asset1": {
+                    "type": "string"
+                },
                 "asset1amount": {
                     "type": "string"
                 },
-                "sender": {
+                "hash": {
                     "type": "string"
                 },
-                "time": {
+                "timestamp": {
                     "type": "string"
                 },
                 "totalValue": {
