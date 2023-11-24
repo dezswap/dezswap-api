@@ -29,15 +29,8 @@ type dashboardController struct {
 func (c *dashboardController) register(route *gin.RouterGroup) {
 
 	route.GET("/chart/:type", c.Chart)
-
-	route.GET("/aprs/:pool", c.APRsOf)
-	route.GET("/aprs", c.APRs)
-
-	route.GET("/tvls/:pool", c.TVLsOf)
-	route.GET("/tvls", c.TVLs)
-
-	route.GET("/volumes/:pool", c.VolumesOf)
-	route.GET("/volumes", c.Volumes)
+	route.GET("/chart/pools/:address/:type", c.ChartByPool)
+	route.GET("/chart/tokens/:address/:type", c.ChartByToken)
 
 	route.GET("/fees/:pool", c.FeesOf)
 	route.GET("/fees", c.Fees)
@@ -46,9 +39,8 @@ func (c *dashboardController) register(route *gin.RouterGroup) {
 
 	route.GET("/statistics", c.Statistic)
 
-	route.GET("/token/:address", c.Token)
 	route.GET("/tokens", c.Tokens)
-	route.GET("/token_chart/:address", c.TokenChart)
+	route.GET("/tokens/:address", c.Token)
 
 	route.GET("/txs", c.Txs)
 
@@ -80,8 +72,8 @@ func (c *dashboardController) Recent(ctx *gin.Context) {
 
 // Dashboard godoc
 //
-//	@Summary		Charts of Dezswap's Pool
-//	@Description	get Recent
+//	@Summary		Charts of Dezswap's Pool related a given token
+//	@Description	get Charts data
 //	@Tags			dashboard
 //	@Accept			json
 //	@Produce		json
@@ -90,10 +82,10 @@ func (c *dashboardController) Recent(ctx *gin.Context) {
 //	@Failure		500	{object}	httputil.InternalServerError
 //
 // @Param			duration	query	string	false	"default(empty) value is all"	Enums(year, quarter, month)
-// @Param			pool		query	string	false	"Pool Address"
-// @Param			type		path	string	true	"chart type"					Enums(volume, tvl, apr, fee)
-// @Router			/dashboard/chart/{type} [get]
-func (c *dashboardController) Chart(ctx *gin.Context) {
+// @Param			address		path	string	true	"Token Address"
+// @Param			type		path	string	true	"chart type"					Enums(volume, tvl, price)
+// @Router			/dashboard/chart/tokens/{address}/{type} [get]
+func (c *dashboardController) ChartByToken(ctx *gin.Context) {
 	chartType := ToChartType(ctx.Param("type"))
 	if chartType == ChartTypeNone {
 		httputil.NewError(ctx, http.StatusBadRequest, errors.New("invalid chart type"))
@@ -105,8 +97,73 @@ func (c *dashboardController) Chart(ctx *gin.Context) {
 		duration = dashboardService.All
 	}
 
-	poolAddr, ok := ctx.GetQuery("pool")
-	addr := dashboardService.Addr(poolAddr)
+	addr := dashboardService.Addr(ctx.Param("address"))
+	if len(addr) == 0 {
+		httputil.NewError(ctx, http.StatusBadRequest, errors.New("must provide token address"))
+		return
+	}
+
+	var err error
+	var res ChartRes
+
+	var chart dashboardService.TokenChart
+	switch chartType {
+	case ChartTypeVolume:
+		chart, err = c.Dashboard.TokenVolumes(addr, dashboardService.Duration(duration))
+	case ChartTypeTvl:
+		chart, err = c.Dashboard.TokenTvls(addr, dashboardService.Duration(duration))
+	case ChartTypePrice:
+		chart, err = c.Dashboard.TokenPrices(addr, dashboardService.Duration(duration))
+	default:
+		httputil.NewError(ctx, http.StatusBadRequest, errors.New("unsupported chart type"))
+		return
+	}
+
+	if err == nil {
+		res, err = c.tokenChartToChartRes(chart)
+	}
+
+	if err != nil {
+		c.logger.Warn(err)
+		httputil.NewError(ctx, http.StatusInternalServerError, errors.New("internal server error"))
+		return
+	}
+
+	ctx.JSON(http.StatusOK, res)
+}
+
+// Dashboard godoc
+//
+//	@Summary		Charts of Dezswap's Pool
+//	@Description	get Charts data
+//	@Tags			dashboard
+//	@Accept			json
+//	@Produce		json
+//	@Success		200	{object}	ChartRes
+//	@Failure		400	{object}	httputil.BadRequestError
+//	@Failure		500	{object}	httputil.InternalServerError
+//
+// @Param			duration	query	string	false	"default(empty) value is all"	Enums(year, quarter, month)
+// @Param			address		path	string	true	"Pool Address"
+// @Param			type		path	string	true	"chart type"					Enums(volume, tvl, apr, fee)
+// @Router			/dashboard/chart/pools/{address}/{type} [get]
+func (c *dashboardController) ChartByPool(ctx *gin.Context) {
+	chartType := ToChartType(ctx.Param("type"))
+	if chartType == ChartTypeNone {
+		httputil.NewError(ctx, http.StatusBadRequest, errors.New("invalid chart type"))
+		return
+	}
+
+	duration := dashboardService.Duration(ctx.Query("duration"))
+	if len(duration) == 0 {
+		duration = dashboardService.All
+	}
+
+	addr := dashboardService.Addr(ctx.Param("address"))
+	if len(addr) == 0 {
+		httputil.NewError(ctx, http.StatusBadRequest, errors.New("must provide pool address"))
+		return
+	}
 
 	var err error
 	var res ChartRes
@@ -114,35 +171,19 @@ func (c *dashboardController) Chart(ctx *gin.Context) {
 	switch chartType {
 	case ChartTypeVolume:
 		var volumes dashboardService.Volumes
-		if ok {
-			volumes, err = c.Dashboard.VolumesOf(addr, duration)
-		} else {
-			volumes, err = c.Dashboard.Volumes(duration)
-		}
+		volumes, err = c.Dashboard.VolumesOf(addr, duration)
 		res = c.volumesToChartRes(volumes)
 	case ChartTypeTvl:
 		var tvls dashboardService.Tvls
-		if ok {
-			tvls, err = c.Dashboard.TvlsOf(addr, duration)
-		} else {
-			tvls, err = c.Dashboard.Tvls(duration)
-		}
+		tvls, err = c.Dashboard.TvlsOf(addr, duration)
 		res = c.tvlsToChartRes(tvls)
 	case ChartTypeApr:
 		var aprs dashboardService.Aprs
-		if ok {
-			aprs, err = c.Dashboard.AprsOf(addr, duration)
-		} else {
-			aprs, err = c.Dashboard.Aprs(duration)
-		}
+		aprs, err = c.Dashboard.AprsOf(addr, duration)
 		res = c.aprsToChartRes(aprs)
 	case ChartTypeFee:
 		var fees dashboardService.Fees
-		if ok {
-			fees, err = c.Dashboard.FeesOf(addr, duration)
-		} else {
-			fees, err = c.Dashboard.Fees(duration)
-		}
+		fees, err = c.Dashboard.FeesOf(addr, duration)
 		res = c.feesToChartRes(fees)
 	default:
 		httputil.NewError(ctx, http.StatusBadRequest, errors.New("invalid chart type"))
@@ -160,245 +201,62 @@ func (c *dashboardController) Chart(ctx *gin.Context) {
 
 // Dashboard godoc
 //
-//	@Summary		Volumes of user selected duration
-//	@Description	get Volumes
-//	@Tags			dashboard
-//	@Param			duration	query	string	false	"default(empty) value is all"	Enums(year, quarter, month)
-//	@Accept			json
-//	@Produce		json
-//	@Success		200	{object}	VolumesRes
-//	@Failure		400	{object}	httputil.BadRequestError
-//	@Failure		500	{object}	httputil.InternalServerError
-//	@Router			/dashboard/volumes [get]
-func (c *dashboardController) Volumes(ctx *gin.Context) {
-	duration := dashboardService.Duration(ctx.Query("duration"))
-	if len(duration) == 0 {
-		duration = dashboardService.All
-	}
-	volumes, err := c.Dashboard.Volumes(duration)
-	if err != nil {
-		c.logger.Warn(err)
-		httputil.NewError(ctx, http.StatusInternalServerError, errors.New("internal server error"))
-		return
-	}
-	ctx.JSON(http.StatusOK, c.volumesToRes(volumes))
-}
-
-// Dashboard godoc
-//
-//	@Summary		Pool's Volumes of user selected duration
-//	@Description	get Volumes
+//	@Summary		Charts of Dezswap's Pools
+//	@Description	get Charts data
 //	@Tags			dashboard
 //	@Accept			json
 //	@Produce		json
-//	@Success		200	{object}	VolumesRes
+//	@Success		200	{object}	ChartRes
 //	@Failure		400	{object}	httputil.BadRequestError
 //	@Failure		500	{object}	httputil.InternalServerError
 //
 // @Param			duration	query	string	false	"default(empty) value is all"	Enums(year, quarter, month)
-// @Param			pool	path		string	true	"Pool Address"
-//
-//	@Router			/dashboard/volumes/{pool} [get]
-func (c *dashboardController) VolumesOf(ctx *gin.Context) {
-	duration := dashboardService.Duration(ctx.Query("duration"))
-	if len(duration) == 0 {
-		duration = dashboardService.All
-	}
-	address := ctx.Param("pool")
-	if address == "" {
-		httputil.NewError(ctx, http.StatusBadRequest, errors.New("invalid address"))
+// @Param			type		path	string	true	"chart type"					Enums(volume, tvl, apr, fee)
+// @Router			/dashboard/chart/{type} [get]
+func (c *dashboardController) Chart(ctx *gin.Context) {
+	chartType := ToChartType(ctx.Param("type"))
+	if chartType == ChartTypeNone {
+		httputil.NewError(ctx, http.StatusBadRequest, errors.New("invalid chart type"))
 		return
 	}
 
-	volumes, err := c.Dashboard.VolumesOf(dashboardService.Addr(address), duration)
-	if err != nil {
-		c.logger.Warn(err)
-		httputil.NewError(ctx, http.StatusInternalServerError, errors.New("internal server error"))
-		return
-	}
-	ctx.JSON(http.StatusOK, c.volumesToRes(volumes))
-}
-
-// Dashboard godoc
-//
-//	@Summary		Fees of user selected duration
-//	@Description	get Fees
-//	@Tags			dashboard
-//	@Param			duration	query	string	false	"default(empty) value is all"	Enums(year, quarter, month)
-//	@Accept			json
-//	@Produce		json
-//	@Success		200	{object}	FeesRes
-//	@Failure		400	{object}	httputil.BadRequestError
-//	@Failure		500	{object}	httputil.InternalServerError
-//	@Router			/dashboard/fees [get]
-func (c *dashboardController) Fees(ctx *gin.Context) {
-	duration := dashboardService.Duration(ctx.Query("duration"))
-	if len(duration) == 0 {
-		duration = dashboardService.All
-	}
-	fees, err := c.Dashboard.Fees(duration)
-	if err != nil {
-		c.logger.Warn(err)
-		httputil.NewError(ctx, http.StatusInternalServerError, errors.New("internal server error"))
-		return
-	}
-	ctx.JSON(http.StatusOK, c.feesToRes(fees))
-}
-
-// Dashboard godoc
-//
-//	@Summary		Pool's Fees of user selected duration
-//	@Description	get Fees
-//	@Tags			dashboard
-//	@Accept			json
-//	@Produce		json
-//	@Success		200	{object}	FeesRes
-//	@Failure		400	{object}	httputil.BadRequestError
-//	@Failure		500	{object}	httputil.InternalServerError
-//
-// @Param			duration	query	string	false	"default(empty) value is all"	Enums(year, quarter, month)
-// @Param			pool	path		string	true	"Pool Address"
-//
-//	@Router			/dashboard/fees/{pool} [get]
-func (c *dashboardController) FeesOf(ctx *gin.Context) {
-	duration := dashboardService.Duration(ctx.Query("duration"))
-	if len(duration) == 0 {
-		duration = dashboardService.All
-	}
-	address := ctx.Param("pool")
-	if address == "" {
-		httputil.NewError(ctx, http.StatusBadRequest, errors.New("invalid address"))
-		return
-	}
-
-	fees, err := c.Dashboard.FeesOf(dashboardService.Addr(address), duration)
-	if err != nil {
-		c.logger.Warn(err)
-		httputil.NewError(ctx, http.StatusInternalServerError, errors.New("internal server error"))
-		return
-	}
-	ctx.JSON(http.StatusOK, c.feesToRes(fees))
-}
-
-// Dashboard godoc
-//
-//	@Summary		TVLs of dezswap selected duration
-//	@Description	get TVLs
-//	@Tags			dashboard
-//	@Param			duration	query	string	false	"default(empty) value is all"	Enums(year, quarter, month)
-//	@Accept			json
-//	@Produce		json
-//	@Success		200	{object}	TvlsRes
-//	@Failure		400	{object}	httputil.BadRequestError
-//	@Failure		500	{object}	httputil.InternalServerError
-//	@Router			/dashboard/tvls [get]
-func (c *dashboardController) TVLs(ctx *gin.Context) {
-	duration := dashboardService.Duration(ctx.Query("duration"))
-	if len(duration) == 0 {
-		duration = dashboardService.All
-	}
-	tvls, err := c.Dashboard.Tvls(duration)
-	if err != nil {
-		c.logger.Warn(err)
-		httputil.NewError(ctx, http.StatusInternalServerError, errors.New("internal server error"))
-		return
-	}
-	ctx.JSON(http.StatusOK, c.tvlsToRes(tvls))
-}
-
-// Dashboard godoc
-//
-//	@Summary		TVLs of dezswap selected duration
-//	@Description	get TVLs
-//	@Tags			dashboard
-//	@Accept			json
-//	@Produce		json
-//	@Success		200	{object}	TvlsRes
-//	@Failure		400	{object}	httputil.BadRequestError
-//	@Failure		500	{object}	httputil.InternalServerError
-//
-// @Param			duration	query	string	false	"default(empty) value is all"	Enums(year, quarter, month)
-// @Param			pool	path		string	true	"Pool Address"
-// @Router			/dashboard/tvls/{pool} [get]
-func (c *dashboardController) TVLsOf(ctx *gin.Context) {
 	duration := dashboardService.Duration(ctx.Query("duration"))
 	if len(duration) == 0 {
 		duration = dashboardService.All
 	}
 
-	address := ctx.Param("pool")
-	if address == "" {
-		httputil.NewError(ctx, http.StatusBadRequest, errors.New("invalid address"))
+	var err error
+	var res ChartRes
+
+	switch chartType {
+	case ChartTypeVolume:
+		var volumes dashboardService.Volumes
+		volumes, err = c.Dashboard.Volumes(duration)
+		res = c.volumesToChartRes(volumes)
+	case ChartTypeTvl:
+		var tvls dashboardService.Tvls
+		tvls, err = c.Dashboard.Tvls(duration)
+		res = c.tvlsToChartRes(tvls)
+	case ChartTypeApr:
+		var aprs dashboardService.Aprs
+		aprs, err = c.Dashboard.Aprs(duration)
+		res = c.aprsToChartRes(aprs)
+	case ChartTypeFee:
+		var fees dashboardService.Fees
+		fees, err = c.Dashboard.Fees(duration)
+		res = c.feesToChartRes(fees)
+	default:
+		httputil.NewError(ctx, http.StatusBadRequest, errors.New("invalid chart type"))
 		return
 	}
 
-	tvls, err := c.Dashboard.TvlsOf(dashboardService.Addr(address), duration)
 	if err != nil {
 		c.logger.Warn(err)
 		httputil.NewError(ctx, http.StatusInternalServerError, errors.New("internal server error"))
 		return
 	}
-	ctx.JSON(http.StatusOK, c.tvlsToRes(tvls))
-}
 
-// Dashboard godoc
-//
-//	@Summary		Dezswap's Pool's APRs
-//	@Description	get APRs of a dezswap pool
-//	@Tags			dashboard
-//	@Accept			json
-//	@Produce		json
-//	@Param			duration	query	string	false	"default(empty) value is all"	Enums(year, quarter, month)
-//	@Param			pool	path		string	true	"Pool Address"
-//	@Success		200	{object}	AprsRes
-//	@Failure		400	{object}	httputil.BadRequestError
-//	@Failure		500	{object}	httputil.InternalServerError
-//	@Router			/dashboard/aprs/{pool} [get]
-func (c *dashboardController) APRsOf(ctx *gin.Context) {
-	duration := dashboardService.Duration(ctx.Query("duration"))
-	if len(duration) == 0 {
-		duration = dashboardService.All
-	}
-
-	address := ctx.Param("pool")
-	if address == "" {
-		httputil.NewError(ctx, http.StatusBadRequest, errors.New("invalid address"))
-		return
-	}
-
-	apr, err := c.Dashboard.AprsOf(dashboardService.Addr(address), duration)
-	if err != nil {
-		c.logger.Warn(err)
-		httputil.NewError(ctx, http.StatusInternalServerError, errors.New("internal server error"))
-		return
-	}
-	ctx.JSON(http.StatusOK, c.aprsToRes(apr))
-}
-
-// Dashboard godoc
-//
-//	@Summary		APRs of dezswap selected duration
-//	@Description	get APRs
-//	@Tags			dashboard
-//	@Param			duration	query	string	false	"default(empty) value is all"	Enums(year, quarter, month)
-//	@Accept			json
-//	@Produce		json
-//	@Success		200	{object}	AprsRes
-//	@Failure		400	{object}	httputil.BadRequestError
-//	@Failure		500	{object}	httputil.InternalServerError
-//	@Router			/dashboard/aprs [get]
-func (c *dashboardController) APRs(ctx *gin.Context) {
-	duration := dashboardService.Duration(ctx.Query("duration"))
-	if len(duration) == 0 {
-		duration = dashboardService.All
-	}
-	apr, err := c.Dashboard.Aprs(duration)
-	if err != nil {
-		c.logger.Warn(err)
-		httputil.NewError(ctx, http.StatusInternalServerError, errors.New("internal server error"))
-		return
-	}
-	ctx.JSON(http.StatusOK, c.aprsToRes(apr))
+	ctx.JSON(http.StatusOK, res)
 }
 
 // Dashboard godoc
@@ -470,7 +328,7 @@ func (c *dashboardController) Pools(ctx *gin.Context) {
 //	@Success		200	{object}	PoolDetailRes
 //	@Failure		400	{object}	httputil.BadRequestError
 //	@Failure		500	{object}	httputil.InternalServerError
-//	@Param			pool	path		string	true	"Pool Address"
+//	@Param			address		path	string	true	"Pool Address"
 //	@Router			/dashboard/pools/{address} [get]
 func (c *dashboardController) Pool(ctx *gin.Context) {
 	address := ctx.Param("address")
@@ -545,66 +403,6 @@ func (c *dashboardController) Tokens(ctx *gin.Context) {
 	}
 	res := c.tokensToRes(tokens)
 
-	ctx.JSON(http.StatusOK, res)
-}
-
-// Dashboard godoc
-//
-//	@Summary		Dezswap's Token Chart Data
-//	@Description	get Token' chart data of Dezswap by designated interval
-//	@Tags			dashboard
-//	@Accept			json
-//	@Produce		json
-//	@Success		200	{object}	TokenChart
-//	@Failure		400	{object}	httputil.BadRequestError
-//	@Failure		500	{object}	httputil.InternalServerError
-//	@Router			/dashboard/token_chart/{address} [get]
-//	@Param			address		path	string	true	"token address"
-//	@Param			data		query	string	true	"chart data type"				Enums(volume, tvl, price)
-//	@Param			duration	query	string	false	"default(empty) value is all"	Enums(year, quarter, month)
-func (c *dashboardController) TokenChart(ctx *gin.Context) {
-	address := ctx.Param("address")
-	if address == "" {
-		httputil.NewError(ctx, http.StatusBadRequest, errors.New("invalid address address"))
-		return
-	}
-
-	data := ctx.Query("data")
-	duration := ctx.Query("duration")
-	if len(duration) == 0 {
-		duration = "all"
-	}
-
-	var chart dashboardService.TokenChart
-	var err error
-	switch data {
-	case "volume":
-		chart, err = c.Dashboard.TokenVolumes(dashboardService.Addr(address), dashboardService.Duration(duration))
-		if err != nil {
-			c.logger.Warn(err)
-			httputil.NewError(ctx, http.StatusInternalServerError, errors.New("internal server error"))
-			return
-		}
-	case "tvl":
-		chart, err = c.Dashboard.TokenTvls(dashboardService.Addr(address), dashboardService.Duration(duration))
-		if err != nil {
-			c.logger.Warn(err)
-			httputil.NewError(ctx, http.StatusInternalServerError, errors.New("internal server error"))
-			return
-		}
-	case "price":
-		chart, err = c.Dashboard.TokenPrices(dashboardService.Addr(address), dashboardService.Duration(duration))
-		if err != nil {
-			c.logger.Warn(err)
-			httputil.NewError(ctx, http.StatusInternalServerError, errors.New("internal server error"))
-			return
-		}
-	default:
-		httputil.NewError(ctx, http.StatusBadRequest, errors.New("unsupported data type"))
-		return
-	}
-
-	res := c.tokenChartToRes(chart)
 	ctx.JSON(http.StatusOK, res)
 }
 

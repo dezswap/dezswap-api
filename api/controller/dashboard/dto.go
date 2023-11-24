@@ -14,33 +14,6 @@ type RecentRes struct {
 	TvlChangeRate    float32 `json:"tvlChangeRate"`
 }
 
-type VolumesRequest struct {
-	Duration string `form:"duration"`
-}
-type VolumesRes = []VolumeRes
-type VolumeRes struct {
-	Volume    string    `json:"volume"`
-	Timestamp time.Time `json:"timestamp"`
-}
-
-type FeesRes = []FeeRes
-type FeeRes struct {
-	Fee       string    `json:"fee"`
-	Timestamp time.Time `json:"timestamp"`
-}
-
-type TvlsRes = []TvlRes
-type TvlRes struct {
-	Tvl       string    `json:"tvl"`
-	Timestamp time.Time `json:"timestamp"`
-}
-
-type AprsRes = []AprRes
-type AprRes struct {
-	Apr       string    `json:"apr"`
-	Timestamp time.Time `json:"timestamp"`
-}
-
 type StatisticRes []StatisticResItem
 type StatisticResItem struct {
 	AddressCount uint64    `json:"addressCount"`
@@ -64,8 +37,6 @@ type PoolDetailRes struct {
 	Txs    TxsRes    `json:"txs"`
 }
 
-type ChartRequest struct{}
-
 type TokensRes []TokenRes
 type TokenRes struct {
 	Address         string  `json:"address"`
@@ -79,10 +50,6 @@ type TokenRes struct {
 	TvlChange       string  `json:"tvlChange,omitempty"`
 	Fee             string  `json:"fee,omitempty"`
 }
-
-type TokenChart []TimestampValue
-
-type TimestampValue [2]string
 
 type TxsRes []TxRes
 type TxRes struct {
@@ -105,6 +72,7 @@ const (
 	ChartTypeTvl    ChartType = "tvl"
 	ChartTypeApr    ChartType = "apr"
 	ChartTypeFee    ChartType = "fee"
+	ChartTypePrice  ChartType = "price"
 	ChartTypeNone   ChartType = ""
 )
 
@@ -118,6 +86,8 @@ func ToChartType(s string) ChartType {
 		return ChartTypeApr
 	case "fee":
 		return ChartTypeFee
+	case "price":
+		return ChartTypePrice
 	default:
 		return ChartTypeNone
 	}
