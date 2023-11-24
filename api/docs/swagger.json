@@ -755,6 +755,70 @@
                 }
             }
         },
+        "/notices": {
+            "get": {
+                "description": "get Notices",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "notice"
+                ],
+                "summary": "Notices of the chain",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "target chain name e.g. (dimension, cube), default (dimension)",
+                        "name": "chain",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "condition to get items after the id",
+                        "name": "after",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "the number of items to return (default: 10)",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "order of items to return (default: descending order)",
+                        "name": "asc",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/notice.noticeItem"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.BadRequestError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.InternalServerError"
+                        }
+                    }
+                }
+            }
+        },
         "/pairs": {
             "get": {
                 "description": "get Pairs",
@@ -1534,6 +1598,23 @@
                 "message": {
                     "type": "string",
                     "example": "not found"
+                }
+            }
+        },
+        "notice.noticeItem": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "timestamp": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
                 }
             }
         }

@@ -32,9 +32,6 @@ func (c *dashboardController) register(route *gin.RouterGroup) {
 	route.GET("/chart/pools/:address/:type", c.ChartByPool)
 	route.GET("/chart/tokens/:address/:type", c.ChartByToken)
 
-	route.GET("/fees/:pool", c.FeesOf)
-	route.GET("/fees", c.Fees)
-
 	route.GET("/recent", c.Recent)
 
 	route.GET("/statistics", c.Statistic)
