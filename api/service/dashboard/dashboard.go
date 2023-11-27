@@ -722,7 +722,7 @@ from (
     join tokens t on p.chain_id = t.chain_id and (p.asset0 = t.address or p.asset1 = t.address)
     where ps.chain_id = ?
       and t.address = ?
-      and ps.timestamp >= extract(epoch from now() - interval '1 month')
+      and ps.timestamp >= extract(epoch from date_trunc('day', now()) - interval '1 month')
     group by year_utc, month_utc, day_utc, p.asset0, t.address
 ) t
 group by year_utc, month_utc, day_utc
@@ -740,7 +740,7 @@ from (
     join tokens t on p.chain_id = t.chain_id and (p.asset0 = t.address or p.asset1 = t.address)
     where ps.chain_id = ?
       and t.address = ?
-      and ps.timestamp >= extract(epoch from now() - interval '3 month')
+      and ps.timestamp >= extract(epoch from date_trunc('day', now()) - interval '3 month')
     group by year_utc, week, p.asset0, t.address
 ) t
 group by year_utc, week
@@ -759,7 +759,7 @@ from (
     join tokens t on p.chain_id = t.chain_id and (p.asset0 = t.address or p.asset1 = t.address)
     where ps.chain_id = ?
       and t.address = ?
-      and ps.timestamp >= extract(epoch from now() - interval '1 year')
+      and ps.timestamp >= extract(epoch from date_trunc('day', now()) - interval '1 year')
     group by year_utc, week, p.asset0, t.address
 ) t
 group by year_utc, week2
@@ -806,7 +806,7 @@ from (select distinct pair_id, year_utc, month_utc, day_utc,
     join tokens t on p.chain_id = t.chain_id and (p.asset0 = t.address or p.asset1 = t.address)
     where ps.chain_id = ?
       and t.address = ?
-      and ps.timestamp >= extract(epoch from now() - interval '1 month')) t
+      and ps.timestamp >= extract(epoch from date_trunc('day', now()) - interval '1 month')) t
 group by year_utc, month_utc, day_utc
 order by year_utc, month_utc, day_utc
 `
@@ -825,7 +825,7 @@ from (select distinct pair_id, year_utc, week,
     join tokens t on p.chain_id = t.chain_id and (p.asset0 = t.address or p.asset1 = t.address)
     where ps.chain_id = ?
       and t.address = ?
-      and ps.timestamp >= extract(epoch from now() - interval '3 month')) t
+      and ps.timestamp >= extract(epoch from date_trunc('day', now()) - interval '3 month')) t
 group by year_utc, week
 order by year_utc, week
 `
@@ -844,7 +844,7 @@ from (select distinct on (pair_id, year_utc, week-mod(cast(week+1 as bigint),2))
     join tokens t on p.chain_id = t.chain_id and (p.asset0 = t.address or p.asset1 = t.address)
     where ps.chain_id = ?
       and t.address = ?
-      and ps.timestamp >= extract(epoch from now() - interval '1 year')) t
+      and ps.timestamp >= extract(epoch from date_trunc('day', now()) - interval '1 year')) t
 group by year_utc, week2
 order by year_utc, week2
 `
@@ -866,10 +866,9 @@ from (select p.height,
              cast(extract(month from to_timestamp(pt.timestamp) at time zone 'UTC') as int) month_utc,
              p.price
       from price p
-          join tokens t on p.token_id = t.id
-          join parsed_tx pt on p.chain_id = pt.chain_id and p.height = pt.height
-      where t.chain_id = ?
-        and t.address= ?) t
+          join parsed_tx pt on p.chain_id = pt.chain_id and p.tx_id = pt.id
+      where pt.chain_id = ?
+        and (pt.asset0 = ? or pt.asset1 = ?)) t
 order by timestamp asc
 `
 	switch itv {
@@ -883,11 +882,10 @@ from (select p.height,
              cast(extract(day from to_timestamp(pt.timestamp) at time zone 'UTC') as int) day_utc,
              p.price
       from price p
-          join tokens t on p.token_id = t.id
-          join parsed_tx pt on p.chain_id = pt.chain_id and p.height = pt.height
-      where t.chain_id = ?
-        and t.address= ?
-        and pt.timestamp >= extract(epoch from now() - interval '1 month')) t
+          join parsed_tx pt on p.chain_id = pt.chain_id and p.tx_id = pt.id
+      where pt.chain_id = ?
+        and (pt.asset0 = ? or pt.asset1 = ?)
+        and pt.timestamp >= extract(epoch from date_trunc('day', now()) - interval '1 month')) t
 order by timestamp asc
 `
 	case Quarter:
@@ -899,11 +897,10 @@ from (select p.height,
              least(ceil((extract(doy from to_timestamp(timestamp) at time zone 'UTC'))/7), 52) as week,
              p.price
       from price p
-          join tokens t on p.token_id = t.id
-          join parsed_tx pt on p.chain_id = pt.chain_id and p.height = pt.height
-      where t.chain_id = ?
-        and t.address= ?
-        and pt.timestamp >= extract(epoch from now() - interval '3 month')) t
+          join parsed_tx pt on p.chain_id = pt.chain_id and p.tx_id = pt.id
+      where pt.chain_id = ?
+        and (pt.asset0 = ? or pt.asset1 = ?)
+        and pt.timestamp >= extract(epoch from date_trunc('day', now()) - interval '3 month')) t
 order by timestamp asc
 `
 	case Year:
@@ -915,16 +912,15 @@ from (select p.height,
              week-mod(cast(week+1 as bigint),2) week2,
              p.price
       from price p
-          join tokens t on p.token_id = t.id
-          join (select least(ceil((extract(doy from to_timestamp(timestamp) at time zone 'UTC'))/7), 52) as week, * from parsed_tx) pt on p.chain_id = pt.chain_id and p.height = pt.height
-      where t.chain_id = ?
-        and t.address= ?
-        and pt.timestamp >= extract(epoch from now() - interval '1 year')) t
+          join (select least(ceil((extract(doy from to_timestamp(timestamp) at time zone 'UTC'))/7), 52) as week, * from parsed_tx) pt on p.chain_id = pt.chain_id and p.tx_id = pt.id
+      where pt.chain_id = ?
+        and (pt.asset0 = ? or pt.asset1 = ?)
+        and pt.timestamp >= extract(epoch from date_trunc('day', now()) - interval '1 year')) t
 order by timestamp asc
 `
 	}
 	var chart TokenChart
-	if tx := d.Raw(query, d.chainId, addr).Find(&chart); tx.Error != nil {
+	if tx := d.Raw(query, d.chainId, addr, addr).Find(&chart); tx.Error != nil {
 		return TokenChart{}, errors.Wrap(tx.Error, "dashboard.TokenPrices")
 	}
 
