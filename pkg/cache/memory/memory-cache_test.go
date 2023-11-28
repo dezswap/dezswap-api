@@ -13,13 +13,14 @@ import (
 func Test_cache(t *testing.T) {
 	type setUpItem struct {
 		key   string
-		value interface{}
+		value string
 		ttl   time.Duration
 	}
 	type testCase struct {
-		item     setUpItem
-		wait     time.Duration
-		expected interface{}
+		item        setUpItem
+		wait        time.Duration
+		destination string
+		expected    string
 	}
 	setUp := func(i setUpItem, c cache.Cache) {
 		c.Set(i.key, i.value, i.ttl)
@@ -27,22 +28,28 @@ func Test_cache(t *testing.T) {
 
 	tcs := []testCase{
 		// find key
-		{setUpItem{"test", "value", cache.CacheLifeTimeNeverExpired}, 0, "value"},
-		{setUpItem{"test", "value", cache.CacheLifeTimeNeverExpired}, time.Second, "value"},
-		{setUpItem{"test", "value", time.Second * 2}, time.Second, "value"},
-		{setUpItem{"test", "value", time.Second}, time.Second * 2, nil},
-		{setUpItem{"test", "value", time.Second}, time.Second * 2, nil},
+		{setUpItem{"test", "value", cache.CacheLifeTimeNeverExpired}, 0, "garbageValue", "value"},
+		{setUpItem{"test", "value", cache.CacheLifeTimeNeverExpired}, time.Second, "garbageValue", "value"},
+		{setUpItem{"test", "value", time.Second * 2}, time.Second, "garbageValue", "value"},
+		{setUpItem{"test", "value", time.Second}, time.Second * 2, "", ""},
+		{setUpItem{"test", "value", time.Second}, time.Second * 2, "", ""},
 	}
 
 	assert := assert.New(t)
 
 	tcTester := func(id int, t testCase) {
-		c := NewMemoryCache()
+		c := NewMemoryCache(cache.NewByteCodec())
 		setUp(t.item, c)
 		fmt.Printf("test case %d\n", id)
 		time.Sleep(t.wait)
-		actual, _ := c.Get(t.item.key)
-		assert.Equal(t.expected, actual)
+
+		err := c.Get(t.item.key, &t.destination)
+		if t.expected == "" {
+			assert.Error(err)
+		} else {
+			assert.NoError(err)
+		}
+		assert.Equal(t.expected, t.destination)
 	}
 
 	wg := sync.WaitGroup{}
@@ -55,18 +62,4 @@ func Test_cache(t *testing.T) {
 		}(id, tc)
 	}
 	wg.Wait()
-
-	var testStruct = struct {
-		id   int
-		name string
-	}{1, "test"}
-
-	// test reference
-	c := NewMemoryCache()
-	c.Set("test", &testStruct, cache.CacheLifeTimeNeverExpired)
-	testStruct.id = 2
-	testStruct.name = "test2"
-	actual, _ := c.Get("test")
-	assert.Equal(&testStruct, actual)
-
 }

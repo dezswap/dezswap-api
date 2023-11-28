@@ -1,12 +1,21 @@
 package cache
 
-import "time"
+import (
+	"errors"
+	"time"
+)
 
-// Cache is an simple cache interface
-// the cache.Get return nil if key not found instead of error
-// the cache.Set override value if key already exists
+var ErrCacheMiss = errors.New("cache: key not found")
+
+type Codable interface {
+	Encode(interface{}) ([]byte, error)
+	Decode([]byte, interface{}) error
+}
+
+// / Cache is an interface for cache
+// / destination must be a pointer
 type Cache interface {
-	Get(Key string) (interface{}, bool)
+	Get(Key string, dest interface{}) error
 	Set(Key string, value interface{}, ttl time.Duration) error
 }
 
