@@ -64,3 +64,14 @@ func (r *redisClient) Set(Key string, value interface{}, ttl time.Duration) erro
 
 	return nil
 }
+
+// Set implements cache.Cache.
+func (r *redisClient) Delete(Key string) error {
+
+	ctx := context.TODO()
+	if err := r.Client.Del(ctx, Key).Err(); err != nil {
+		return errors.Wrap(err, "redisClient.Set")
+	}
+
+	return nil
+}

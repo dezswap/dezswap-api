@@ -17,6 +17,7 @@ type Codable interface {
 type Cache interface {
 	Get(Key string, dest interface{}) error
 	Set(Key string, value interface{}, ttl time.Duration) error
+	Delete(key string) error
 }
 
 type CacheLifeTime = time.Duration

@@ -67,3 +67,11 @@ func (c *memoryCacheImpl) Set(key string, value interface{}, ttl time.Duration) 
 	c.store[key] = item
 	return nil
 }
+
+func (c *memoryCacheImpl) Delete(key string) error {
+	c.Lock()
+	defer c.Unlock()
+
+	delete(c.store, key)
+	return nil
+}
