@@ -49,8 +49,25 @@ func (d *dashboard) Aprs(duration Duration) (Aprs, error) {
 			-%d
 			) AS timestamp
 		`, intervalAgo, truncBy)
+
+	var lastQuery string
+	joinClause := `LEFT JOIN pair_stats_30m AS ps ON ps."timestamp" < ds.timestamp`
+	if duration != All {
+		lastQuery = fmt.Sprintf(`
+		last AS (SELECT p.id pair_id, COALESCE(MAX(ps.timestamp), 0) ts
+		FROM pair p
+    	LEFT JOIN (
+        	SELECT pair_id, timestamp
+        	FROM pair_stats_30m
+        	WHERE chain_id = '%s'
+          	AND timestamp < FLOOR(EXTRACT(EPOCH FROM DATE_TRUNC('day', NOW() - INTERVAL '%s')))) ps ON p.id = ps.pair_id
+		GROUP BY p.id),
+		`, d.chainId, intervalAgo)
+		joinClause = `JOIN last ON true ` + joinClause + ` AND last.pair_id = ps.pair_id AND ps."timestamp" >= last.ts`
+	}
+
 	query := fmt.Sprintf(`
-	WITH ds AS (%s),
+	WITH ds AS (%s), %s
 	tvl AS (
 		SELECT
 			SUM(liquidity) AS tvl,
@@ -61,10 +78,9 @@ func (d *dashboard) Aprs(duration Duration) (Aprs, error) {
 				liquidity0_in_price + liquidity1_in_price AS liquidity,
 				ds.timestamp AS timestamp
 			FROM
-				ds
-			LEFT JOIN pair_stats_30m AS ps ON ps. "timestamp" < ds.timestamp
+				ds %s
 			WHERE
-				ps.chain_id = '%s'
+				ps.chain_id = ?
 			ORDER BY
 				ds.timestamp DESC,
 				ps.pair_id,
@@ -95,10 +111,10 @@ func (d *dashboard) Aprs(duration Duration) (Aprs, error) {
 		ds
 	JOIN tvl AS t ON ds.timestamp = t.timestamp
 	JOIN volume7d AS v ON ds.timestamp = v.timestamp;
-	`, dateSeries, d.chainId, dezswap.SWAP_FEE)
+	`, dateSeries, lastQuery, joinClause, dezswap.SWAP_FEE)
 
 	aprs := Aprs{}
-	if err := d.DB.Raw(query).Scan(&aprs).Error; err != nil {
+	if err := d.DB.Raw(query, d.chainId).Scan(&aprs).Error; err != nil {
 		return nil, errors.Wrap(err, "dashboard.Aprs")
 	}
 	return aprs, nil
@@ -180,44 +196,40 @@ func (d *dashboard) AprsOf(pool Addr, duration Duration) ([]Apr, error) {
 func (d *dashboard) Pools(tokens ...Addr) (Pools, error) {
 	var tokensCond string
 	if len(tokens) > 0 {
-		tokensCond = " and (p.asset0 in ? or p.asset1 in ?)"
+		tokensCond = " WHERE p.asset0 in ? OR p.asset1 in ?"
 	}
 
 	timeRangeWith := `
 		WITH time_range AS (
 			SELECT
 			CASE WHEN EXTRACT(MINUTE FROM now()) >= 30 THEN
-				DATE_TRUNC('hour',now())
+				EXTRACT(EPOCH FROM DATE_TRUNC('hour', NOW() AT TIME ZONE 'UTC'))
 			ELSE
-				DATE_TRUNC('hour',now()) - INTERVAL '30 min'
+				EXTRACT(EPOCH FROM DATE_TRUNC('hour', NOW() AT TIME ZONE 'UTC') - INTERVAL '30 min')
 			END AS end_time,
 			CASE WHEN EXTRACT(MINUTE FROM now()) >= 30 THEN
-				DATE_TRUNC('hour',now()) - INTERVAL '7 day'
+				EXTRACT(EPOCH FROM  DATE_TRUNC('hour', NOW() AT TIME ZONE 'UTC') - INTERVAL '7 day')
 			ELSE
-				DATE_TRUNC('hour',now()) - INTERVAL '7 day' - INTERVAL '30 min'
+				EXTRACT(EPOCH FROM  DATE_TRUNC('hour', NOW() AT TIME ZONE 'UTC') - INTERVAL '7 day' - INTERVAL '30 min')
 			END AS start_time
 		)
 	`
 	latestTvls := `
-		SELECT DISTINCT ON (ps.pair_id)
-			ps.pair_id AS pair_id,
-			p.contract AS address,
-			CONCAT(t0.symbol, '-', t1.symbol) AS symbols,
-			(ps.liquidity0_in_price + ps.liquidity1_in_price) AS tvl
+		SELECT DISTINCT ON (pair_id)
+			pair_id,
+			(liquidity0_in_price + liquidity1_in_price) AS tvl
 		FROM
-			"pair_stats_30m" AS ps
-			JOIN pair AS p ON ps.pair_id = p.id
-			JOIN tokens AS t0 ON p.asset0 = t0.address
-			JOIN tokens AS t1 ON p.asset1 = t1.address
+			pair_stats_30m
 		WHERE
-			p.chain_id = ?
+			chain_id = ?
 		AND
-			TO_TIMESTAMP(ps. "timestamp") <= (
+			timestamp <= (
 				SELECT
 					end_time
 				FROM
 					time_range)
-	` + tokensCond + ` ORDER BY ps.pair_id, ps.timestamp DESC`
+		ORDER BY pair_id, timestamp DESC
+	`
 	volume1d := `
 		SELECT
 			ps0.pair_id AS pair_id,
@@ -225,12 +237,10 @@ func (d *dashboard) Pools(tokens ...Addr) (Pools, error) {
 		FROM
 			pair_stats_30m AS ps0
 		WHERE
-			(SELECT end_time FROM time_range) - INTERVAL '1 day' < TO_TIMESTAMP(ps0. "timestamp")
+			(SELECT end_time FROM time_range) - EXTRACT(EPOCH FROM INTERVAL '1 day') < ps0."timestamp"
 			AND
-			TO_TIMESTAMP(ps0. "timestamp") <= (SELECT end_time FROM time_range)
+			ps0."timestamp" <= (SELECT end_time FROM time_range)
 		GROUP BY
-			ps0.pair_id
-		ORDER BY
 			ps0.pair_id
 	`
 	volume7d := `
@@ -240,19 +250,17 @@ func (d *dashboard) Pools(tokens ...Addr) (Pools, error) {
 		FROM
 			pair_stats_30m AS v
 		WHERE
-			(SELECT start_time FROM time_range) < TO_TIMESTAMP(v.timestamp)
+			(SELECT start_time FROM time_range) < v.timestamp
 		AND
-			TO_TIMESTAMP(v.timestamp) <= (SELECT end_time FROM time_range)
+			v.timestamp <= (SELECT end_time FROM time_range)
 		GROUP BY
-			v.pair_id
-		ORDER BY
 			v.pair_id
 	`
 	query := fmt.Sprintf(
 		`%s
 		SELECT
-			t.address,
-			t.symbols,
+			p.contract AS address,
+	        CONCAT(t0.symbol, '-', t1.symbol) AS symbols,
 			coalesce(t.tvl,0) as tvl,
 			coalesce(v1.volume,0) as volume,
 			coalesce(v1.volume * %f,0) as fee,
@@ -261,13 +269,16 @@ func (d *dashboard) Pools(tokens ...Addr) (Pools, error) {
 			(%s) AS t
 			LEFT JOIN (%s) AS v1 ON v1.pair_id = t.pair_id
 			LEFT JOIN (%s) AS v7 ON v7.pair_id = t.pair_id
+            LEFT JOIN pair AS p ON t.pair_id = p.id
+            LEFT JOIN tokens AS t0 ON p.chain_id = t0.chain_id AND p.asset0 = t0.address
+            LEFT JOIN tokens AS t1 ON p.chain_id = t1.chain_id AND p.asset1 = t1.address
 		`,
 		timeRangeWith, dezswap.SWAP_FEE, latestTvls, volume1d, volume7d,
 	)
 	pools := Pools{}
 	var tx *gorm.DB
 	if len(tokensCond) > 0 {
-		tx = d.DB.Raw(query, d.chainId, tokens, tokens)
+		tx = d.DB.Raw(query+tokensCond, d.chainId, tokens, tokens)
 	} else {
 		tx = d.DB.Raw(query, d.chainId)
 	}
@@ -711,7 +722,7 @@ from (
     join tokens t on p.chain_id = t.chain_id and (p.asset0 = t.address or p.asset1 = t.address)
     where ps.chain_id = ?
       and t.address = ?
-      and ps.timestamp >= extract(epoch from now() - interval '1 month')
+      and ps.timestamp >= extract(epoch from date_trunc('day', now()) - interval '1 month')
     group by year_utc, month_utc, day_utc, p.asset0, t.address
 ) t
 group by year_utc, month_utc, day_utc
@@ -729,7 +740,7 @@ from (
     join tokens t on p.chain_id = t.chain_id and (p.asset0 = t.address or p.asset1 = t.address)
     where ps.chain_id = ?
       and t.address = ?
-      and ps.timestamp >= extract(epoch from now() - interval '3 month')
+      and ps.timestamp >= extract(epoch from date_trunc('day', now()) - interval '3 month')
     group by year_utc, week, p.asset0, t.address
 ) t
 group by year_utc, week
@@ -748,7 +759,7 @@ from (
     join tokens t on p.chain_id = t.chain_id and (p.asset0 = t.address or p.asset1 = t.address)
     where ps.chain_id = ?
       and t.address = ?
-      and ps.timestamp >= extract(epoch from now() - interval '1 year')
+      and ps.timestamp >= extract(epoch from date_trunc('day', now()) - interval '1 year')
     group by year_utc, week, p.asset0, t.address
 ) t
 group by year_utc, week2
@@ -795,7 +806,7 @@ from (select distinct pair_id, year_utc, month_utc, day_utc,
     join tokens t on p.chain_id = t.chain_id and (p.asset0 = t.address or p.asset1 = t.address)
     where ps.chain_id = ?
       and t.address = ?
-      and ps.timestamp >= extract(epoch from now() - interval '1 month')) t
+      and ps.timestamp >= extract(epoch from date_trunc('day', now()) - interval '1 month')) t
 group by year_utc, month_utc, day_utc
 order by year_utc, month_utc, day_utc
 `
@@ -814,7 +825,7 @@ from (select distinct pair_id, year_utc, week,
     join tokens t on p.chain_id = t.chain_id and (p.asset0 = t.address or p.asset1 = t.address)
     where ps.chain_id = ?
       and t.address = ?
-      and ps.timestamp >= extract(epoch from now() - interval '3 month')) t
+      and ps.timestamp >= extract(epoch from date_trunc('day', now()) - interval '3 month')) t
 group by year_utc, week
 order by year_utc, week
 `
@@ -833,7 +844,7 @@ from (select distinct on (pair_id, year_utc, week-mod(cast(week+1 as bigint),2))
     join tokens t on p.chain_id = t.chain_id and (p.asset0 = t.address or p.asset1 = t.address)
     where ps.chain_id = ?
       and t.address = ?
-      and ps.timestamp >= extract(epoch from now() - interval '1 year')) t
+      and ps.timestamp >= extract(epoch from date_trunc('day', now()) - interval '1 year')) t
 group by year_utc, week2
 order by year_utc, week2
 `
@@ -855,10 +866,9 @@ from (select p.height,
              cast(extract(month from to_timestamp(pt.timestamp) at time zone 'UTC') as int) month_utc,
              p.price
       from price p
-          join tokens t on p.token_id = t.id
-          join parsed_tx pt on p.chain_id = pt.chain_id and p.height = pt.height
-      where t.chain_id = ?
-        and t.address= ?) t
+          join parsed_tx pt on p.chain_id = pt.chain_id and p.tx_id = pt.id
+      where pt.chain_id = ?
+        and (pt.asset0 = ? or pt.asset1 = ?)) t
 order by timestamp asc
 `
 	switch itv {
@@ -872,11 +882,10 @@ from (select p.height,
              cast(extract(day from to_timestamp(pt.timestamp) at time zone 'UTC') as int) day_utc,
              p.price
       from price p
-          join tokens t on p.token_id = t.id
-          join parsed_tx pt on p.chain_id = pt.chain_id and p.height = pt.height
-      where t.chain_id = ?
-        and t.address= ?
-        and pt.timestamp >= extract(epoch from now() - interval '1 month')) t
+          join parsed_tx pt on p.chain_id = pt.chain_id and p.tx_id = pt.id
+      where pt.chain_id = ?
+        and (pt.asset0 = ? or pt.asset1 = ?)
+        and pt.timestamp >= extract(epoch from date_trunc('day', now()) - interval '1 month')) t
 order by timestamp asc
 `
 	case Quarter:
@@ -888,11 +897,10 @@ from (select p.height,
              least(ceil((extract(doy from to_timestamp(timestamp) at time zone 'UTC'))/7), 52) as week,
              p.price
       from price p
-          join tokens t on p.token_id = t.id
-          join parsed_tx pt on p.chain_id = pt.chain_id and p.height = pt.height
-      where t.chain_id = ?
-        and t.address= ?
-        and pt.timestamp >= extract(epoch from now() - interval '3 month')) t
+          join parsed_tx pt on p.chain_id = pt.chain_id and p.tx_id = pt.id
+      where pt.chain_id = ?
+        and (pt.asset0 = ? or pt.asset1 = ?)
+        and pt.timestamp >= extract(epoch from date_trunc('day', now()) - interval '3 month')) t
 order by timestamp asc
 `
 	case Year:
@@ -904,16 +912,15 @@ from (select p.height,
              week-mod(cast(week+1 as bigint),2) week2,
              p.price
       from price p
-          join tokens t on p.token_id = t.id
-          join (select least(ceil((extract(doy from to_timestamp(timestamp) at time zone 'UTC'))/7), 52) as week, * from parsed_tx) pt on p.chain_id = pt.chain_id and p.height = pt.height
-      where t.chain_id = ?
-        and t.address= ?
-        and pt.timestamp >= extract(epoch from now() - interval '1 year')) t
+          join (select least(ceil((extract(doy from to_timestamp(timestamp) at time zone 'UTC'))/7), 52) as week, * from parsed_tx) pt on p.chain_id = pt.chain_id and p.tx_id = pt.id
+      where pt.chain_id = ?
+        and (pt.asset0 = ? or pt.asset1 = ?)
+        and pt.timestamp >= extract(epoch from date_trunc('day', now()) - interval '1 year')) t
 order by timestamp asc
 `
 	}
 	var chart TokenChart
-	if tx := d.Raw(query, d.chainId, addr).Find(&chart); tx.Error != nil {
+	if tx := d.Raw(query, d.chainId, addr, addr).Find(&chart); tx.Error != nil {
 		return TokenChart{}, errors.Wrap(tx.Error, "dashboard.TokenPrices")
 	}
 
@@ -921,9 +928,7 @@ order by timestamp asc
 }
 
 // Tvls implements Dashboard.
-// TODO: improve query performance
 func (d *dashboard) Tvls(duration Duration) (Tvls, error) {
-
 	interval := int64(chartCriteriaByDuration[duration].TruncBy.Truncate(time.Second).Seconds())
 	intervalAgo := chartCriteriaByDuration[duration].Ago
 
@@ -936,7 +941,24 @@ func (d *dashboard) Tvls(duration Duration) (Tvls, error) {
 			) AS timestamp
 		`, intervalAgo, interval)
 
+	var lastQuery string
+	joinClause := `LEFT JOIN pair_stats_30m AS ps ON ps."timestamp" < ds.timestamp`
+	if duration != All {
+		lastQuery = fmt.Sprintf(`
+		, last AS (SELECT p.id pair_id, COALESCE(MAX(ps.timestamp), 0) ts
+		FROM pair p
+    	LEFT JOIN (
+        	SELECT pair_id, timestamp
+        	FROM pair_stats_30m
+        	WHERE chain_id = '%s'
+          	AND timestamp < FLOOR(EXTRACT(EPOCH FROM DATE_TRUNC('day', NOW() - INTERVAL '%s')))) ps ON p.id = ps.pair_id
+		GROUP BY p.id)
+		`, d.chainId, intervalAgo)
+		joinClause = `JOIN last ON true ` + joinClause + ` AND last.pair_id = ps.pair_id AND ps.timestamp >= last.ts`
+	}
+
 	query := fmt.Sprintf(`
+        WITH ds AS (%s)%s
 		SELECT
 			SUM(liquidity) AS tvl,
 			TO_TIMESTAMP(t.timestamp)  AT TIME ZONE 'UTC' - INTERVAL '1 day' AS timestamp
@@ -945,19 +967,17 @@ func (d *dashboard) Tvls(duration Duration) (Tvls, error) {
 				liquidity0_in_price + liquidity1_in_price  AS liquidity,
 				ds.timestamp AS timestamp,
 				ps. "timestamp" AS ps_timestamp
-			FROM
-				(%s) ds
-			LEFT JOIN pair_stats_30m AS ps ON ps. "timestamp" < ds.timestamp
+			FROM ds %s
 			WHERE ps.chain_id = ?
 		ORDER BY
 			ds.timestamp DESC,
 			ps.pair_id,
-			ps. "timestamp" DESC) AS t
+			ps."timestamp" DESC) AS t
 		GROUP BY
 			t.timestamp
 		ORDER BY
 			t.timestamp
-	`, dateSeries)
+	`, dateSeries, lastQuery, joinClause)
 
 	tvls := Tvls{}
 	if err := d.DB.Raw(query, d.chainId).Scan(&tvls).Error; err != nil {
