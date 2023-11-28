@@ -28,6 +28,19 @@ services:
     networks:
       - local-app
 
+  cache:
+    container_name: dezswap-api-cache
+    image: redis
+    environment:
+      - REDIS_USER=${REDIS_USER:-app}
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-appPW}
+      - REDIS_PORT=${REDIS_PORT:-6379}
+      - REDIS_DB=${REDIS_DB}
+    ports:
+      - ${REDIS_PORT:-6379}:${REDIS_PORT:-6379}
+    networks:
+      - local-app
+
 networks:
   local-app:
     driver: bridge
