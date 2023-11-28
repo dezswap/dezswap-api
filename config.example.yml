@@ -40,3 +40,13 @@ api:
     database: dezswap_api
     username: app
     password: appPW
+  # request cache for api
+  cache:
+    memory_cache: true # true, false it indicates whether to use in-memory cache
+    redis: # optional
+      host: localhost
+      port: 6379
+      user: app
+      password: appPW
+      db: 0 # optional redis db index default is 0
+      protocol: 3 # optional redis protocol index default is 3
