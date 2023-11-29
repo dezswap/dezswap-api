@@ -53,7 +53,7 @@ func cacheConfigFromEnv(v *viper.Viper, prefix string) CacheConfig {
 		}
 	}
 
-	rc := redisConfigFromEnv(v.Sub("redis"), fmt.Sprintf("%s_%s", prefix, "redis"))
+	rc := redisConfigFromEnv(v, fmt.Sprintf("%s_%s", prefix, "redis"))
 	return CacheConfig{
 		MemoryCache: v.GetBool(strings.ToUpper(fmt.Sprintf("%s_%s", prefix, "enable_memory_cache"))),
 		RedisConfig: &rc,
