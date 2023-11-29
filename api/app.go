@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"log"
@@ -9,10 +10,13 @@ import (
 	"regexp"
 	"time"
 
+	gin_cache "github.com/chenyahui/gin-cache"
+
 	geckoController "github.com/dezswap/dezswap-api/api/controller/coingecko"
 	comarcapController "github.com/dezswap/dezswap-api/api/controller/coinmarketcap"
 	dashboardController "github.com/dezswap/dezswap-api/api/controller/dashboard"
 	nc "github.com/dezswap/dezswap-api/api/controller/notice"
+	"github.com/redis/go-redis/v9"
 
 	"github.com/dezswap/dezswap-api/api/service/coingecko"
 	"github.com/dezswap/dezswap-api/api/service/coinmarketcap"
@@ -25,6 +29,9 @@ import (
 
 	"github.com/dezswap/dezswap-api/api/service"
 	"github.com/dezswap/dezswap-api/configs"
+	"github.com/dezswap/dezswap-api/pkg/cache"
+	"github.com/dezswap/dezswap-api/pkg/cache/memory"
+	cache_redis "github.com/dezswap/dezswap-api/pkg/cache/redis"
 	"github.com/dezswap/dezswap-api/pkg/logging"
 	"github.com/evalphobia/logrus_sentry"
 	"github.com/gin-gonic/gin"
@@ -52,7 +59,8 @@ func RunServer(c configs.Config) *app {
 	}
 	serverConfig := c.Api.Server
 	gin.SetMode(serverConfig.Mode)
-	app.setMiddlewares()
+	cacheStore := app.cacheStore(c.Api.Cache)
+	app.setMiddlewares(cacheStore)
 	app.initApis(c.Api)
 	if c.Sentry.DSN != "" {
 		if err := app.configureReporter(c.Sentry.DSN, serverConfig.ChainId, map[string]string{
@@ -89,7 +97,7 @@ func (app *app) run() {
 	}
 }
 
-func (app *app) setMiddlewares() {
+func (app *app) setMiddlewares(cache cache.Cache) {
 	app.engine.Use(gin.CustomRecovery(func(c *gin.Context, err any) {
 		app.logger.Error(err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
@@ -108,6 +116,9 @@ func (app *app) setMiddlewares() {
 	}
 	conf.AllowMethods = []string{"GET", "OPTIONS"}
 	app.engine.Use(cors.New(conf))
+	if cache != nil {
+		app.engine.Use(gin_cache.CacheByRequestURI(cache, time.Second*5))
+	}
 }
 
 func (app *app) initApis(c configs.ApiConfig) {
@@ -186,5 +197,28 @@ func (app *app) configureReporter(dsn, env string, tags map[string]string) error
 	hook.SetTagsContext(tags)
 	hook.SetEnvironment(env)
 	logging.AddHookToLogger(app.logger, hook)
+	return nil
+}
+
+func (app *app) cacheStore(c configs.CacheConfig) cache.Cache {
+	if c.RedisConfig.Host != "" {
+		option := redis.Options{
+			Addr:     fmt.Sprintf("%s:%s", c.RedisConfig.Host, c.RedisConfig.Port),
+			Username: c.RedisConfig.User,
+			Password: c.RedisConfig.Password,
+			DB:       c.RedisConfig.DB,
+			Protocol: c.RedisConfig.Protocol,
+		}
+
+		client := redis.NewClient(&option)
+		if err := client.Ping(context.Background()).Err(); err != nil {
+			panic(err)
+		}
+		return cache_redis.New(cache.NewByteCodec(), client)
+	}
+	if c.MemoryCache {
+		return memory.NewMemoryCache(cache.NewByteCodec())
+	}
+
 	return nil
 }

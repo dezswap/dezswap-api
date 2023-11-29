@@ -16,15 +16,6 @@ type redisClient struct {
 
 var _ cache.Cache = &redisClient{}
 
-//	option := redis.Options{
-//		Addr:     fmt.Sprintf("%s:%s", c.Host, c.Port),
-//		Username: c.User,
-//		Password: c.Password,
-//		DB:       c.DB,
-//		Protocol: c.Protocol,
-//	}
-//
-// client := redis.NewClient(&option)
 // New returns a new Redis cache instance.
 func New(codec cache.Codable, redis *redis.Client) cache.Cache {
 	return &redisClient{codec, redis}

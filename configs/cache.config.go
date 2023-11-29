@@ -35,12 +35,12 @@ func cacheConfig(v *viper.Viper) CacheConfig {
 	var rc *RedisConfig = nil
 	sub := v.Sub("redis")
 	if sub != nil {
-		v := redisConfig(v)
+		v := redisConfig(sub)
 		rc = &v
 	}
 
 	return CacheConfig{
-		MemoryCache: v.GetBool("enable_memory_cache"),
+		MemoryCache: v.GetBool("memory_cache"),
 		RedisConfig: rc,
 	}
 }

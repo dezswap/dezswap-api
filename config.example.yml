@@ -46,7 +46,7 @@ api:
     redis: # optional
       host: localhost
       port: 6379
-      user: app
+      user: default
       password: appPW
       db: 0 # optional redis db index default is 0
       protocol: 3 # optional redis protocol index default is 3
