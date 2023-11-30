@@ -18,9 +18,14 @@ func apiConfig(v *viper.Viper) ApiConfig {
 	envDbC := rdbConfigFromEnv(v, "API_DB")
 	dbC.Override(envDbC)
 
+	cacheC := cacheConfig(v.Sub("api.cache"))
+	envCacheC := cacheConfigFromEnv(v, "API_CACHE")
+	cacheC.Override(envCacheC)
+
 	return ApiConfig{
 		Server: apiServerC,
 		DB:     dbC,
+		Cache:  cacheC,
 	}
 }
 
@@ -58,6 +63,7 @@ func apiServerConfigFromEnv(v *viper.Viper, prefix string) ApiServerConfig {
 type ApiConfig struct {
 	Server ApiServerConfig
 	DB     RdbConfig
+	Cache  CacheConfig
 }
 
 // ApiServerConfig is config struct for app

@@ -65,7 +65,3 @@ func rdbConfigFromEnv(v *viper.Viper, prefix string) RdbConfig {
 		Password: v.GetString(strings.ToUpper(fmt.Sprintf("%s_%s", prefix, "password"))),
 	}
 }
-
-func (c RdbConfig) Endpoint() string {
-	return c.Host + ":" + c.Port
-}

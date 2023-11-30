@@ -2,12 +2,12 @@ package api
 
 import (
 	"fmt"
-	"io"
-	"log"
 	"net/http"
-	"os"
 	"regexp"
 	"time"
+
+	gin_cache "github.com/chenyahui/gin-cache"
+	"gorm.io/gorm"
 
 	geckoController "github.com/dezswap/dezswap-api/api/controller/coingecko"
 	comarcapController "github.com/dezswap/dezswap-api/api/controller/coinmarketcap"
@@ -25,15 +25,14 @@ import (
 
 	"github.com/dezswap/dezswap-api/api/service"
 	"github.com/dezswap/dezswap-api/configs"
+	"github.com/dezswap/dezswap-api/pkg/cache"
 	"github.com/dezswap/dezswap-api/pkg/logging"
+	"github.com/dezswap/dezswap-api/pkg/xpla"
 	"github.com/evalphobia/logrus_sentry"
 	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger" // gin-swagger middleware
-	"gorm.io/driver/postgres"
-	"gorm.io/gorm"
-	"gorm.io/gorm/logger"
 	// swagger embed files
 )
 
@@ -43,7 +42,7 @@ type app struct {
 	logger logging.Logger
 }
 
-func RunServer(c configs.Config) *app {
+func RunServer(c configs.Config, cache cache.Cache, db *gorm.DB) {
 	logger := logging.New(c.Api.Server.Name, c.Log)
 	app := app{
 		gin.Default(),
@@ -52,8 +51,8 @@ func RunServer(c configs.Config) *app {
 	}
 	serverConfig := c.Api.Server
 	gin.SetMode(serverConfig.Mode)
-	app.setMiddlewares()
-	app.initApis(c.Api)
+	app.setMiddlewares(cache)
+	app.initApis(c.Api, db)
 	if c.Sentry.DSN != "" {
 		if err := app.configureReporter(c.Sentry.DSN, serverConfig.ChainId, map[string]string{
 			"x-app":      "dezswap-api",
@@ -72,7 +71,6 @@ func RunServer(c configs.Config) *app {
 	}
 
 	app.run()
-	return &app
 }
 
 func (app *app) run() {
@@ -89,7 +87,7 @@ func (app *app) run() {
 	}
 }
 
-func (app *app) setMiddlewares() {
+func (app *app) setMiddlewares(cache cache.Cache) {
 	app.engine.Use(gin.CustomRecovery(func(c *gin.Context, err any) {
 		app.logger.Error(err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
@@ -108,32 +106,13 @@ func (app *app) setMiddlewares() {
 	}
 	conf.AllowMethods = []string{"GET", "OPTIONS"}
 	app.engine.Use(cors.New(conf))
+	if cache != nil {
+		app.engine.Use(gin_cache.CacheByRequestURI(cache, time.Second*xpla.BLOCK_SECOND))
+	}
+	app.engine.UseRawPath = true
 }
 
-func (app *app) initApis(c configs.ApiConfig) {
-	dbConfig := c.DB
-	dbDsn := fmt.Sprintf(
-		"host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
-		dbConfig.Host, dbConfig.Port, dbConfig.Username, dbConfig.Password, dbConfig.Database,
-	)
-	writer := io.MultiWriter(os.Stdout)
-	db, err := gorm.Open(postgres.Open(dbDsn), &gorm.Config{
-		NowFunc: func() time.Time {
-			return time.Now().UTC()
-		},
-		Logger: logger.New(
-			log.New(writer, "\r\n", log.LstdFlags),
-			logger.Config{
-				IgnoreRecordNotFoundError: true,
-				SlowThreshold:             time.Second,
-				Colorful:                  false,
-				LogLevel:                  logger.Warn,
-			},
-		),
-	})
-	if err != nil {
-		panic(err)
-	}
+func (app *app) initApis(c configs.ApiConfig, db *gorm.DB) {
 	chainId := c.Server.ChainId
 	if chainId == "" {
 		panic("chainId is empty")
@@ -144,8 +123,6 @@ func (app *app) initApis(c configs.ApiConfig) {
 	statService := service.NewStatService(chainId, db)
 
 	version := c.Server.Version
-	app.engine.UseRawPath = true
-
 	router := app.engine.Group(version)
 	controller.InitPairController(pairService, router, app.logger)
 	controller.InitPoolController(poolService, router, app.logger)
