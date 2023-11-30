@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"io"
 	"log"
@@ -64,6 +65,12 @@ func cacheStore(c configs.CacheConfig) cache.Cache {
 			Password: c.RedisConfig.Password,
 			DB:       c.RedisConfig.DB,
 			Protocol: c.RedisConfig.Protocol,
+		}
+
+		if c.RedisConfig.TlsEnabled {
+			option.TLSConfig = &tls.Config{
+				ServerName: c.RedisConfig.Host,
+			}
 		}
 
 		client := redis.NewClient(&option)

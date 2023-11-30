@@ -50,3 +50,4 @@ api:
       password: appPW
       db: 0 # optional redis db index default is 0
       protocol: 3 # optional redis protocol index default is 3
+      tls_enabled: true # optional redis tls enabled default is false

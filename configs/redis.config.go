@@ -8,12 +8,13 @@ import (
 )
 
 type RedisConfig struct {
-	Host     string
-	Port     string
-	User     string
-	Password string
-	DB       int
-	Protocol int
+	Host       string
+	Port       string
+	User       string
+	Password   string
+	DB         int
+	Protocol   int
+	TlsEnabled bool
 }
 
 func (lhs *RedisConfig) Override(rhs RedisConfig) {
@@ -35,6 +36,9 @@ func (lhs *RedisConfig) Override(rhs RedisConfig) {
 	if rhs.Protocol != 0 {
 		lhs.Protocol = rhs.Protocol
 	}
+	if rhs.TlsEnabled {
+		lhs.TlsEnabled = rhs.TlsEnabled
+	}
 }
 
 func redisConfig(v *viper.Viper) RedisConfig {
@@ -49,12 +53,13 @@ func redisConfig(v *viper.Viper) RedisConfig {
 	}
 
 	return RedisConfig{
-		Host:     v.GetString("host"),
-		Port:     v.GetString("port"),
-		User:     v.GetString("user"),
-		Password: v.GetString("password"),
-		DB:       v.GetInt("db"),
-		Protocol: protocol,
+		Host:       v.GetString("host"),
+		Port:       v.GetString("port"),
+		User:       v.GetString("user"),
+		Password:   v.GetString("password"),
+		DB:         v.GetInt("db"),
+		Protocol:   protocol,
+		TlsEnabled: v.GetBool("tls_enabled"),
 	}
 }
 
@@ -69,11 +74,12 @@ func redisConfigFromEnv(v *viper.Viper, prefix string) RedisConfig {
 	}
 
 	return RedisConfig{
-		Host:     v.GetString(strings.ToUpper(fmt.Sprintf("%s_%s", prefix, "host"))),
-		Port:     v.GetString(strings.ToUpper(fmt.Sprintf("%s_%s", prefix, "port"))),
-		User:     v.GetString(strings.ToUpper(fmt.Sprintf("%s_%s", prefix, "user"))),
-		Password: v.GetString(strings.ToUpper(fmt.Sprintf("%s_%s", prefix, "password"))),
-		DB:       v.GetInt(strings.ToUpper(fmt.Sprintf("%s_%s", prefix, "db"))),
-		Protocol: protocol,
+		Host:       v.GetString(strings.ToUpper(fmt.Sprintf("%s_%s", prefix, "host"))),
+		Port:       v.GetString(strings.ToUpper(fmt.Sprintf("%s_%s", prefix, "port"))),
+		User:       v.GetString(strings.ToUpper(fmt.Sprintf("%s_%s", prefix, "user"))),
+		Password:   v.GetString(strings.ToUpper(fmt.Sprintf("%s_%s", prefix, "password"))),
+		DB:         v.GetInt(strings.ToUpper(fmt.Sprintf("%s_%s", prefix, "db"))),
+		Protocol:   protocol,
+		TlsEnabled: v.GetBool(strings.ToUpper(fmt.Sprintf("%s_%s", prefix, "tls_enabled"))),
 	}
 }
