@@ -27,6 +27,7 @@ import (
 	"github.com/dezswap/dezswap-api/configs"
 	"github.com/dezswap/dezswap-api/pkg/cache"
 	"github.com/dezswap/dezswap-api/pkg/logging"
+	"github.com/dezswap/dezswap-api/pkg/xpla"
 	"github.com/evalphobia/logrus_sentry"
 	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
@@ -106,7 +107,7 @@ func (app *app) setMiddlewares(cache cache.Cache) {
 	conf.AllowMethods = []string{"GET", "OPTIONS"}
 	app.engine.Use(cors.New(conf))
 	if cache != nil {
-		app.engine.Use(gin_cache.CacheByRequestURI(cache, time.Second*5))
+		app.engine.Use(gin_cache.CacheByRequestURI(cache, time.Second*xpla.BLOCK_SECOND))
 	}
 	app.engine.UseRawPath = true
 }

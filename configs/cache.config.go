@@ -9,39 +9,27 @@ import (
 
 type CacheConfig struct {
 	MemoryCache bool
-	RedisConfig *RedisConfig
+	RedisConfig RedisConfig
 }
 
 func (lhs *CacheConfig) Override(rhs CacheConfig) {
 	if rhs.MemoryCache {
 		lhs.MemoryCache = rhs.MemoryCache
 	}
-	if rhs.RedisConfig != nil {
-		if lhs.RedisConfig == nil {
-			lhs.RedisConfig = &RedisConfig{}
-		}
-		lhs.RedisConfig.Override(*rhs.RedisConfig)
-	}
+	lhs.RedisConfig.Override(rhs.RedisConfig)
 }
 
 func cacheConfig(v *viper.Viper) CacheConfig {
 	if v == nil {
 		return CacheConfig{
 			MemoryCache: false,
-			RedisConfig: nil,
+			RedisConfig: RedisConfig{},
 		}
-	}
-
-	var rc *RedisConfig = nil
-	sub := v.Sub("redis")
-	if sub != nil {
-		v := redisConfig(sub)
-		rc = &v
 	}
 
 	return CacheConfig{
 		MemoryCache: v.GetBool("memory_cache"),
-		RedisConfig: rc,
+		RedisConfig: redisConfig(v.Sub("redis")),
 	}
 }
 
@@ -49,13 +37,12 @@ func cacheConfigFromEnv(v *viper.Viper, prefix string) CacheConfig {
 	if v == nil {
 		return CacheConfig{
 			MemoryCache: false,
-			RedisConfig: nil,
+			RedisConfig: RedisConfig{},
 		}
 	}
 
-	rc := redisConfigFromEnv(v, fmt.Sprintf("%s_%s", prefix, "redis"))
 	return CacheConfig{
 		MemoryCache: v.GetBool(strings.ToUpper(fmt.Sprintf("%s_%s", prefix, "enable_memory_cache"))),
-		RedisConfig: &rc,
+		RedisConfig: redisConfigFromEnv(v, fmt.Sprintf("%s_%s", prefix, "redis")),
 	}
 }
