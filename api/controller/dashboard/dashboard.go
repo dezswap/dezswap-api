@@ -357,7 +357,7 @@ func (c *dashboardController) Pool(ctx *gin.Context) {
 //	@Failure		404	{object}	httputil.NotFoundError
 //	@Failure		500	{object}	httputil.InternalServerError
 //	@Param			address		path	string	true	"token address"
-//	@Router			/dashboard/token/{address} [get]
+//	@Router			/dashboard/tokens/{address} [get]
 func (c *dashboardController) Token(ctx *gin.Context) {
 	address := ctx.Param("address")
 	if address == "" {
