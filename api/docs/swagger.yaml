@@ -713,7 +713,33 @@ paths:
       summary: Dezswap's statistics
       tags:
       - dashboard
-  /dashboard/token/{address}:
+  /dashboard/tokens:
+    get:
+      consumes:
+      - application/json
+      description: get Tokens data of dezswap (address, price, priceChange, volume,
+        tvl)
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/dashboard.TokenRes'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httputil.BadRequestError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httputil.InternalServerError'
+      summary: Dezswap's Tokens
+      tags:
+      - dashboard
+  /dashboard/tokens/{address}:
     get:
       consumes:
       - application/json
@@ -745,32 +771,6 @@ paths:
           schema:
             $ref: '#/definitions/httputil.InternalServerError'
       summary: Dezswap's Token Stats
-      tags:
-      - dashboard
-  /dashboard/tokens:
-    get:
-      consumes:
-      - application/json
-      description: get Tokens data of dezswap (address, price, priceChange, volume,
-        tvl)
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            items:
-              $ref: '#/definitions/dashboard.TokenRes'
-            type: array
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/httputil.BadRequestError'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/httputil.InternalServerError'
-      summary: Dezswap's Tokens
       tags:
       - dashboard
   /dashboard/txs:
