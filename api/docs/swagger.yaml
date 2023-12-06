@@ -223,6 +223,8 @@ definitions:
         type: string
       action:
         type: string
+      actionDisplay:
+        type: string
       address:
         type: string
       asset0:
@@ -786,6 +788,15 @@ paths:
       - description: Token address
         in: query
         name: token
+        type: string
+      - default: all
+        description: Transaction type, default(all)
+        enum:
+        - swap
+        - add
+        - remove
+        in: query
+        name: type
         type: string
       produces:
       - application/json

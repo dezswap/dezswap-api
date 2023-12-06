@@ -415,11 +415,13 @@ func (c *dashboardController) Tokens(ctx *gin.Context) {
 //	@Failure		500	{object}	httputil.InternalServerError
 //	@Param			pool		query	string	false	"Pool address"
 //	@Param			token		query	string	false	"Token address"
+//	@Param			type		query	string	false	"Transaction type, default(all)"  Enums(swap, add, remove)
 //	@Router			/dashboard/txs [get]
 func (c *dashboardController) Txs(ctx *gin.Context) {
 
 	pool := dashboardService.Addr(ctx.Query("pool"))
 	token := dashboardService.Addr(ctx.Query("token"))
+	txType := c.txTypeToServiceTxType(TxType(ctx.Query("type")))
 
 	if len(pool) > 0 && len(token) > 0 {
 		httputil.NewError(ctx, http.StatusBadRequest, errors.New("invalid query, must choose one of (pool or token, not both)"))
@@ -429,11 +431,11 @@ func (c *dashboardController) Txs(ctx *gin.Context) {
 	var txs dashboardService.Txs
 	var err error
 	if len(token) > 0 {
-		txs, err = c.Dashboard.TxsOfToken(token)
+		txs, err = c.Dashboard.TxsOfToken(txType, token)
 	} else if len(pool) > 0 {
-		txs, err = c.Dashboard.Txs(pool)
+		txs, err = c.Dashboard.Txs(txType, pool)
 	} else {
-		txs, err = c.Dashboard.Txs()
+		txs, err = c.Dashboard.Txs(txType)
 	}
 	if err != nil {
 		c.logger.Warn(err)

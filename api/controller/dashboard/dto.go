@@ -5,6 +5,15 @@ import (
 	"time"
 )
 
+type TxType string
+
+const (
+	TX_TYPE_SWAP   TxType = "swap"
+	TX_TYPE_ADD    TxType = "add"
+	TX_TYPE_REMOVE TxType = "remove"
+	TX_TYPE_ALL    TxType = ""
+)
+
 type RecentRes struct {
 	Volume           string  `json:"volume"`
 	VolumeChangeRate float32 `json:"volumeChangeRate"`
@@ -53,7 +62,9 @@ type TokenRes struct {
 
 type TxsRes []TxRes
 type TxRes struct {
-	Action       string    `json:"action"`
+	Action        string `json:"action"`
+	ActionDisplay string `json:"actionDisplay"`
+
 	Address      string    `json:"address"`
 	Hash         string    `json:"hash"`
 	TotalValue   string    `json:"totalValue"`

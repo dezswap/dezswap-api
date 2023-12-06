@@ -6,13 +6,13 @@ import (
 	"strings"
 	"time"
 
-	dashboardService "github.com/dezswap/dezswap-api/api/service/dashboard"
+	ds "github.com/dezswap/dezswap-api/api/service/dashboard"
 	"github.com/pkg/errors"
 )
 
 type mapper struct{}
 
-func (m *mapper) tokenToRes(token dashboardService.Token) TokenRes {
+func (m *mapper) tokenToRes(token ds.Token) TokenRes {
 	return TokenRes{
 		Address:         string(token.Addr),
 		Price:           token.Price,
@@ -27,7 +27,7 @@ func (m *mapper) tokenToRes(token dashboardService.Token) TokenRes {
 	}
 }
 
-func (m *mapper) tokensToRes(tokens dashboardService.Tokens) TokensRes {
+func (m *mapper) tokensToRes(tokens ds.Tokens) TokensRes {
 	res := make(TokensRes, len(tokens))
 	for i, t := range tokens {
 		res[i] = m.tokenToRes(t)
@@ -36,7 +36,7 @@ func (m *mapper) tokensToRes(tokens dashboardService.Tokens) TokensRes {
 	return res
 }
 
-func (m *mapper) recentToRes(recent dashboardService.Recent) RecentRes {
+func (m *mapper) recentToRes(recent ds.Recent) RecentRes {
 	return RecentRes{
 		Volume:           recent.Volume,
 		VolumeChangeRate: recent.VolumeChangeRate,
@@ -47,7 +47,7 @@ func (m *mapper) recentToRes(recent dashboardService.Recent) RecentRes {
 	}
 }
 
-func (m *mapper) statisticToRes(statistic dashboardService.Statistic) StatisticRes {
+func (m *mapper) statisticToRes(statistic ds.Statistic) StatisticRes {
 	res := make(StatisticRes, len(statistic))
 	for i, s := range statistic {
 		res[i] = StatisticResItem{
@@ -60,14 +60,14 @@ func (m *mapper) statisticToRes(statistic dashboardService.Statistic) StatisticR
 	return res
 }
 
-func (m *mapper) txsToRes(txs dashboardService.Txs) TxsRes {
+func (m *mapper) txsToRes(txs ds.Txs) TxsRes {
 	actionConverter := func(action string) string {
 		switch action {
-		case "swap":
+		case string(ds.TX_TYPE_SWAP):
 			return "Swap"
-		case "provide":
+		case string(ds.TX_TYPE_PROVIDE):
 			return "Add"
-		case "withdraw":
+		case string(ds.TX_TYPE_WITHDRAW):
 			return "Remove"
 		default:
 			str := strings.ReplaceAll(action, "_", " ")
@@ -78,22 +78,23 @@ func (m *mapper) txsToRes(txs dashboardService.Txs) TxsRes {
 	res := make(TxsRes, len(txs))
 	for i, tx := range txs {
 		res[i] = TxRes{
-			Action:       fmt.Sprintf("%s %s and %s", actionConverter(tx.Action), tx.Asset0Symbol, tx.Asset1Symbol),
-			Hash:         tx.Hash,
-			Address:      tx.Address,
-			Asset0:       tx.Asset0,
-			Asset0Amount: tx.Asset0Amount,
-			Asset1:       tx.Asset1,
-			Asset1Amount: tx.Asset1Amount,
-			TotalValue:   tx.TotalValue,
-			Account:      tx.Sender,
-			Timestamp:    tx.Timestamp,
+			Action:        m.serviceTxTypeToTxTypeString(tx.Action),
+			ActionDisplay: fmt.Sprintf("%s %s and %s", actionConverter(tx.Action), tx.Asset0Symbol, tx.Asset1Symbol),
+			Hash:          tx.Hash,
+			Address:       tx.Address,
+			Asset0:        tx.Asset0,
+			Asset0Amount:  tx.Asset0Amount,
+			Asset1:        tx.Asset1,
+			Asset1Amount:  tx.Asset1Amount,
+			TotalValue:    tx.TotalValue,
+			Account:       tx.Sender,
+			Timestamp:     tx.Timestamp,
 		}
 	}
 	return res
 }
 
-func (m *mapper) poolsToRes(pools dashboardService.Pools) PoolsRes {
+func (m *mapper) poolsToRes(pools ds.Pools) PoolsRes {
 	res := make(PoolsRes, len(pools))
 
 	for i, p := range pools {
@@ -109,7 +110,7 @@ func (m *mapper) poolsToRes(pools dashboardService.Pools) PoolsRes {
 	return res
 }
 
-func (m *mapper) poolDetailToRes(pool dashboardService.PoolDetail) PoolDetailRes {
+func (m *mapper) poolDetailToRes(pool ds.PoolDetail) PoolDetailRes {
 	res := PoolDetailRes{}
 
 	res.Recent = m.recentToRes(pool.Recent)
@@ -118,7 +119,7 @@ func (m *mapper) poolDetailToRes(pool dashboardService.PoolDetail) PoolDetailRes
 	return res
 }
 
-func (m *mapper) volumesToChartRes(volumes dashboardService.Volumes) ChartRes {
+func (m *mapper) volumesToChartRes(volumes ds.Volumes) ChartRes {
 	res := make(ChartRes, len(volumes))
 
 	for i, v := range volumes {
@@ -130,7 +131,7 @@ func (m *mapper) volumesToChartRes(volumes dashboardService.Volumes) ChartRes {
 	return res
 }
 
-func (m *mapper) tvlsToChartRes(tvls dashboardService.Tvls) ChartRes {
+func (m *mapper) tvlsToChartRes(tvls ds.Tvls) ChartRes {
 	res := make(ChartRes, len(tvls))
 
 	for i, v := range tvls {
@@ -142,7 +143,7 @@ func (m *mapper) tvlsToChartRes(tvls dashboardService.Tvls) ChartRes {
 	return res
 }
 
-func (m *mapper) aprsToChartRes(aprs dashboardService.Aprs) ChartRes {
+func (m *mapper) aprsToChartRes(aprs ds.Aprs) ChartRes {
 	res := make(ChartRes, len(aprs))
 
 	for i, v := range aprs {
@@ -154,7 +155,7 @@ func (m *mapper) aprsToChartRes(aprs dashboardService.Aprs) ChartRes {
 	return res
 }
 
-func (m *mapper) feesToChartRes(aprs dashboardService.Fees) ChartRes {
+func (m *mapper) feesToChartRes(aprs ds.Fees) ChartRes {
 	res := make(ChartRes, len(aprs))
 
 	for i, v := range aprs {
@@ -166,7 +167,7 @@ func (m *mapper) feesToChartRes(aprs dashboardService.Fees) ChartRes {
 	return res
 }
 
-func (m *mapper) tokenChartToChartRes(chart dashboardService.TokenChart) (ChartRes, error) {
+func (m *mapper) tokenChartToChartRes(chart ds.TokenChart) (ChartRes, error) {
 	res := make(ChartRes, len(chart))
 
 	for i, v := range chart {
@@ -179,4 +180,30 @@ func (m *mapper) tokenChartToChartRes(chart dashboardService.TokenChart) (ChartR
 	}
 
 	return res, nil
+}
+
+func (m *mapper) txTypeToServiceTxType(ty TxType) ds.TxType {
+	switch ty {
+	case TX_TYPE_SWAP:
+		return ds.TX_TYPE_SWAP
+	case TX_TYPE_ADD:
+		return ds.TX_TYPE_PROVIDE
+	case TX_TYPE_REMOVE:
+		return ds.TX_TYPE_WITHDRAW
+	}
+	return ds.TX_TYPE_ALL
+}
+
+func (m *mapper) serviceTxTypeToTxTypeString(ty string) string {
+	switch ds.TxType(ty) {
+	case ds.TX_TYPE_SWAP:
+		return string(TX_TYPE_SWAP)
+	case ds.TX_TYPE_PROVIDE:
+		return string(TX_TYPE_ADD)
+	case ds.TX_TYPE_WITHDRAW:
+		return string(TX_TYPE_REMOVE)
+	}
+
+	// return the tx type as is
+	return ty
 }
