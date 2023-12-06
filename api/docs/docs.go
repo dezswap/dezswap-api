@@ -747,8 +747,7 @@ const docTemplate = `{
                             "remove"
                         ],
                         "type": "string",
-                        "default": "all",
-                        "description": "Transaction type, default(all)",
+                        "description": "Transaction type, empty value is for all types",
                         "name": "type",
                         "in": "query"
                     }

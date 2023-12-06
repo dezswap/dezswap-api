@@ -789,8 +789,7 @@ paths:
         in: query
         name: token
         type: string
-      - default: all
-        description: Transaction type, default(all)
+      - description: Transaction type, empty value is for all types
         enum:
         - swap
         - add

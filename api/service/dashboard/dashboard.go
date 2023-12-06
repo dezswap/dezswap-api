@@ -298,7 +298,7 @@ func (d *dashboard) PoolDetail(addr Addr) (PoolDetail, error) {
 	if err != nil {
 		return detail, errors.Wrap(err, "dashboard.PoolDetail")
 	}
-	detail.Txs, err = d.Txs(addr)
+	detail.Txs, err = d.Txs(TX_TYPE_ALL, addr)
 	if err != nil {
 		return detail, errors.Wrap(err, "dashboard.PoolDetail")
 	}
@@ -1035,9 +1035,12 @@ func (d *dashboard) TvlsOf(addr Addr, duration Duration) ([]Tvl, error) {
 }
 
 // Txs implements Dashboard.
-func (d *dashboard) Txs(addr ...Addr) (Txs, error) {
+func (d *dashboard) Txs(txType TxType, addr ...Addr) (Txs, error) {
 	m := parser.ParsedTx{}
 	subQuery := d.DB.Model(&m).Select("*").Where("chain_id = ?", d.chainId).Order("timestamp DESC").Limit(100)
+	if txType != TX_TYPE_ALL {
+		subQuery = subQuery.Where("type = ?", string(txType))
+	}
 	if len(addr) > 0 {
 		subQuery = subQuery.Where("contract = ?", string(addr[0]))
 	}
@@ -1070,9 +1073,13 @@ func (d *dashboard) Txs(addr ...Addr) (Txs, error) {
 }
 
 // TxsOfToken implements Dashboard.
-func (d *dashboard) TxsOfToken(addr Addr) (Txs, error) {
+func (d *dashboard) TxsOfToken(txType TxType, addr Addr) (Txs, error) {
 	m := parser.ParsedTx{}
 	subQuery := d.DB.Model(&m).Select("*").Where("chain_id = ?", d.chainId).Order("timestamp DESC").Limit(100)
+
+	if txType != TX_TYPE_ALL {
+		subQuery = subQuery.Where("type = ?", string(txType))
+	}
 	if len(addr) > 0 {
 		subQuery = subQuery.Where("asset0 = ? OR asset1 = ?", string(addr), string(addr))
 	}

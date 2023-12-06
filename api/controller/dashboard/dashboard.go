@@ -415,7 +415,7 @@ func (c *dashboardController) Tokens(ctx *gin.Context) {
 //	@Failure		500	{object}	httputil.InternalServerError
 //	@Param			pool		query	string	false	"Pool address"
 //	@Param			token		query	string	false	"Token address"
-//	@Param			type		query	string	false	"Transaction type, default(all)"  Enums(swap, add, remove)
+//	@Param			type		query	string	false	"Transaction type, empty value is for all types"  Enums(swap, add, remove)
 //	@Router			/dashboard/txs [get]
 func (c *dashboardController) Txs(ctx *gin.Context) {
 
