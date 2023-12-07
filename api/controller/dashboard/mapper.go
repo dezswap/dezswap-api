@@ -73,19 +73,31 @@ func (m *mapper) txsToRes(txs ds.Txs) TxsRes {
 			str := strings.ReplaceAll(action, "_", " ")
 			return fmt.Sprintf("%s%s", strings.ToUpper(str[0:1]), str[1:])
 		}
-
 	}
+
+	actionDisplayConverter := func(tx ds.Tx) string {
+		switch tx.Action {
+		case string(ds.TX_TYPE_SWAP):
+			if strings.Contains(tx.Asset0Amount, "-") {
+				return fmt.Sprintf("%s %s for %s", actionConverter(tx.Action), tx.Asset0Symbol, tx.Asset1Symbol)
+			}
+			return fmt.Sprintf("%s %s for %s", actionConverter(tx.Action), tx.Asset1Symbol, tx.Asset0Symbol)
+		default:
+			return fmt.Sprintf("%s %s and %s", actionConverter(tx.Action), tx.Asset0Symbol, tx.Asset1Symbol)
+		}
+	}
+
 	res := make(TxsRes, len(txs))
 	for i, tx := range txs {
 		res[i] = TxRes{
 			Action:        m.serviceTxTypeToTxTypeString(tx.Action),
-			ActionDisplay: fmt.Sprintf("%s %s and %s", actionConverter(tx.Action), tx.Asset0Symbol, tx.Asset1Symbol),
+			ActionDisplay: actionDisplayConverter(tx),
 			Hash:          tx.Hash,
 			Address:       tx.Address,
 			Asset0:        tx.Asset0,
-			Asset0Amount:  tx.Asset0Amount,
+			Asset0Amount:  strings.ReplaceAll(tx.Asset0Amount, "-", ""),
 			Asset1:        tx.Asset1,
-			Asset1Amount:  tx.Asset1Amount,
+			Asset1Amount:  strings.ReplaceAll(tx.Asset1Amount, "-", ""),
 			TotalValue:    tx.TotalValue,
 			Account:       tx.Sender,
 			Timestamp:     tx.Timestamp,
