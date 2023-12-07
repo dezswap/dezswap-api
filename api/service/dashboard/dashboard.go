@@ -875,7 +875,6 @@ from (select p.height,
           join parsed_tx pt on p.chain_id = pt.chain_id and p.tx_id = pt.id
       where pt.chain_id = ?
         and (pt.asset0 = ? or pt.asset1 = ?)) t
-order by timestamp asc
 `
 	switch itv {
 	case Month:
@@ -892,7 +891,6 @@ from (select p.height,
       where pt.chain_id = ?
         and (pt.asset0 = ? or pt.asset1 = ?)
         and pt.timestamp >= extract(epoch from date_trunc('day', now()) - interval '1 month')) t
-order by timestamp asc
 `
 	case Quarter:
 		query = `
@@ -907,7 +905,6 @@ from (select p.height,
       where pt.chain_id = ?
         and (pt.asset0 = ? or pt.asset1 = ?)
         and pt.timestamp >= extract(epoch from date_trunc('day', now()) - interval '3 month')) t
-order by timestamp asc
 `
 	case Year:
 		query = `
@@ -922,11 +919,23 @@ from (select p.height,
       where pt.chain_id = ?
         and (pt.asset0 = ? or pt.asset1 = ?)
         and pt.timestamp >= extract(epoch from date_trunc('day', now()) - interval '1 year')) t
-order by timestamp asc
 `
 	}
+
+	whereClause := `
+ where not exists (
+    select address
+    from tokens t join (
+        select distinct price_token_id from price where chain_id = ?) p on t.id = p.price_token_id
+    where address = ?
+    )
+`
+	orderByClause := `
+ order by timestamp asc
+`
+
 	var chart TokenChart
-	if tx := d.Raw(query, d.chainId, addr, addr).Find(&chart); tx.Error != nil {
+	if tx := d.Raw(query+whereClause+orderByClause, d.chainId, addr, addr, d.chainId, addr).Find(&chart); tx.Error != nil {
 		return TokenChart{}, errors.Wrap(tx.Error, "dashboard.TokenPrices")
 	}
 
