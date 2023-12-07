@@ -74,30 +74,48 @@ func (m *mapper) txsToRes(txs ds.Txs) TxsRes {
 			return fmt.Sprintf("%s%s", strings.ToUpper(str[0:1]), str[1:])
 		}
 	}
+	type asset struct {
+		Asset  string
+		Amount string
+		Symbol string
+	}
+	type assets [2]asset
 
-	actionDisplayConverter := func(tx ds.Tx) string {
-		switch tx.Action {
-		case string(ds.TX_TYPE_SWAP):
-			if strings.Contains(tx.Asset0Amount, "-") {
-				return fmt.Sprintf("%s %s for %s", actionConverter(tx.Action), tx.Asset0Symbol, tx.Asset1Symbol)
-			}
-			return fmt.Sprintf("%s %s for %s", actionConverter(tx.Action), tx.Asset1Symbol, tx.Asset0Symbol)
+	actionDisplayConverter := func(action ds.TxType, orderedAssets [2]asset) string {
+		switch action {
+		case ds.TX_TYPE_SWAP:
+			return fmt.Sprintf("%s %s for %s", actionConverter(string(action)), orderedAssets[0].Symbol, orderedAssets[1].Symbol)
 		default:
-			return fmt.Sprintf("%s %s and %s", actionConverter(tx.Action), tx.Asset0Symbol, tx.Asset1Symbol)
+			return fmt.Sprintf("%s %s and %s", actionConverter(string(action)), orderedAssets[0].Symbol, orderedAssets[1].Symbol)
 		}
+	}
+
+	orderAssets := func(action ds.TxType, unorderedAssets assets) assets {
+		switch action {
+		case ds.TX_TYPE_SWAP:
+			if strings.Contains(unorderedAssets[0].Amount, "-") {
+				return [2]asset{unorderedAssets[1], unorderedAssets[0]}
+			}
+		}
+		return unorderedAssets
 	}
 
 	res := make(TxsRes, len(txs))
 	for i, tx := range txs {
+		assts := assets{
+			{Asset: tx.Asset0, Amount: tx.Asset0Amount, Symbol: tx.Asset0Symbol},
+			{Asset: tx.Asset1, Amount: tx.Asset1Amount, Symbol: tx.Asset1Symbol},
+		}
+		assts = orderAssets(ds.TxType(tx.Action), assts)
 		res[i] = TxRes{
 			Action:        m.serviceTxTypeToTxTypeString(tx.Action),
-			ActionDisplay: actionDisplayConverter(tx),
+			ActionDisplay: actionDisplayConverter(ds.TxType(tx.Action), assts),
 			Hash:          tx.Hash,
 			Address:       tx.Address,
-			Asset0:        tx.Asset0,
-			Asset0Amount:  strings.ReplaceAll(tx.Asset0Amount, "-", ""),
-			Asset1:        tx.Asset1,
-			Asset1Amount:  strings.ReplaceAll(tx.Asset1Amount, "-", ""),
+			Asset0:        assts[0].Asset,
+			Asset0Amount:  strings.ReplaceAll(assts[0].Amount, "-", ""),
+			Asset1:        assts[1].Asset,
+			Asset1Amount:  strings.ReplaceAll(assts[1].Amount, "-", ""),
 			TotalValue:    tx.TotalValue,
 			Account:       tx.Sender,
 			Timestamp:     tx.Timestamp,
