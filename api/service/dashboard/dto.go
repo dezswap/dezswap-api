@@ -99,9 +99,7 @@ const (
 
 type Txs []Tx
 type Tx struct {
-	Action        string
-	ActionDisplay string
-
+	Action       string
 	Hash         string
 	Sender       string
 	Address      string
