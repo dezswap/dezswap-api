@@ -88,6 +88,15 @@ type TokenValue struct {
 
 type TokenChart []TokenValue
 
+type TxType string
+
+const (
+	TX_TYPE_SWAP     TxType = "swap"
+	TX_TYPE_PROVIDE  TxType = "provide"
+	TX_TYPE_WITHDRAW TxType = "withdraw"
+	TX_TYPE_ALL      TxType = ""
+)
+
 type Txs []Tx
 type Tx struct {
 	Action       string

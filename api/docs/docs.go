@@ -739,6 +739,17 @@ const docTemplate = `{
                         "description": "Token address",
                         "name": "token",
                         "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "swap",
+                            "add",
+                            "remove"
+                        ],
+                        "type": "string",
+                        "description": "Transaction type, empty value is for all types",
+                        "name": "type",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -1507,6 +1518,9 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "action": {
+                    "type": "string"
+                },
+                "actionDisplay": {
                     "type": "string"
                 },
                 "address": {
