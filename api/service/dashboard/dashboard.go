@@ -598,11 +598,11 @@ with s as (
            w_lp as (partition by pair_id))
 select address,
        coalesce(sum(volume_24h),0) as volume,
-       coalesce((sum(volume_24h)-sum(volume_24h_before))/sum(volume_24h),0) as volume_change,
+       coalesce((sum(volume_24h)-sum(volume_24h_before))/greatest(sum(volume_24h_before),1),0) as volume_change,
        coalesce(sum(volume_7d)+sum(volume_24h),0) as volume_week,
-       coalesce((sum(volume_7d)+sum(volume_24h)-sum(volume_7d_before))/(sum(volume_7d)+sum(volume_24h)),0) as volume_week_change,
+       coalesce((sum(volume_7d)+sum(volume_24h)-sum(volume_7d_before))/greatest(sum(volume_7d_before),1),0) as volume_week_change,
        coalesce(sum(tvl),0) as tvl,
-       coalesce((sum(tvl)-sum(tvl_24h_before))/sum(tvl),0) as tvl_change,
+       coalesce((sum(tvl)-sum(tvl_24h_before))/greatest(sum(tvl_24h_before),1),0) as tvl_change,
        coalesce(sum(commission),0) as commission
 from (
     select t.address,
