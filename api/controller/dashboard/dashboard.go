@@ -106,11 +106,11 @@ func (c *dashboardController) ChartByToken(ctx *gin.Context) {
 	var chart dashboardService.TokenChart
 	switch chartType {
 	case ChartTypeVolume:
-		chart, err = c.Dashboard.TokenVolumes(addr, dashboardService.Duration(duration))
+		chart, err = c.Dashboard.TokenVolumes(addr, duration)
 	case ChartTypeTvl:
-		chart, err = c.Dashboard.TokenTvls(addr, dashboardService.Duration(duration))
+		chart, err = c.Dashboard.TokenTvls(addr, duration)
 	case ChartTypePrice:
-		chart, err = c.Dashboard.TokenPrices(addr, dashboardService.Duration(duration))
+		chart, err = c.Dashboard.TokenPrices(addr, duration)
 	default:
 		httputil.NewError(ctx, http.StatusBadRequest, errors.New("unsupported chart type"))
 		return

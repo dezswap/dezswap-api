@@ -527,7 +527,10 @@ from tokens t
             join (
                 select max(id) id
                 from price
-                group by token_id) t on p.id = t.id) p on t.id = p.token_id
+                group by token_id) t on p.id = t.id
+        union
+        select distinct price_token_id, 1
+        from price) p on t.id = p.token_id
     left join (
         select token_id, price
         from price p
@@ -536,7 +539,10 @@ from tokens t
                 from price
                 where height <= (select coalesce(max(height), 0) from parsed_tx
                   where chain_id = ? and timestamp <= extract(epoch from now() - interval '1 day'))
-                group by token_id) t on p.id = t.id) p24h on t.id = p24h.token_id
+                group by token_id) t on p.id = t.id
+        union
+        select distinct price_token_id, 1
+        from price) p24h on t.id = p24h.token_id
 where t.chain_id = ?
 `
 	var tokens []Token
@@ -592,11 +598,11 @@ with s as (
            w_lp as (partition by pair_id))
 select address,
        coalesce(sum(volume_24h),0) as volume,
-       coalesce((sum(volume_24h)-sum(volume_24h_before))/sum(volume_24h),0) as volume_change,
+       coalesce((sum(volume_24h)-sum(volume_24h_before))/greatest(sum(volume_24h_before),1),0) as volume_change,
        coalesce(sum(volume_7d)+sum(volume_24h),0) as volume_week,
-       coalesce((sum(volume_7d)+sum(volume_24h)-sum(volume_7d_before))/(sum(volume_7d)+sum(volume_24h)),0) as volume_week_change,
+       coalesce((sum(volume_7d)+sum(volume_24h)-sum(volume_7d_before))/greatest(sum(volume_7d_before),1),0) as volume_week_change,
        coalesce(sum(tvl),0) as tvl,
-       coalesce((sum(tvl)-sum(tvl_24h_before))/sum(tvl),0) as tvl_change,
+       coalesce((sum(tvl)-sum(tvl_24h_before))/greatest(sum(tvl_24h_before),1),0) as tvl_change,
        coalesce(sum(commission),0) as commission
 from (
     select t.address,
@@ -869,7 +875,6 @@ from (select p.height,
           join parsed_tx pt on p.chain_id = pt.chain_id and p.tx_id = pt.id
       where pt.chain_id = ?
         and (pt.asset0 = ? or pt.asset1 = ?)) t
-order by timestamp asc
 `
 	switch itv {
 	case Month:
@@ -886,7 +891,6 @@ from (select p.height,
       where pt.chain_id = ?
         and (pt.asset0 = ? or pt.asset1 = ?)
         and pt.timestamp >= extract(epoch from date_trunc('day', now()) - interval '1 month')) t
-order by timestamp asc
 `
 	case Quarter:
 		query = `
@@ -901,7 +905,6 @@ from (select p.height,
       where pt.chain_id = ?
         and (pt.asset0 = ? or pt.asset1 = ?)
         and pt.timestamp >= extract(epoch from date_trunc('day', now()) - interval '3 month')) t
-order by timestamp asc
 `
 	case Year:
 		query = `
@@ -916,11 +919,23 @@ from (select p.height,
       where pt.chain_id = ?
         and (pt.asset0 = ? or pt.asset1 = ?)
         and pt.timestamp >= extract(epoch from date_trunc('day', now()) - interval '1 year')) t
-order by timestamp asc
 `
 	}
+
+	whereClause := `
+ where not exists (
+    select address
+    from tokens t join (
+        select distinct price_token_id from price where chain_id = ?) p on t.id = p.price_token_id
+    where address = ?
+    )
+`
+	orderByClause := `
+ order by timestamp asc
+`
+
 	var chart TokenChart
-	if tx := d.Raw(query, d.chainId, addr, addr).Find(&chart); tx.Error != nil {
+	if tx := d.Raw(query+whereClause+orderByClause, d.chainId, addr, addr, d.chainId, addr).Find(&chart); tx.Error != nil {
 		return TokenChart{}, errors.Wrap(tx.Error, "dashboard.TokenPrices")
 	}
 
