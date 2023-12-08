@@ -62,18 +62,11 @@ func (m *mapper) statisticToRes(statistic ds.Statistic) StatisticRes {
 
 func (m *mapper) txsToRes(txs ds.Txs) TxsRes {
 	actionConverter := func(action string) string {
-		switch action {
-		case string(ds.TX_TYPE_SWAP):
-			return "Swap"
-		case string(ds.TX_TYPE_PROVIDE):
-			return "Add"
-		case string(ds.TX_TYPE_WITHDRAW):
-			return "Remove"
-		default:
-			str := strings.ReplaceAll(action, "_", " ")
-			return fmt.Sprintf("%s%s", strings.ToUpper(str[0:1]), str[1:])
-		}
+		actionStr := m.serviceTxTypeToTxTypeString(action)
+		actionStr = strings.ReplaceAll(actionStr, "_", " ")
+		return fmt.Sprintf("%s%s", strings.ToUpper(actionStr[0:1]), actionStr[1:])
 	}
+
 	type asset struct {
 		Asset  string
 		Amount string
@@ -102,20 +95,20 @@ func (m *mapper) txsToRes(txs ds.Txs) TxsRes {
 
 	res := make(TxsRes, len(txs))
 	for i, tx := range txs {
-		assts := assets{
+		targetAssets := assets{
 			{Asset: tx.Asset0, Amount: tx.Asset0Amount, Symbol: tx.Asset0Symbol},
 			{Asset: tx.Asset1, Amount: tx.Asset1Amount, Symbol: tx.Asset1Symbol},
 		}
-		assts = orderAssets(ds.TxType(tx.Action), assts)
+		targetAssets = orderAssets(ds.TxType(tx.Action), targetAssets)
 		res[i] = TxRes{
 			Action:        m.serviceTxTypeToTxTypeString(tx.Action),
-			ActionDisplay: actionDisplayConverter(ds.TxType(tx.Action), assts),
+			ActionDisplay: actionDisplayConverter(ds.TxType(tx.Action), targetAssets),
 			Hash:          tx.Hash,
 			Address:       tx.Address,
-			Asset0:        assts[0].Asset,
-			Asset0Amount:  strings.ReplaceAll(assts[0].Amount, "-", ""),
-			Asset1:        assts[1].Asset,
-			Asset1Amount:  strings.ReplaceAll(assts[1].Amount, "-", ""),
+			Asset0:        targetAssets[0].Asset,
+			Asset0Amount:  strings.ReplaceAll(targetAssets[0].Amount, "-", ""),
+			Asset1:        targetAssets[1].Asset,
+			Asset1Amount:  strings.ReplaceAll(targetAssets[1].Amount, "-", ""),
 			TotalValue:    tx.TotalValue,
 			Account:       tx.Sender,
 			Timestamp:     tx.Timestamp,
