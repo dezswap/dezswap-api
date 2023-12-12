@@ -1074,15 +1074,15 @@ func (d *dashboard) Txs(txType TxType, addr ...Addr) (Txs, error) {
 		COALESCE(
 			ABS(CASE WHEN pt.type = 'swap' OR pt.type = 'transfer' THEN
 					CASE WHEN pr0.price IS NOT NULL
-						THEN CAST(pr0.price * pt.asset0_amount / POWER(10, t0.decimals - t1.decimals) AS int8)
-						ELSE CAST(pr1.price * pt.asset1_amount / POWER(10, t1.decimals - t0.decimals) AS int8)
+						THEN pr0.price * pt.asset0_amount / POWER(10, t0.decimals - t1.decimals)
+						ELSE pr1.price * pt.asset1_amount / POWER(10, t1.decimals - t0.decimals)
 					END
 				ELSE
 					CASE WHEN pr0.price IS NOT NULL
-						THEN CAST(pr0.price * pt.asset0_amount * 2 / POWER(10, t0.decimals - t1.decimals) AS int8)
-						ELSE CAST(pr1.price * pt.asset1_amount * 2 / POWER(10, t1.decimals - t0.decimals) AS int8)
+						THEN pr0.price * pt.asset0_amount * 2 / POWER(10, t0.decimals - t1.decimals)
+						ELSE pr1.price * pt.asset1_amount * 2 / POWER(10, t1.decimals - t0.decimals)
 					END
-			END), 0) AS total_value,
+			END), 0)::text AS total_value,
 		TO_TIMESTAMP(pt."timestamp") AT TIME ZONE 'UTC' as timestamp`,
 	).Table("(?) as pt", subQuery).Joins(`
 		JOIN tokens AS t0 ON pt.asset0 = t0.address AND pt.chain_id = t0.chain_id
@@ -1125,15 +1125,15 @@ func (d *dashboard) TxsOfToken(txType TxType, addr Addr) (Txs, error) {
 		COALESCE(
 			ABS(CASE WHEN pt.type = 'swap' OR pt.type = 'transfer' THEN
 					CASE WHEN pr0.price IS NOT NULL
-						THEN CAST(pr0.price * pt.asset0_amount / POWER(10, t0.decimals - t1.decimals) AS int8)
-						ELSE CAST(pr1.price * pt.asset1_amount / POWER(10, t1.decimals - t0.decimals) AS int8)
+						THEN pr0.price * pt.asset0_amount / POWER(10, t0.decimals - t1.decimals)
+						ELSE pr1.price * pt.asset1_amount / POWER(10, t1.decimals - t0.decimals)
 					END
 				ELSE
 					CASE WHEN pr0.price IS NOT NULL
-						THEN CAST(pr0.price * pt.asset0_amount * 2 / POWER(10, t0.decimals - t1.decimals) AS int8)
-						ELSE CAST(pr1.price * pt.asset1_amount * 2 / POWER(10, t1.decimals - t0.decimals) AS int8)
+						THEN pr0.price * pt.asset0_amount * 2 / POWER(10, t0.decimals - t1.decimals)
+						ELSE pr1.price * pt.asset1_amount * 2 / POWER(10, t1.decimals - t0.decimals)
 					END
-			END), 0) AS total_value,
+			END), 0)::text AS total_value,
 		TO_TIMESTAMP(pt."timestamp") AT TIME ZONE 'UTC' as timestamp`,
 	).Table("(?) as pt", subQuery).Joins(`
 		JOIN tokens AS t0 ON pt.asset0 = t0.address AND pt.chain_id = t0.chain_id
