@@ -1002,6 +1002,64 @@ const docTemplate = `{
                 }
             }
         },
+        "/routes": {
+            "get": {
+                "description": "get routes based on the given token address",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "router"
+                ],
+                "summary": "All Routes",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Offer token address",
+                        "name": "from",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Ask token Address",
+                        "name": "to",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Number of hops between the starting token and the ending token",
+                        "name": "hopCount",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/router.RouteRes"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.BadRequestError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.InternalServerError"
+                        }
+                    }
+                }
+            }
+        },
         "/stats": {
             "get": {
                 "description": "get pair stats",
@@ -1639,6 +1697,26 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "title": {
+                    "type": "string"
+                }
+            }
+        },
+        "router.RouteRes": {
+            "type": "object",
+            "properties": {
+                "from": {
+                    "type": "string"
+                },
+                "hopCount": {
+                    "type": "integer"
+                },
+                "route": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "to": {
                     "type": "string"
                 }
             }
