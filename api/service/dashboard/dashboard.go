@@ -1074,13 +1074,13 @@ func (d *dashboard) Txs(txType TxType, addr ...Addr) (Txs, error) {
 		COALESCE(
 			ABS(CASE WHEN pt.type = 'swap' OR pt.type = 'transfer' THEN
 					CASE WHEN pr0.price IS NOT NULL
-						THEN pr0.price * pt.asset0_amount / POWER(10, t0.decimals - t1.decimals)
-						ELSE pr1.price * pt.asset1_amount / POWER(10, t1.decimals - t0.decimals)
+						THEN pr0.price * pt.asset0_amount / POWER(10, t0.decimals)
+						ELSE pr1.price * pt.asset1_amount / POWER(10, t1.decimals)
 					END
 				ELSE
 					CASE WHEN pr0.price IS NOT NULL
-						THEN pr0.price * pt.asset0_amount * 2 / POWER(10, t0.decimals - t1.decimals)
-						ELSE pr1.price * pt.asset1_amount * 2 / POWER(10, t1.decimals - t0.decimals)
+						THEN pr0.price * pt.asset0_amount * 2 / POWER(10, t0.decimals)
+						ELSE pr1.price * pt.asset1_amount * 2 / POWER(10, t1.decimals)
 					END
 			END), 0)::text AS total_value,
 		TO_TIMESTAMP(pt."timestamp") AT TIME ZONE 'UTC' as timestamp`,
@@ -1125,13 +1125,13 @@ func (d *dashboard) TxsOfToken(txType TxType, addr Addr) (Txs, error) {
 		COALESCE(
 			ABS(CASE WHEN pt.type = 'swap' OR pt.type = 'transfer' THEN
 					CASE WHEN pr0.price IS NOT NULL
-						THEN pr0.price * pt.asset0_amount / POWER(10, t0.decimals - t1.decimals)
-						ELSE pr1.price * pt.asset1_amount / POWER(10, t1.decimals - t0.decimals)
+						THEN pr0.price * pt.asset0_amount / POWER(10, t0.decimals)
+						ELSE pr1.price * pt.asset1_amount / POWER(10, t1.decimals)
 					END
 				ELSE
 					CASE WHEN pr0.price IS NOT NULL
-						THEN pr0.price * pt.asset0_amount * 2 / POWER(10, t0.decimals - t1.decimals)
-						ELSE pr1.price * pt.asset1_amount * 2 / POWER(10, t1.decimals - t0.decimals)
+						THEN pr0.price * pt.asset0_amount * 2 / POWER(10, t0.decimals)
+						ELSE pr1.price * pt.asset1_amount * 2 / POWER(10, t1.decimals)
 					END
 			END), 0)::text AS total_value,
 		TO_TIMESTAMP(pt."timestamp") AT TIME ZONE 'UTC' as timestamp`,
