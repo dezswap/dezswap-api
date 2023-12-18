@@ -13,11 +13,13 @@ import (
 	comarcapController "github.com/dezswap/dezswap-api/api/controller/coinmarketcap"
 	dashboardController "github.com/dezswap/dezswap-api/api/controller/dashboard"
 	nc "github.com/dezswap/dezswap-api/api/controller/notice"
+	routerController "github.com/dezswap/dezswap-api/api/controller/router"
 
 	"github.com/dezswap/dezswap-api/api/service/coingecko"
 	"github.com/dezswap/dezswap-api/api/service/coinmarketcap"
 	"github.com/dezswap/dezswap-api/api/service/dashboard"
 	ns "github.com/dezswap/dezswap-api/api/service/notice"
+	rs "github.com/dezswap/dezswap-api/api/service/router"
 
 	"github.com/dezswap/dezswap-api/api/controller"
 	"github.com/dezswap/dezswap-api/api/docs"
@@ -26,6 +28,7 @@ import (
 	"github.com/dezswap/dezswap-api/api/service"
 	"github.com/dezswap/dezswap-api/configs"
 	"github.com/dezswap/dezswap-api/pkg/cache"
+	"github.com/dezswap/dezswap-api/pkg/db/api"
 	"github.com/dezswap/dezswap-api/pkg/logging"
 	"github.com/dezswap/dezswap-api/pkg/xpla"
 	"github.com/evalphobia/logrus_sentry"
@@ -147,6 +150,10 @@ func (app *app) initApis(c configs.ApiConfig, db *gorm.DB) {
 
 	noticeService := ns.NewService(db)
 	nc.InitNoticeController(noticeService, router.Group("/notices"), app.logger)
+
+	routerRepo := api.NewRouterDbRepo(chainId, db)
+	routerService := rs.New(routerRepo)
+	routerController.InitRouterController(routerService, router.Group("/routes"), app.logger)
 }
 
 func (app *app) configureReporter(dsn, env string, tags map[string]string) error {

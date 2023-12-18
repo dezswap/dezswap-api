@@ -304,6 +304,19 @@ definitions:
       title:
         type: string
     type: object
+  router.RouteRes:
+    properties:
+      from:
+        type: string
+      hopCount:
+        type: integer
+      route:
+        items:
+          type: string
+        type: array
+      to:
+        type: string
+    type: object
 info:
   contact: {}
 paths:
@@ -965,6 +978,44 @@ paths:
           schema:
             $ref: '#/definitions/httputil.InternalServerError'
       summary: Get a pool
+  /routes:
+    get:
+      consumes:
+      - application/json
+      description: get routes based on the given token address
+      parameters:
+      - description: Offer token address
+        in: query
+        name: from
+        type: string
+      - description: Ask token Address
+        in: query
+        name: to
+        type: string
+      - description: Number of hops between the starting token and the ending token
+        in: query
+        name: hopCount
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/router.RouteRes'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httputil.BadRequestError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httputil.InternalServerError'
+      summary: All Routes
+      tags:
+      - router
   /stats:
     get:
       consumes:
