@@ -452,19 +452,27 @@ func (d *dashboard) Statistic(addr ...Addr) (st Statistic, err error) {
 	subFees := d.fees(addr...)
 
 	query := `
-	WITH dau AS (?),
+	WITH time_range AS (
+			SELECT generate_series(
+				DATE_TRUNC('day', NOW() - INTERVAL '1 month'),
+				DATE_TRUNC('day', NOW()),
+				INTERVAL '1 day'
+			) AT TIME ZONE 'UTC' as timestamp
+		),
+		dau AS (?),
 		tx_counts AS (?),
 		fees AS (?)
 	SELECT
 		dau.address_count,
 		tx_counts.tx_count,
 		fees.fee,
-		dau.timestamp
+		time_range.timestamp
 	FROM
-		dau
-		JOIN tx_counts ON dau.timestamp = tx_counts.timestamp
-		JOIN fees ON dau.timestamp = fees.timestamp
-	ORDER BY dau.timestamp ASC
+		time_range
+		LEFT JOIN dau ON dau.timestamp = time_range.timestamp
+		LEFT JOIN tx_counts ON time_range.timestamp = tx_counts.timestamp
+		LEFT JOIN fees ON time_range.timestamp = fees.timestamp
+	ORDER BY time_range.timestamp ASC
 	`
 
 	st = Statistic{}
