@@ -110,7 +110,8 @@ func (d *dashboard) Aprs(duration Duration) (Aprs, error) {
 	FROM
 		ds
 	JOIN tvl AS t ON ds.timestamp = t.timestamp
-	JOIN volume7d AS v ON ds.timestamp = v.timestamp;
+	JOIN volume7d AS v ON ds.timestamp = v.timestamp
+	ORDER BY ds.timestamp;
 	`, dateSeries, lastQuery, joinClause, dezswap.SWAP_FEE)
 
 	aprs := Aprs{}
@@ -182,7 +183,8 @@ func (d *dashboard) AprsOf(pool Addr, duration Duration) ([]Apr, error) {
 	FROM
 		ds
 	JOIN tvl AS t ON ds.timestamp = t.timestamp
-	JOIN volume7d AS v ON ds.timestamp = v.timestamp;
+	JOIN volume7d AS v ON ds.timestamp = v.timestamp
+	ORDER BY ds.timestamp;
 	`, dateSeries, d.chainId, dezswap.SWAP_FEE)
 
 	aprs := Aprs{}
@@ -198,89 +200,74 @@ func (d *dashboard) Pools(tokens ...Addr) (Pools, error) {
 	if len(tokens) > 0 {
 		tokensCond = " WHERE p.asset0 in ? OR p.asset1 in ?"
 	}
-
-	timeRangeWith := `
-		WITH time_range AS (
-			SELECT
-			CASE WHEN EXTRACT(MINUTE FROM now()) >= 30 THEN
-				EXTRACT(EPOCH FROM DATE_TRUNC('hour', NOW() AT TIME ZONE 'UTC'))
-			ELSE
-				EXTRACT(EPOCH FROM DATE_TRUNC('hour', NOW() AT TIME ZONE 'UTC') - INTERVAL '30 min')
-			END AS end_time,
-			CASE WHEN EXTRACT(MINUTE FROM now()) >= 30 THEN
-				EXTRACT(EPOCH FROM  DATE_TRUNC('hour', NOW() AT TIME ZONE 'UTC') - INTERVAL '7 day')
-			ELSE
-				EXTRACT(EPOCH FROM  DATE_TRUNC('hour', NOW() AT TIME ZONE 'UTC') - INTERVAL '7 day' - INTERVAL '30 min')
-			END AS start_time
+	current, mins := time.Now().Truncate(time.Hour), time.Now().Minute()
+	if mins >= 30 {
+		current = current.Add(time.Minute * -30)
+	}
+	dayAgo, sevenDaysAgo := current.Add(time.Hour*-24), current.Add(time.Hour*-24*7)
+	tvl := func(at time.Time) string {
+		return fmt.Sprintf(`
+			SELECT DISTINCT ON (pair_id)
+				pair_id,
+				(liquidity0_in_price + liquidity1_in_price) AS tvl
+			FROM
+				pair_stats_30m
+			WHERE
+				chain_id = '%s'
+			AND
+				TO_TIMESTAMP(timestamp) <= '%s'
+			ORDER BY pair_id, timestamp DESC`,
+			d.chainId, at.UTC().Format(time.DateTime),
 		)
-	`
-	latestTvls := `
-		SELECT DISTINCT ON (pair_id)
-			pair_id,
-			(liquidity0_in_price + liquidity1_in_price) AS tvl
-		FROM
-			pair_stats_30m
-		WHERE
-			chain_id = ?
-		AND
-			timestamp <= (
-				SELECT
-					end_time
-				FROM
-					time_range)
-		ORDER BY pair_id, timestamp DESC
-	`
-	volume1d := `
+	}
+	volume := func(from, to time.Time) string {
+		return fmt.Sprintf(`
 		SELECT
-			ps0.pair_id AS pair_id,
+			ps.pair_id,
 			SUM(volume0_in_price) AS volume
 		FROM
-			pair_stats_30m AS ps0
+			pair_stats_30m as ps
 		WHERE
-			(SELECT end_time FROM time_range) - EXTRACT(EPOCH FROM INTERVAL '1 day') < ps0."timestamp"
-			AND
-			ps0."timestamp" <= (SELECT end_time FROM time_range)
-		GROUP BY
-			ps0.pair_id
-	`
-	volume7d := `
-		SELECT
-			v.pair_id AS pair_id,
-			SUM(v.volume0_in_price) AS volume
-		FROM
-			pair_stats_30m AS v
-		WHERE
-			(SELECT start_time FROM time_range) < v.timestamp
+			ps.chain_id = '%s'
 		AND
-			v.timestamp <= (SELECT end_time FROM time_range)
+			'%s' < TO_TIMESTAMP(ps."timestamp")
+		AND
+			TO_TIMESTAMP(ps."timestamp") <= '%s'
 		GROUP BY
-			v.pair_id
-	`
+			ps.pair_id
+		ORDER BY ps.pair_id ASC
+		`, d.chainId, from.UTC().Format(time.DateTime), to.UTC().Format(time.DateTime))
+	}
 	query := fmt.Sprintf(
-		`%s
+		`WITH
+			tvls AS (%s),
+			volume1d AS (%s),
+			volume7d AS (%s)
 		SELECT
 			p.contract AS address,
 	        CONCAT(t0.symbol, '-', t1.symbol) AS symbols,
 			coalesce(t.tvl,0) as tvl,
 			coalesce(v1.volume,0) as volume,
 			coalesce(v1.volume * %f,0) as fee,
-			coalesce(v7.volume/t.tvl,0) as apr
+			coalesce(v7.volume/t.tvl * %f,0) as apr
 		FROM
-			(%s) AS t
-			LEFT JOIN (%s) AS v1 ON v1.pair_id = t.pair_id
-			LEFT JOIN (%s) AS v7 ON v7.pair_id = t.pair_id
+			tvls AS t
+			LEFT JOIN volume1d AS v1 ON v1.pair_id = t.pair_id
+			LEFT JOIN volume7d AS v7 ON v7.pair_id = t.pair_id
             LEFT JOIN pair AS p ON t.pair_id = p.id
             LEFT JOIN tokens AS t0 ON p.chain_id = t0.chain_id AND p.asset0 = t0.address
             LEFT JOIN tokens AS t1 ON p.chain_id = t1.chain_id AND p.asset1 = t1.address
+		ORDER BY
+			p.contract
 		`,
-		timeRangeWith, dezswap.SWAP_FEE, latestTvls, volume1d, volume7d,
+		tvl(current), volume(dayAgo, current), volume(sevenDaysAgo, current), dezswap.SWAP_FEE, dezswap.SWAP_FEE,
 	)
 	pools := Pools{}
 	var tx *gorm.DB
 	if len(tokensCond) > 0 {
-		tx = d.DB.Raw(query+tokensCond, d.chainId, tokens, tokens)
+		tx = d.DB.Raw(query+tokensCond, tokens, tokens)
 	} else {
-		tx = d.DB.Raw(query, d.chainId)
+		tx = d.DB.Raw(query)
 	}
 	if err := tx.Scan(&pools).Error; err != nil {
 		return nil, errors.Wrap(err, "dashboard.Pools")
@@ -315,7 +302,8 @@ func (d *dashboard) Recent() (Recent, error) {
 	if mins >= 30 {
 		current = current.Add(time.Minute * -30)
 	}
-	dayAgo, twoDaysAgo := current.Add(time.Hour*-24), current.Add(time.Hour*-48)
+	dayAgo, twoDaysAgo := current.Add(time.Hour*-24), current.Add(time.Hour*-24*2)
+	sevenDaysAgo, eightDaysAgo := current.Add(time.Hour*-24*7), current.Add(time.Hour*-24*8)
 	tvl := func(at time.Time) string {
 		return fmt.Sprintf(`
 		SELECT
@@ -356,19 +344,23 @@ func (d *dashboard) Recent() (Recent, error) {
 		WITH tvl AS (%s),
 			prev_tvl AS (%s),
 			volume AS (%s),
-			prev_volume AS (%s)
+			prev_volume AS (%s),
+			volume7d as (%s),
+			prev_volume7d as (%s)
 		SELECT
 			tvl.tvl AS tvl,
 			CAST((tvl.tvl / prev_tvl.tvl - 1) AS float4) AS tvl_change_rate,
 			volume.volume AS volume,
 			CAST((volume.volume / prev_volume.volume - 1) AS float4) AS volume_change_rate,
-			volume.volume * ? as fee,
-			CAST((volume.volume / prev_volume.volume - 1) AS float4) AS fee_change_rate
+			volume.volume * %f as fee,
+			CAST((volume.volume / prev_volume.volume - 1) AS float4) AS fee_change_rate,
+			volume7d.volume / tvl.tvl * %f as apr,
+			(volume7d.volume / tvl.tvl) / (prev_volume7d.volume / prev_tvl.tvl) - 1 AS apr_change_rate
 		FROM
-			tvl, prev_tvl, volume, prev_volume;
-	`, tvl(current), tvl(dayAgo), volume(dayAgo, current), volume(twoDaysAgo, dayAgo))
+			tvl, prev_tvl, volume, prev_volume, volume7d, prev_volume7d;
+	`, tvl(current), tvl(dayAgo), volume(dayAgo, current), volume(twoDaysAgo, dayAgo), volume(sevenDaysAgo, current), volume(eightDaysAgo, dayAgo), dezswap.SWAP_FEE, dezswap.SWAP_FEE)
 	recent := Recent{}
-	if err := d.DB.Raw(query, dezswap.SWAP_FEE).Scan(&recent).Error; err != nil {
+	if err := d.DB.Raw(query).Scan(&recent).Error; err != nil {
 		return recent, errors.Wrap(err, "dashboard.Recent")
 	}
 	return recent, nil
@@ -383,6 +375,7 @@ func (d *dashboard) RecentOf(addr Addr) (Recent, error) {
 		current = current.Add(time.Minute * -30)
 	}
 	dayAgo, twoDaysAgo := current.Add(time.Hour*-24), current.Add(time.Hour*-48)
+	sevenDaysAgo, eightDaysAgo := current.Add(time.Hour*-24*7), current.Add(time.Hour*-24*8)
 	tvl := func(at time.Time) string {
 		return fmt.Sprintf(`
 		SELECT
@@ -427,19 +420,23 @@ func (d *dashboard) RecentOf(addr Addr) (Recent, error) {
 		WITH tvl AS (%s),
 			prev_tvl AS (%s),
 			volume AS (%s),
-			prev_volume AS (%s)
+			prev_volume AS (%s),
+			volume7d as (%s),
+			prev_volume7d as (%s)
 		SELECT
 			tvl.tvl AS tvl,
 			CAST((tvl.tvl / prev_tvl.tvl - 1) AS float4) AS tvl_change_rate,
 			volume.volume AS volume,
 			CAST((volume.volume / prev_volume.volume - 1) AS float4) AS volume_change_rate,
-			volume.volume * ? as fee,
-			CAST((volume.volume / prev_volume.volume - 1) AS float4) AS fee_change_rate
+			volume.volume * %f as fee,
+			CAST((volume.volume / prev_volume.volume - 1) AS float4) AS fee_change_rate,
+			volume7d.volume / tvl.tvl * %f as apr,
+			(volume7d.volume / tvl.tvl) / (prev_volume7d.volume / prev_tvl.tvl) - 1 AS apr_change_rate
 		FROM
-			tvl, prev_tvl, volume, prev_volume;
-	`, tvl(current), tvl(dayAgo), volume(dayAgo, current), volume(twoDaysAgo, dayAgo))
+			tvl, prev_tvl, volume, prev_volume, volume7d, prev_volume7d;
+	`, tvl(current), tvl(dayAgo), volume(dayAgo, current), volume(twoDaysAgo, dayAgo), volume(sevenDaysAgo, current), volume(eightDaysAgo, dayAgo), dezswap.SWAP_FEE, dezswap.SWAP_FEE)
 	recent := Recent{}
-	if err := d.DB.Raw(query, addr, addr, addr, addr, dezswap.SWAP_FEE).Scan(&recent).Error; err != nil {
+	if err := d.DB.Raw(query, addr, addr, addr, addr, addr, addr).Scan(&recent).Error; err != nil {
 		return recent, errors.Wrap(err, "dashboard.RecentOf")
 	}
 	return recent, nil

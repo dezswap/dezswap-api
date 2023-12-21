@@ -25,6 +25,8 @@ type Recent struct {
 	FeeChangeRate    float32 `gorm:"fee_change_rate"`
 	Tvl              string  `gorm:"tvl"`
 	TvlChangeRate    float32 `gorm:"tvl_change_rate"`
+	Apr              float32 `gorm:"apr"`
+	AprChangeRate    float32 `gorm:"apr_change_rate"`
 }
 
 type Fees = []Fee

@@ -21,6 +21,8 @@ type RecentRes struct {
 	FeeChangeRate    float32 `json:"feeChangeRate"`
 	Tvl              string  `json:"tvl"`
 	TvlChangeRate    float32 `json:"tvlChangeRate"`
+	Apr              float32 `json:"apr"`
+	AprChangeRate    float32 `json:"aprChangeRate"`
 }
 
 type StatisticRes []StatisticResItem

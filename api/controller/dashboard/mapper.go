@@ -44,6 +44,8 @@ func (m *mapper) recentToRes(recent ds.Recent) RecentRes {
 		FeeChangeRate:    recent.FeeChangeRate,
 		Tvl:              recent.Tvl,
 		TvlChangeRate:    recent.TvlChangeRate,
+		Apr:              recent.Apr,
+		AprChangeRate:    recent.AprChangeRate,
 	}
 }
 

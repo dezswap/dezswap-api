@@ -1497,6 +1497,12 @@ const docTemplate = `{
         "dashboard.RecentRes": {
             "type": "object",
             "properties": {
+                "apr": {
+                    "type": "number"
+                },
+                "aprChangeRate": {
+                    "type": "number"
+                },
                 "fee": {
                     "type": "string"
                 },
