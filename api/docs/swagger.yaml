@@ -170,6 +170,10 @@ definitions:
     type: object
   dashboard.RecentRes:
     properties:
+      apr:
+        type: number
+      aprChangeRate:
+        type: number
       fee:
         type: string
       feeChangeRate:

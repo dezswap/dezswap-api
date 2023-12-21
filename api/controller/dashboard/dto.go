@@ -21,6 +21,8 @@ type RecentRes struct {
 	FeeChangeRate    float32 `json:"feeChangeRate"`
 	Tvl              string  `json:"tvl"`
 	TvlChangeRate    float32 `json:"tvlChangeRate"`
+	Apr              float32 `gorm:"apr"`
+	AprChangeRate    float32 `gorm:"apr_change_rate"`
 }
 
 type StatisticRes []StatisticResItem
