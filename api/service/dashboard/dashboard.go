@@ -196,10 +196,6 @@ func (d *dashboard) AprsOf(pool Addr, duration Duration) ([]Apr, error) {
 
 // Pools implements Dashboard.
 func (d *dashboard) Pools(tokens ...Addr) (Pools, error) {
-	var tokensCond string
-	if len(tokens) > 0 {
-		tokensCond = " WHERE p.asset0 in ? OR p.asset1 in ?"
-	}
 	current, mins := time.Now().Truncate(time.Hour), time.Now().Minute()
 	if mins >= 30 {
 		current = current.Add(time.Minute * -30)
@@ -257,17 +253,18 @@ func (d *dashboard) Pools(tokens ...Addr) (Pools, error) {
             LEFT JOIN pair AS p ON t.pair_id = p.id
             LEFT JOIN tokens AS t0 ON p.chain_id = t0.chain_id AND p.asset0 = t0.address
             LEFT JOIN tokens AS t1 ON p.chain_id = t1.chain_id AND p.asset1 = t1.address
-		ORDER BY
-			p.contract
 		`,
 		tvl(current), volume(dayAgo, current), volume(sevenDaysAgo, current), dezswap.SWAP_FEE, dezswap.SWAP_FEE,
 	)
+
+	orderBy := `ORDER BY p.contract`
 	pools := Pools{}
 	var tx *gorm.DB
-	if len(tokensCond) > 0 {
-		tx = d.DB.Raw(query+tokensCond, tokens, tokens)
+	if len(tokens) > 0 {
+		tokensCond := " WHERE p.asset0 in ? OR p.asset1 in ?"
+		tx = d.DB.Raw(query+tokensCond+orderBy, tokens, tokens)
 	} else {
-		tx = d.DB.Raw(query)
+		tx = d.DB.Raw(query + orderBy)
 	}
 	if err := tx.Scan(&pools).Error; err != nil {
 		return nil, errors.Wrap(err, "dashboard.Pools")
