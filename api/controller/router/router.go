@@ -26,7 +26,7 @@ func InitRouterController(s rs.Router, route *gin.RouterGroup, logger logging.Lo
 }
 
 func (c *routerController) register(route *gin.RouterGroup) {
-	route.GET("/", c.Routes)
+	route.GET("", c.Routes)
 }
 
 //	Routes godoc

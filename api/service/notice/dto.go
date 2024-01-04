@@ -17,6 +17,7 @@ var DefaultPaginationCond = PaginationCond{
 
 type NoticeItem struct {
 	Id          uint      `json:"id"`
+	Chain       string    `json:"chain"`
 	Title       string    `json:"title"`
 	Description string    `json:"description"`
 	Date        time.Time `json:"date" gorm:"index:notice_date_idx type:timestamp without time zone"`

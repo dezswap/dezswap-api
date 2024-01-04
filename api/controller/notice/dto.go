@@ -10,6 +10,7 @@ import (
 type NoticesRes []noticeItem
 type noticeItem struct {
 	Id          string    `json:"id"`
+	Chain       string    `json:"chain"`
 	Title       string    `json:"title"`
 	Description string    `json:"description"`
 	Timestamp   time.Time `json:"timestamp"`
@@ -24,9 +25,6 @@ type PaginationReq struct {
 
 func (p PaginationReq) Default() PaginationReq {
 	d := notice.DefaultPaginationCond
-	if p.Chain == "" {
-		p.Chain = notice.DEFAULT_CHAIN
-	}
 	if !p.Asc && p.After == 0 {
 		p.After = d.After
 	}
@@ -51,6 +49,7 @@ func (m *mapper) noticesToRes(notices []notice.NoticeItem) NoticesRes {
 	for i, n := range notices {
 		res[i] = noticeItem{
 			Id:          fmt.Sprint(n.Id),
+			Chain:       n.Chain,
 			Title:       n.Title,
 			Description: n.Description,
 			Timestamp:   n.Date,

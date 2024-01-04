@@ -26,7 +26,7 @@ func InitNoticeController(s notice.Notice, route *gin.RouterGroup, logger loggin
 }
 
 func (c *noticeController) register(route *gin.RouterGroup) {
-	route.GET("/", c.Notices)
+	route.GET("", c.Notices)
 }
 
 // Dashboard godoc
@@ -40,7 +40,7 @@ func (c *noticeController) register(route *gin.RouterGroup) {
 //		@Failure		400	{object}	httputil.BadRequestError
 //		@Failure		500	{object}	httputil.InternalServerError
 //
-//	 	@Param			chain			query	string	false	"target chain name e.g. (dimension, cube), default (dimension)"
+//	 	@Param			chain			query	string	false	"target chain name e.g. (dimension, cube)"
 //	 	@Param			after			query	uint	false	"condition to get items after the id"
 //	 	@Param			limit			query	uint	false	"the number of items to return (default: 10)"
 //	 	@Param			asc				query	bool	false	"order of items to return (default: descending order)"
