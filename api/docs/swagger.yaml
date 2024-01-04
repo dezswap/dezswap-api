@@ -299,6 +299,8 @@ definitions:
     type: object
   notice.noticeItem:
     properties:
+      chain:
+        type: string
       description:
         type: string
       id:
@@ -840,7 +842,7 @@ paths:
       - application/json
       description: get Notices
       parameters:
-      - description: target chain name e.g. (dimension, cube), default (dimension)
+      - description: target chain name e.g. (dimension, cube)
         in: query
         name: chain
         type: string

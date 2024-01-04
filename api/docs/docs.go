@@ -793,7 +793,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "target chain name e.g. (dimension, cube), default (dimension)",
+                        "description": "target chain name e.g. (dimension, cube)",
                         "name": "chain",
                         "in": "query"
                     },
@@ -1693,6 +1693,9 @@ const docTemplate = `{
         "notice.noticeItem": {
             "type": "object",
             "properties": {
+                "chain": {
+                    "type": "string"
+                },
                 "description": {
                     "type": "string"
                 },
