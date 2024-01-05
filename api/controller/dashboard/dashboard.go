@@ -324,6 +324,7 @@ func (c *dashboardController) Pools(ctx *gin.Context) {
 //	@Produce		json
 //	@Success		200	{object}	PoolDetailRes
 //	@Failure		400	{object}	httputil.BadRequestError
+//	@Failure		404	{object}	httputil.NotFoundError
 //	@Failure		500	{object}	httputil.InternalServerError
 //	@Param			address		path	string	true	"Pool Address"
 //	@Router			/dashboard/pools/{address} [get]
@@ -338,6 +339,10 @@ func (c *dashboardController) Pool(ctx *gin.Context) {
 	if err != nil {
 		c.logger.Warn(err)
 		httputil.NewError(ctx, http.StatusInternalServerError, errors.New("internal server error"))
+		return
+	}
+	if !poolDetail.Recent.PoolExists {
+		httputil.NewError(ctx, http.StatusNotFound, errors.New("pool not found"))
 		return
 	}
 

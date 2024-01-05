@@ -421,6 +421,7 @@ func (d *dashboard) RecentOf(addr Addr) (Recent, error) {
 			volume7d as (%s),
 			prev_volume7d as (%s)
 		SELECT
+            exists(select 1 from pair where chain_id = '%s' and contract = ?) pool_exists,
 			tvl.tvl AS tvl,
 			CAST((tvl.tvl / prev_tvl.tvl - 1) AS float4) AS tvl_change_rate,
 			volume.volume AS volume,
@@ -430,10 +431,10 @@ func (d *dashboard) RecentOf(addr Addr) (Recent, error) {
 			volume7d.volume / tvl.tvl * %f as apr,
 			(volume7d.volume / tvl.tvl) / (prev_volume7d.volume / prev_tvl.tvl) - 1 AS apr_change_rate
 		FROM
-			tvl, prev_tvl, volume, prev_volume, volume7d, prev_volume7d;
-	`, tvl(current), tvl(dayAgo), volume(dayAgo, current), volume(twoDaysAgo, dayAgo), volume(sevenDaysAgo, current), volume(eightDaysAgo, dayAgo), dezswap.SWAP_FEE, dezswap.SWAP_FEE)
+			tvl, prev_tvl, volume, prev_volume, volume7d, prev_volume7d
+	`, tvl(current), tvl(dayAgo), volume(dayAgo, current), volume(twoDaysAgo, dayAgo), volume(sevenDaysAgo, current), volume(eightDaysAgo, dayAgo), d.chainId, dezswap.SWAP_FEE, dezswap.SWAP_FEE)
 	recent := Recent{}
-	if err := d.DB.Raw(query, addr, addr, addr, addr, addr, addr).Scan(&recent).Error; err != nil {
+	if err := d.DB.Raw(query, addr, addr, addr, addr, addr, addr, addr).Scan(&recent).Error; err != nil {
 		return recent, errors.Wrap(err, "dashboard.RecentOf")
 	}
 	return recent, nil
