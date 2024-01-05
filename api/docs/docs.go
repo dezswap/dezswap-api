@@ -544,6 +544,12 @@ const docTemplate = `{
                             "$ref": "#/definitions/httputil.BadRequestError"
                         }
                     },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.NotFoundError"
+                        }
+                    },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {

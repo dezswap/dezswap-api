@@ -19,6 +19,7 @@ type ActiveAccount struct {
 }
 
 type Recent struct {
+	PoolExists       bool    `gorm:"pool_exists"`
 	Volume           string  `gorm:"volume"`
 	VolumeChangeRate float32 `gorm:"volume_change_rate"`
 	Fee              string  `gorm:"fee"`
