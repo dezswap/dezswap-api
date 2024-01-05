@@ -17,17 +17,18 @@ type dashboard struct {
 }
 
 var chartCriteriaByDuration = map[Duration]struct {
-	Ago     string
-	TruncBy time.Duration
+	Ago          string
+	TruncByInSql string
+	TruncBy      time.Duration
 }{
 	// a month range with everyday data
-	Month: {"1 month", time.Hour * 24},
+	Month: {"1 month", "1 day", time.Hour * 24},
 	// 3 months range with every week data
-	Quarter: {"3 month", time.Hour * 24 * 7},
+	Quarter: {"3 month", "1 week", time.Hour * 24 * 7},
 	// 1 year range with every 2 weeks data
-	Year: {"1 year", time.Hour * 24 * 7 * 2},
+	Year: {"1 year", "2 week", time.Hour * 24 * 7 * 2},
 	// 10 years range with every month data
-	All: {"10 year", time.Hour * 24 * 31},
+	All: {"10 year", "1 month", time.Hour * 24 * 31},
 }
 
 var _ Dashboard = &dashboard{}
@@ -38,16 +39,16 @@ func NewDashboardService(chainId string, db *gorm.DB) Dashboard {
 
 // Aprs implements Dashboard.
 func (d *dashboard) Aprs(duration Duration) (Aprs, error) {
-	truncBy := int64(chartCriteriaByDuration[duration].TruncBy.Truncate(time.Second).Seconds())
+	truncBy := chartCriteriaByDuration[duration].TruncByInSql
 	intervalAgo := chartCriteriaByDuration[duration].Ago
 
 	dateSeries := fmt.Sprintf(`
 		SELECT
-			generate_series(
-				CAST(FLOOR(EXTRACT(EPOCH FROM DATE_TRUNC('day', NOW() ))) AS int8),
-				CAST(FLOOR(EXTRACT(EPOCH FROM DATE_TRUNC('day', NOW() - INTERVAL '%s'))) AS int8),
-			-%d
-			) AS timestamp
+			cast(floor(extract(epoch from generate_series(
+				DATE_TRUNC('day', NOW() - INTERVAL '%s'),
+				DATE_TRUNC('day', NOW()),
+				INTERVAL '%s'
+			) AT TIME ZONE 'UTC' + INTERVAL '1 day')) as int8) as timestamp
 		`, intervalAgo, truncBy)
 
 	var lastQuery string
@@ -123,16 +124,16 @@ func (d *dashboard) Aprs(duration Duration) (Aprs, error) {
 
 // AprsOf implements Dashboard.
 func (d *dashboard) AprsOf(pool Addr, duration Duration) ([]Apr, error) {
-	truncBy := int64(chartCriteriaByDuration[duration].TruncBy.Truncate(time.Second).Seconds())
+	truncBy := chartCriteriaByDuration[duration].TruncByInSql
 	intervalAgo := chartCriteriaByDuration[duration].Ago
 
 	dateSeries := fmt.Sprintf(`
 		SELECT
-			generate_series(
-				CAST(FLOOR(EXTRACT(EPOCH FROM DATE_TRUNC('day', NOW() ))) AS int8),
-				CAST(FLOOR(EXTRACT(EPOCH FROM DATE_TRUNC('day', NOW() - INTERVAL '%s'))) AS int8),
-			-%d
-			) AS timestamp
+			cast(floor(extract(epoch from generate_series(
+				DATE_TRUNC('day', NOW() - INTERVAL '%s'),
+				DATE_TRUNC('day', NOW()),
+				INTERVAL '%s'
+			) AT TIME ZONE 'UTC' + INTERVAL '1 day')) as int8) as timestamp
 		`, intervalAgo, truncBy)
 
 	query := fmt.Sprintf(`
@@ -947,17 +948,17 @@ from (select p.height,
 
 // Tvls implements Dashboard.
 func (d *dashboard) Tvls(duration Duration) (Tvls, error) {
-	interval := int64(chartCriteriaByDuration[duration].TruncBy.Truncate(time.Second).Seconds())
+	truncBy := chartCriteriaByDuration[duration].TruncByInSql
 	intervalAgo := chartCriteriaByDuration[duration].Ago
 
 	dateSeries := fmt.Sprintf(`
 		SELECT
-			generate_series(
-				CAST(FLOOR(EXTRACT(EPOCH FROM DATE_TRUNC('day', NOW() + INTERVAL '1 day'))) AS int8),
-				CAST(FLOOR(EXTRACT(EPOCH FROM DATE_TRUNC('day', NOW() - INTERVAL '%s'))) AS int8),
-			-%d
-			) AS timestamp
-		`, intervalAgo, interval)
+			cast(floor(extract(epoch from generate_series(
+				DATE_TRUNC('day', NOW() - INTERVAL '%s'),
+				DATE_TRUNC('day', NOW()),
+				INTERVAL '%s'
+			) AT TIME ZONE 'UTC' + INTERVAL '1 day')) as int8) as timestamp
+		`, intervalAgo, truncBy)
 
 	var lastQuery string
 	joinClause := `LEFT JOIN pair_stats_30m AS ps ON ps."timestamp" < ds.timestamp`
@@ -1006,17 +1007,17 @@ func (d *dashboard) Tvls(duration Duration) (Tvls, error) {
 
 // TvlsOf implements Dashboard.
 func (d *dashboard) TvlsOf(addr Addr, duration Duration) ([]Tvl, error) {
-	interval := int64(chartCriteriaByDuration[duration].TruncBy.Truncate(time.Second).Seconds())
+	truncBy := chartCriteriaByDuration[duration].TruncByInSql
 	intervalAgo := chartCriteriaByDuration[duration].Ago
 
 	dateSeries := fmt.Sprintf(`
 		SELECT
-			generate_series(
-				CAST(FLOOR(EXTRACT(EPOCH FROM DATE_TRUNC('day', NOW() + INTERVAL '1 day'))) AS int8),
-				CAST(FLOOR(EXTRACT(EPOCH FROM DATE_TRUNC('day', NOW() - INTERVAL '%s'))) AS int8),
-			-%d
-			) AS timestamp
-		`, intervalAgo, interval)
+			cast(floor(extract(epoch from generate_series(
+				DATE_TRUNC('day', NOW() - INTERVAL '%s'),
+				DATE_TRUNC('day', NOW()),
+				INTERVAL '%s'
+			) AT TIME ZONE 'UTC' + INTERVAL '1 day')) as int8) as timestamp
+		`, intervalAgo, truncBy)
 
 	query := fmt.Sprintf(`
 		SELECT
