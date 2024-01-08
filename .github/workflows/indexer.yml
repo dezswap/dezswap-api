@@ -38,7 +38,7 @@ jobs:
         run: |
           CHANGED_FILES=$(git diff HEAD~1 --name-only)
           # files except api related
-          MATCHING_FILES=$(echo "$CHANGED_FILES" | grep -v '^indexer/')
+          MATCHING_FILES=$(echo "$CHANGED_FILES" | grep -v '^api/')
 
           if [[ -z "$MATCHING_FILES" ]]; then
             echo "no mathing file"
