@@ -7,7 +7,7 @@ import (
 )
 
 type Notice interface {
-	Notices(chain string, cond PaginationCond) ([]NoticeItem, error)
+	Notices(chain string, startTs int64, cond PaginationCond) ([]NoticeItem, error)
 }
 
 type notice struct {
@@ -21,10 +21,12 @@ func NewService(db *gorm.DB) Notice {
 }
 
 // Notices implements Notice.
-func (n *notice) Notices(chain string, cond PaginationCond) ([]NoticeItem, error) {
+func (n *notice) Notices(chain string, startTs int64, cond PaginationCond) ([]NoticeItem, error) {
 	cond.Trim()
 
-	query := n.DB.Model(&models.Notice{}).Select("id, title, description, date AT TIME ZONE 'UTC' as date, chain")
+	query := n.DB.Model(&models.Notice{}).Select(
+		"id, title, description, date AT TIME ZONE 'UTC' as date, chain").Where(
+		"created_at >= to_timestamp(?) at time zone 'UTC'", startTs)
 	if chain != "" {
 		query = query.Where("chain = ?", chain)
 	}

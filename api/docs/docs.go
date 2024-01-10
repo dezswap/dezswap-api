@@ -805,6 +805,12 @@ const docTemplate = `{
                     },
                     {
                         "type": "integer",
+                        "description": "the starting timestamp in Unix timestamp format e.g. 1696917605 (default: three months prior to the current time)",
+                        "name": "startTs",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
                         "description": "condition to get items after the id",
                         "name": "after",
                         "in": "query"
