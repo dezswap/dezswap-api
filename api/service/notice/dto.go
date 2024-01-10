@@ -5,12 +5,10 @@ import (
 )
 
 const DEFAULT_CHAIN = "dimension"
-
-const DEFAULT_LIMIT = 10
 const MAX_LIMIT = 30
 
 var DefaultPaginationCond = PaginationCond{
-	Limit: DEFAULT_LIMIT,
+	Limit: 0,
 	Asc:   false,
 	After: ^uint(0) >> 1,
 }
@@ -33,10 +31,6 @@ type PaginationCond struct {
 }
 
 func (p *PaginationCond) Trim() {
-	if p.Limit == 0 {
-		p.Limit = DEFAULT_LIMIT
-	}
-
 	if p.Limit > MAX_LIMIT {
 		p.Limit = MAX_LIMIT
 	}

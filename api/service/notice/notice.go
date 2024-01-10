@@ -29,10 +29,14 @@ func (n *notice) Notices(chain string, cond PaginationCond) ([]NoticeItem, error
 		query = query.Where("chain = ?", chain)
 	}
 
+	if cond.Limit > 0 {
+		query = query.Limit(int(cond.Limit))
+	}
+
 	if cond.Asc {
-		query = query.Where("id > ?", cond.After).Limit(int(cond.Limit)).Order("id asc")
+		query = query.Where("id > ?", cond.After).Order("id asc")
 	} else {
-		query = query.Where("id < ?", cond.After).Limit(int(cond.Limit)).Order("id desc")
+		query = query.Where("id < ?", cond.After).Order("id desc")
 	}
 
 	items := []NoticeItem{}
