@@ -18,16 +18,16 @@ type dashboard struct {
 
 var chartCriteriaByDuration = map[Duration]struct {
 	Ago     string
-	TruncBy time.Duration
+	TruncBy string
 }{
 	// a month range with everyday data
-	Month: {"1 month", time.Hour * 24},
+	Month: {"1 month", "1 day"},
 	// 3 months range with every week data
-	Quarter: {"3 month", time.Hour * 24 * 7},
+	Quarter: {"3 month", "1 week"},
 	// 1 year range with every 2 weeks data
-	Year: {"1 year", time.Hour * 24 * 7 * 2},
+	Year: {"1 year", "2 week"},
 	// 10 years range with every month data
-	All: {"10 year", time.Hour * 24 * 31},
+	All: {"10 year", "1 month"},
 }
 
 var _ Dashboard = &dashboard{}
@@ -38,20 +38,20 @@ func NewDashboardService(chainId string, db *gorm.DB) Dashboard {
 
 // Aprs implements Dashboard.
 func (d *dashboard) Aprs(duration Duration) (Aprs, error) {
-	truncBy := int64(chartCriteriaByDuration[duration].TruncBy.Truncate(time.Second).Seconds())
+	truncBy := chartCriteriaByDuration[duration].TruncBy
 	intervalAgo := chartCriteriaByDuration[duration].Ago
 
 	dateSeries := fmt.Sprintf(`
 		SELECT
-			generate_series(
-				CAST(FLOOR(EXTRACT(EPOCH FROM DATE_TRUNC('day', NOW() ))) AS int8),
-				CAST(FLOOR(EXTRACT(EPOCH FROM DATE_TRUNC('day', NOW() - INTERVAL '%s'))) AS int8),
-			-%d
-			) AS timestamp
+			cast(floor(extract(epoch from generate_series(
+				date_trunc('day', now()),
+                date_trunc('day', now() - interval '%s'),
+				- interval '%s'
+			) AT TIME ZONE 'UTC' + INTERVAL '1 day')) as int8) as timestamp
 		`, intervalAgo, truncBy)
 
 	var lastQuery string
-	joinClause := `LEFT JOIN pair_stats_30m AS ps ON ps."timestamp" < ds.timestamp`
+	joinClause := `LEFT JOIN pair_stats_30m AS ps ON ps."timestamp" <= ds.timestamp`
 	if duration != All {
 		lastQuery = fmt.Sprintf(`
 		last AS (SELECT p.id pair_id, COALESCE(MAX(ps.timestamp), 0) ts
@@ -97,8 +97,8 @@ func (d *dashboard) Aprs(duration Duration) (Aprs, error) {
 			ds.timestamp
 		FROM
 			ds
-		LEFT JOIN pair_stats_30m AS ps ON ps. "timestamp" < ds.timestamp
-			AND ps. "timestamp" >= (ds.timestamp - EXTRACT(EPOCH FROM INTERVAL '7 days'))
+		LEFT JOIN pair_stats_30m AS ps ON ps. "timestamp" <= ds.timestamp
+			AND ps. "timestamp" > (ds.timestamp - EXTRACT(EPOCH FROM INTERVAL '7 days'))
 		GROUP BY
 			ds.timestamp
 		ORDER BY
@@ -106,7 +106,7 @@ func (d *dashboard) Aprs(duration Duration) (Aprs, error) {
 	)
 	SELECT
 		v.volume / t.tvl * %f AS apr,
-		TO_TIMESTAMP(ds.timestamp) at time zone 'UTC' AS timestamp
+		TO_TIMESTAMP(ds.timestamp) at time zone 'UTC' - interval '1 day' AS timestamp
 	FROM
 		ds
 	JOIN tvl AS t ON ds.timestamp = t.timestamp
@@ -123,16 +123,16 @@ func (d *dashboard) Aprs(duration Duration) (Aprs, error) {
 
 // AprsOf implements Dashboard.
 func (d *dashboard) AprsOf(pool Addr, duration Duration) ([]Apr, error) {
-	truncBy := int64(chartCriteriaByDuration[duration].TruncBy.Truncate(time.Second).Seconds())
+	truncBy := chartCriteriaByDuration[duration].TruncBy
 	intervalAgo := chartCriteriaByDuration[duration].Ago
 
 	dateSeries := fmt.Sprintf(`
 		SELECT
-			generate_series(
-				CAST(FLOOR(EXTRACT(EPOCH FROM DATE_TRUNC('day', NOW() ))) AS int8),
-				CAST(FLOOR(EXTRACT(EPOCH FROM DATE_TRUNC('day', NOW() - INTERVAL '%s'))) AS int8),
-			-%d
-			) AS timestamp
+			cast(floor(extract(epoch from generate_series(
+				date_trunc('day', now()),
+                date_trunc('day', now() - interval '%s'),
+				- interval '%s'
+			) AT TIME ZONE 'UTC' + INTERVAL '1 day')) as int8) as timestamp
 		`, intervalAgo, truncBy)
 
 	query := fmt.Sprintf(`
@@ -148,7 +148,7 @@ func (d *dashboard) AprsOf(pool Addr, duration Duration) ([]Apr, error) {
 				ds.timestamp AS timestamp
 			FROM
 				ds
-			LEFT JOIN pair_stats_30m AS ps ON ps. "timestamp" < ds.timestamp
+			LEFT JOIN pair_stats_30m AS ps ON ps. "timestamp" <= ds.timestamp
 			LEFT JOIN pair AS p ON ps.pair_id = p.id
 			WHERE
 				ps.chain_id = '%s'
@@ -170,8 +170,8 @@ func (d *dashboard) AprsOf(pool Addr, duration Duration) ([]Apr, error) {
 			ds.timestamp
 		FROM
 			ds
-		LEFT JOIN pair_stats_30m AS ps ON ps. "timestamp" < ds.timestamp
-			AND ps. "timestamp" >= (ds.timestamp - EXTRACT(EPOCH FROM INTERVAL '7 days'))
+		LEFT JOIN pair_stats_30m AS ps ON ps. "timestamp" <= ds.timestamp
+			AND ps. "timestamp" > (ds.timestamp - EXTRACT(EPOCH FROM INTERVAL '7 days'))
 		GROUP BY
 			ds.timestamp
 		ORDER BY
@@ -179,7 +179,7 @@ func (d *dashboard) AprsOf(pool Addr, duration Duration) ([]Apr, error) {
 	)
 	SELECT
 		v.volume / t.tvl * %f AS apr,
-		TO_TIMESTAMP(ds.timestamp) at time zone 'UTC' AS timestamp
+		TO_TIMESTAMP(ds.timestamp) at time zone 'UTC' - interval '1 day' AS timestamp
 	FROM
 		ds
 	JOIN tvl AS t ON ds.timestamp = t.timestamp
@@ -449,9 +449,9 @@ func (d *dashboard) Statistic(addr ...Addr) (st Statistic, err error) {
 	query := `
 	WITH time_range AS (
 			SELECT generate_series(
-				DATE_TRUNC('day', NOW() - INTERVAL '1 month'),
-				DATE_TRUNC('day', NOW()),
-				INTERVAL '1 day'
+				date_trunc('day', now() - interval '1 month'),
+				date_trunc('day', now()),
+				- interval '1 day'
 			) AT TIME ZONE 'UTC' as timestamp
 		),
 		dau AS (?),
@@ -960,20 +960,20 @@ from (select p.height, eow2, p.price
 
 // Tvls implements Dashboard.
 func (d *dashboard) Tvls(duration Duration) (Tvls, error) {
-	interval := int64(chartCriteriaByDuration[duration].TruncBy.Truncate(time.Second).Seconds())
+	truncBy := chartCriteriaByDuration[duration].TruncBy
 	intervalAgo := chartCriteriaByDuration[duration].Ago
 
 	dateSeries := fmt.Sprintf(`
 		SELECT
-			generate_series(
-				CAST(FLOOR(EXTRACT(EPOCH FROM DATE_TRUNC('day', NOW() + INTERVAL '1 day'))) AS int8),
-				CAST(FLOOR(EXTRACT(EPOCH FROM DATE_TRUNC('day', NOW() - INTERVAL '%s'))) AS int8),
-			-%d
-			) AS timestamp
-		`, intervalAgo, interval)
+			cast(floor(extract(epoch from generate_series(
+				date_trunc('day', now()),
+                date_trunc('day', now() - interval '%s'),
+				- interval '%s'
+			) AT TIME ZONE 'UTC' + INTERVAL '1 day')) as int8) as timestamp
+		`, intervalAgo, truncBy)
 
 	var lastQuery string
-	joinClause := `LEFT JOIN pair_stats_30m AS ps ON ps."timestamp" < ds.timestamp`
+	joinClause := `LEFT JOIN pair_stats_30m AS ps ON ps."timestamp" <= ds.timestamp`
 	if duration != All {
 		lastQuery = fmt.Sprintf(`
 		, last AS (SELECT p.id pair_id, COALESCE(MAX(ps.timestamp), 0) ts
@@ -1019,17 +1019,17 @@ func (d *dashboard) Tvls(duration Duration) (Tvls, error) {
 
 // TvlsOf implements Dashboard.
 func (d *dashboard) TvlsOf(addr Addr, duration Duration) ([]Tvl, error) {
-	interval := int64(chartCriteriaByDuration[duration].TruncBy.Truncate(time.Second).Seconds())
+	truncBy := chartCriteriaByDuration[duration].TruncBy
 	intervalAgo := chartCriteriaByDuration[duration].Ago
 
 	dateSeries := fmt.Sprintf(`
 		SELECT
-			generate_series(
-				CAST(FLOOR(EXTRACT(EPOCH FROM DATE_TRUNC('day', NOW() + INTERVAL '1 day'))) AS int8),
-				CAST(FLOOR(EXTRACT(EPOCH FROM DATE_TRUNC('day', NOW() - INTERVAL '%s'))) AS int8),
-			-%d
-			) AS timestamp
-		`, intervalAgo, interval)
+			cast(floor(extract(epoch from generate_series(
+				date_trunc('day', now()),
+                date_trunc('day', now() - interval '%s'),
+				- interval '%s'
+			) AT TIME ZONE 'UTC' + INTERVAL '1 day')) as int8) as timestamp
+		`, intervalAgo, truncBy)
 
 	query := fmt.Sprintf(`
 		SELECT
@@ -1042,7 +1042,7 @@ func (d *dashboard) TvlsOf(addr Addr, duration Duration) ([]Tvl, error) {
 				ps. "timestamp" AS ps_timestamp
 			FROM
 				(%s) ds
-			LEFT JOIN pair_stats_30m AS ps ON ps. "timestamp" < ds.timestamp
+			LEFT JOIN pair_stats_30m AS ps ON ps. "timestamp" <= ds.timestamp
 			LEFT JOIN pair AS p ON ps.pair_id = p.id
 			WHERE
 				ps.chain_id = ?
@@ -1168,22 +1168,26 @@ func (d *dashboard) TxsOfToken(txType TxType, addr Addr) (Txs, error) {
 
 // Volumes implements Dashboard.
 func (d *dashboard) Volumes(duration Duration) (Volumes, error) {
-	truncBy := int64(chartCriteriaByDuration[duration].TruncBy.Truncate(time.Second).Seconds())
+	truncBy := chartCriteriaByDuration[duration].TruncBy
 	intervalAgo := chartCriteriaByDuration[duration].Ago
 	query := fmt.Sprintf(`
-		SELECT
-			SUM(volume0_in_price) AS volume,
-			TO_TIMESTAMP(FLOOR("timestamp" / %d ) * %d) AT TIME ZONE 'UTC' as timestamp
-		FROM
-			pair_stats_30m
-		WHERE
-			chain_id = ?
-			AND "timestamp" > EXTRACT(EPOCH FROM NOW() - INTERVAL '%s')
-		GROUP BY
-			FLOOR("timestamp" / %d )
-		ORDER BY
-			FLOOR("timestamp" / %d )
-	`, truncBy, truncBy, intervalAgo, truncBy, truncBy)
+with ds as (
+	select cast(floor(extract(epoch from generate_series(
+				date_trunc('day', now()),
+                date_trunc('day', now() - interval '%s'),
+				- interval '%s'
+			) at time zone 'UTC' + interval '1 day')) as int8) as timestamp
+    )
+select sum(volume0_in_price) as volume,
+       to_timestamp(ds.timestamp) at time zone 'UTC' - interval '1 day' as timestamp
+from pair_stats_30m ps
+    join ds on ps.timestamp <= ds.timestamp
+        and ps.timestamp > extract(epoch from to_timestamp(ds.timestamp) - interval '%s')
+where ps.chain_id = ?
+  and ps.timestamp > extract(epoch from date_trunc('day', now() - interval '%s'))
+group by ds.timestamp
+order by ds.timestamp
+`, intervalAgo, truncBy, truncBy, intervalAgo)
 
 	volumes := Volumes{}
 	if err := d.DB.Raw(query, d.chainId).Scan(&volumes).Error; err != nil {
@@ -1194,24 +1198,28 @@ func (d *dashboard) Volumes(duration Duration) (Volumes, error) {
 
 // VolumesOf implements Dashboard.
 func (d *dashboard) VolumesOf(addr Addr, duration Duration) (Volumes, error) {
-	truncBy := int64(chartCriteriaByDuration[duration].TruncBy.Truncate(time.Second).Seconds())
+	truncBy := chartCriteriaByDuration[duration].TruncBy
 	intervalAgo := chartCriteriaByDuration[duration].Ago
 	query := fmt.Sprintf(`
-		SELECT
-			SUM(volume0_in_price) AS volume,
-			TO_TIMESTAMP(FLOOR(ps."timestamp" / %d ) * %d) AT TIME ZONE 'UTC' as timestamp
-		FROM
-			pair_stats_30m AS ps
-			JOIN pair as p on ps.pair_id = p.id
-		WHERE
-			ps.chain_id = ?
-			AND p.contract = ?
-			AND ps."timestamp" > EXTRACT(EPOCH FROM NOW() - INTERVAL '%s')
-		GROUP BY
-			FLOOR(ps."timestamp" / %d )
-		ORDER BY
-			FLOOR(ps."timestamp" / %d )
-	`, truncBy, truncBy, intervalAgo, truncBy, truncBy)
+with ds as (
+	select cast(floor(extract(epoch from generate_series(
+				date_trunc('day', now()),
+                date_trunc('day', now() - interval '%s'),
+				- interval '%s'
+			) at time zone 'UTC' + interval '1 day')) as int8) as timestamp
+    )
+select sum(volume0_in_price) as volume,
+       to_timestamp(ds.timestamp) at time zone 'UTC' - interval '1 day' as timestamp
+from pair_stats_30m ps
+    join pair as p on ps.pair_id = p.id
+    join ds on ps.timestamp <= ds.timestamp
+        and ps.timestamp > extract(epoch from to_timestamp(ds.timestamp) - interval '%s')
+where ps.chain_id = ?
+  and p.contract = ?
+  and ps.timestamp > extract(epoch from date_trunc('day', now() - interval '%s'))
+group by ds.timestamp
+order by ds.timestamp
+`, intervalAgo, truncBy, truncBy, intervalAgo)
 
 	volumes := Volumes{}
 	if err := d.DB.Raw(query, d.chainId, addr).Scan(&volumes).Error; err != nil {
@@ -1222,22 +1230,26 @@ func (d *dashboard) VolumesOf(addr Addr, duration Duration) (Volumes, error) {
 
 // Fees implements Dashboard.
 func (d *dashboard) Fees(duration Duration) ([]Fee, error) {
-	truncBy := int64(chartCriteriaByDuration[duration].TruncBy.Truncate(time.Second).Seconds())
+	truncBy := chartCriteriaByDuration[duration].TruncBy
 	intervalAgo := chartCriteriaByDuration[duration].Ago
 	query := fmt.Sprintf(`
-		SELECT
-			SUM(volume0_in_price) * %f AS fee,
-			TO_TIMESTAMP(FLOOR("timestamp" / %d ) * %d) AT TIME ZONE 'UTC' as timestamp
-		FROM
-			pair_stats_30m
-		WHERE
-			chain_id = ?
-			AND "timestamp" > EXTRACT(EPOCH FROM NOW() - INTERVAL '%s')
-		GROUP BY
-			FLOOR("timestamp" / %d )
-		ORDER BY
-			FLOOR("timestamp" / %d )
-	`, dezswap.SWAP_FEE, truncBy, truncBy, intervalAgo, truncBy, truncBy)
+with ds as (
+	select cast(floor(extract(epoch from generate_series(
+				date_trunc('day', now()),
+                date_trunc('day', now() - interval '%s'),
+				- interval '%s'
+			) at time zone 'UTC' + interval '1 day')) as int8) as timestamp
+    )
+select sum(ps.volume0_in_price) * %f as fee,
+       to_timestamp(ds.timestamp) at time zone 'UTC' - interval '1 day' as timestamp
+from pair_stats_30m ps
+    join ds on ps.timestamp <= ds.timestamp
+        and ps.timestamp > extract(epoch from to_timestamp(ds.timestamp) - interval '%s')
+where ps.chain_id = ?
+  and ps.timestamp > extract(epoch from date_trunc('day', now() - interval '%s'))
+group by ds.timestamp
+order by ds.timestamp
+`, intervalAgo, truncBy, dezswap.SWAP_FEE, truncBy, intervalAgo)
 
 	fees := Fees{}
 	if err := d.DB.Raw(query, d.chainId).Scan(&fees).Error; err != nil {
@@ -1248,24 +1260,28 @@ func (d *dashboard) Fees(duration Duration) ([]Fee, error) {
 
 // FeesOf implements Dashboard.
 func (d *dashboard) FeesOf(addr Addr, duration Duration) ([]Fee, error) {
-	truncBy := int64(chartCriteriaByDuration[duration].TruncBy.Truncate(time.Second).Seconds())
+	truncBy := chartCriteriaByDuration[duration].TruncBy
 	intervalAgo := chartCriteriaByDuration[duration].Ago
 	query := fmt.Sprintf(`
-		SELECT
-			SUM(volume0_in_price) * %f AS fee,
-			TO_TIMESTAMP(FLOOR(ps."timestamp" / %d ) * %d) AT TIME ZONE 'UTC' as timestamp
-		FROM
-			pair_stats_30m AS ps
-			JOIN pair as p on ps.pair_id = p.id
-		WHERE
-			ps.chain_id = ?
-			AND p.contract = ?
-			AND ps."timestamp" > EXTRACT(EPOCH FROM NOW() - INTERVAL '%s')
-		GROUP BY
-			FLOOR(ps."timestamp" / %d )
-		ORDER BY
-			FLOOR(ps."timestamp" / %d )
-	`, dezswap.SWAP_FEE, truncBy, truncBy, intervalAgo, truncBy, truncBy)
+with ds as (
+	select cast(floor(extract(epoch from generate_series(
+				date_trunc('day', now()),
+                date_trunc('day', now() - interval '%s'),
+				- interval '%s'
+			) at time zone 'UTC' + interval '1 day')) as int8) as timestamp
+    )
+select sum(ps.volume0_in_price) * %f as fee,
+       to_timestamp(ds.timestamp) at time zone 'UTC' - interval '1 day' as timestamp
+from pair_stats_30m ps
+    join pair as p on ps.pair_id = p.id
+    join ds on ps.timestamp <= ds.timestamp
+        and ps.timestamp > extract(epoch from to_timestamp(ds.timestamp) - interval '%s')
+where ps.chain_id = ?
+  and p.contract = ?
+  and ps.timestamp > extract(epoch from date_trunc('day', now() - interval '%s'))
+group by ds.timestamp
+order by ds.timestamp
+`, intervalAgo, truncBy, dezswap.SWAP_FEE, truncBy, intervalAgo)
 
 	fees := Fees{}
 	if err := d.DB.Raw(query, d.chainId, addr).Scan(&fees).Error; err != nil {
