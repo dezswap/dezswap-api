@@ -451,7 +451,7 @@ func (d *dashboard) Statistic(addr ...Addr) (st Statistic, err error) {
 			SELECT generate_series(
 				date_trunc('day', now() - interval '1 month'),
 				date_trunc('day', now()),
-				- interval '1 day'
+				interval '1 day'
 			) AT TIME ZONE 'UTC' as timestamp
 		),
 		dau AS (?),
