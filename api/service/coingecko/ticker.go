@@ -39,66 +39,23 @@ func NewTickerService(chainId string, db *gorm.DB) service.Getter[Ticker] {
 
 // Get implements Getter
 func (s *tickerService) Get(key string) (*Ticker, error) {
-	tickers := []Ticker{}
-
 	tokens := strings.Split(key, "_")
 	if len(tokens) < 2 {
 		return nil, errors.New("unable to parse ticker: " + key)
 	}
 
-	if tx := s.Table("pair_stats_recent ps").Joins(
-		"join pair p on ps.pair_id = p.id "+
-			"join tokens t0 on p.chain_id = t0.chain_id and p.asset0 = t0.address "+
-			"join tokens t1 on p.chain_id = t1.chain_id and p.asset1 = t1.address",
-	).Where("ps.chain_id = ? and p.asset0 = ? and p.asset1 = ? and ps.timestamp >= extract(epoch from now()-interval'24h')", s.chainId, tokens[0], tokens[1]).Order(
-		"ps.timestamp asc").Select(
-		"p.asset0 base_currency," +
-			"p.asset1 target_currency," +
-			"ps.volume0 base_volume," +
-			"ps.volume1 target_volume," +
-			"t0.decimals base_decimals," +
-			"t1.decimals target_decimals," +
-			"ps.liquidity0_in_price base_liquidity_in_price," +
-			"p.contract pool_id," +
-			"ps.timestamp",
-	).Scan(&tickers); tx.Error != nil {
-		return nil, errors.Wrap(tx.Error, "TickerService.Get")
-	}
-
-	totalBaseVolume := types.ZeroDec()
-	totalTargetVolume := types.ZeroDec()
-	lastPrice := "0"
-	for _, t := range tickers {
-		baseVolume, err := types.NewDecFromStr(t.BaseVolume)
-		if err != nil {
-			return nil, errors.Wrap(err, "TickerService.Get")
-		}
-		targetVolume, err := types.NewDecFromStr(t.TargetVolume)
-		if err != nil {
-			return nil, errors.Wrap(err, "TickerService.Get")
-		}
-
-		totalBaseVolume = totalBaseVolume.Add(baseVolume)
-		totalTargetVolume = totalTargetVolume.Add(targetVolume)
-		if t.TargetDecimals > t.BaseDecimals {
-			decimalDiff := types.NewDec(10).Power(uint64(t.TargetDecimals - t.BaseDecimals))
-			lastPrice = baseVolume.Quo(targetVolume).Mul(decimalDiff).Abs().String()
-		} else {
-			decimalDiff := types.NewDec(10).Power(uint64(t.BaseDecimals - t.TargetDecimals))
-			lastPrice = baseVolume.Quo(targetVolume).Quo(decimalDiff).Abs().String()
-		}
+	tickers, err := s.tickers(" and p.asset0 = ? and p.asset1 = ?", tokens...)
+	if err != nil {
+		return nil, errors.Wrap(err, "tickerService.Get")
 	}
 
 	ticker := &Ticker{}
 	if len(tickers) > 0 {
 		ticker = &tickers[len(tickers)-1]
-		ticker.BaseVolume = totalBaseVolume.String()
-		ticker.TargetVolume = totalTargetVolume.String()
-		ticker.LastPrice = lastPrice
 	} else {
 		err := s.liquidity(tokens[0], tokens[1], ticker)
 		if err != nil {
-			return nil, errors.Wrap(err, "TickerService.Get")
+			return nil, errors.Wrap(err, "tickerService.Get")
 		}
 	}
 
@@ -111,7 +68,7 @@ func (s *tickerService) Get(key string) (*Ticker, error) {
 
 	baseLiquidityInUsd, err := s.liquidityInUsd(*ticker)
 	if err != nil {
-		return nil, errors.Wrap(err, "TickerService.GetAll")
+		return nil, errors.Wrap(err, "tickerService.Get")
 	}
 	ticker.BaseLiquidityInPrice = baseLiquidityInUsd
 
@@ -148,87 +105,20 @@ where p.chain_id = ? and p.asset0 = ? and p.asset1 = ?
 
 // GetAll implements Getter
 func (s *tickerService) GetAll() ([]Ticker, error) {
-	query := `
-select p.asset0 base_currency,
-       p.asset1 target_currency,
-       ps.volume0 base_volume,
-       ps.volume1 target_volume,
-       t0.decimals base_decimals,
-       t1.decimals target_decimals,
-       ps.liquidity0_in_price base_liquidity_in_price,
-       p.contract pool_id,
-       ps.timestamp
-from pair_stats_recent ps
-    join pair p on ps.pair_id = p.id
-    join tokens t0 on p.chain_id = t0.chain_id and p.asset0 = t0.address
-    join tokens t1 on p.chain_id = t1.chain_id and p.asset1 = t1.address
-where ps.chain_id = ?
-  and ps.timestamp >= extract(epoch from now()-interval'24h')
-order by ps.timestamp asc
-`
-	tickers := []Ticker{}
-	if tx := s.Raw(query, s.chainId).Find(&tickers); tx.Error != nil {
-		return nil, errors.Wrap(tx.Error, "TickerService.GetAll")
+	tickers, err := s.tickers("")
+	if err != nil {
+		return nil, errors.Wrap(err, "tickerService.GetAll")
 	}
 
-	type tickerWithDec struct {
-		Ticker
-		BaseVolume   types.Dec
-		TargetVolume types.Dec
-	}
-	tickerMap := make(map[string]tickerWithDec)
+	poolIds := make([]string, 0, len(tickers))
+	latestTs := tickers[len(tickers)-1].Timestamp
 	for _, t := range tickers {
-		baseVolume, err := types.NewDecFromStr(t.BaseVolume)
-		if err != nil {
-			return nil, err
-		}
-		targetVolume, err := types.NewDecFromStr(t.TargetVolume)
-		if err != nil {
-			return nil, err
-		}
-
-		var lastPrice types.Dec
-		if t.TargetDecimals > t.BaseDecimals {
-			decimalDiff := types.NewDec(10).Power(uint64(t.TargetDecimals - t.BaseDecimals))
-			lastPrice = baseVolume.Quo(targetVolume).Mul(decimalDiff).Abs()
-		} else {
-			decimalDiff := types.NewDec(10).Power(uint64(t.BaseDecimals - t.TargetDecimals))
-			lastPrice = baseVolume.Quo(targetVolume).Quo(decimalDiff).Abs()
-		}
-
-		t.LastPrice = lastPrice.String()
-		if lt, ok := tickerMap[t.PoolId]; ok {
-			tickerMap[t.PoolId] = tickerWithDec{
-				Ticker:       t,
-				BaseVolume:   lt.BaseVolume.Add(baseVolume),
-				TargetVolume: lt.TargetVolume.Add(targetVolume),
-			}
-		} else {
-			tickerMap[t.PoolId] = tickerWithDec{
-				Ticker:       t,
-				BaseVolume:   baseVolume,
-				TargetVolume: targetVolume,
-			}
-		}
-	}
-
-	tickers = make([]Ticker, 0, len(tickerMap))
-	poolIds := make([]string, 0, len(tickerMap))
-	latestTs := float64(0)
-	for _, v := range tickerMap {
-		t := v.Ticker
-		t.BaseVolume = v.BaseVolume.String()
-		t.TargetVolume = v.TargetVolume.String()
-		tickers = append(tickers, t)
 		poolIds = append(poolIds, t.PoolId)
-		if latestTs < v.Timestamp {
-			latestTs = v.Timestamp
-		}
 	}
 
 	inactiveTickers, err := s.inactivePools(poolIds)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "tickerService.GetAll")
 	}
 	tickers = append(tickers, inactiveTickers...)
 
@@ -250,9 +140,69 @@ order by ps.timestamp asc
 	for i, t := range tickers {
 		baseLiquidityInUsd, err := s.liquidityInUsd(t)
 		if err != nil {
-			return nil, errors.Wrap(err, "TickerService.GetAll")
+			return nil, errors.Wrap(err, "tickerService.GetAll")
 		}
 		tickers[i].BaseLiquidityInPrice = baseLiquidityInUsd
+	}
+
+	return tickers, nil
+}
+
+func (s *tickerService) tickers(cond string, bindings ...string) ([]Ticker, error) {
+	query := `
+select distinct
+    p.asset0 base_currency,
+    p.asset1 target_currency,
+    sum(ps.volume0) over (partition by ps.pair_id) base_volume,
+    sum(ps.volume1) over (partition by ps.pair_id) target_volume,
+    t0.decimals base_decimals,
+    t1.decimals target_decimals,
+    first_value(ps.liquidity0_in_price) over (partition by ps.pair_id order by ps.timestamp desc) base_liquidity_in_price,
+    p.contract pool_id,
+    first_value(ps.timestamp) over (partition by ps.pair_id order by ps.timestamp desc) as timestamp
+from pair_stats_recent ps
+    join pair p on ps.pair_id = p.id
+    join tokens t0 on p.chain_id = t0.chain_id and p.asset0 = t0.address
+    join tokens t1 on p.chain_id = t1.chain_id and p.asset1 = t1.address
+where ps.chain_id = ?
+  and ps.timestamp >= extract(epoch from now()-interval'24h')
+`
+	var tickers []Ticker
+	if cond != "" {
+		b := make([]interface{}, len(bindings)+1)
+		b[0] = s.chainId
+		for i, v := range bindings {
+			b[i+1] = v
+		}
+		if tx := s.Raw(query+cond, b...).Find(&tickers); tx.Error != nil {
+			return nil, errors.Wrap(tx.Error, "tickerService.tickers")
+		}
+	} else {
+		if tx := s.Raw(query, s.chainId).Find(&tickers); tx.Error != nil {
+			return nil, errors.Wrap(tx.Error, "tickerService.tickers")
+		}
+	}
+
+	for i, t := range tickers {
+		var baseVolume types.Dec
+		if v, err := types.NewDecFromStr(t.BaseVolume); err != nil {
+			return nil, errors.Wrap(err, "tickerService.tickers")
+		} else {
+			baseVolume = types.NewDecFromIntWithPrec(v.TruncateInt(), int64(t.BaseDecimals))
+		}
+
+		var targetVolume types.Dec
+		if v, err := types.NewDecFromStr(t.TargetVolume); err != nil {
+			return nil, errors.Wrap(err, "tickerService.tickers")
+		} else {
+			targetVolume = types.NewDecFromIntWithPrec(v.TruncateInt(), int64(t.TargetDecimals))
+		}
+
+		tickers[i].BaseVolume = baseVolume.String()
+		tickers[i].TargetVolume = targetVolume.String()
+
+		baseDecimal := types.NewDec(10).Power(uint64(t.BaseDecimals))
+		tickers[i].LastPrice = types.NewDecFromIntWithPrec(baseVolume.Quo(targetVolume).Mul(baseDecimal).RoundInt(), int64(t.BaseDecimals)).String()
 	}
 
 	return tickers, nil
