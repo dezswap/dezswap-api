@@ -201,8 +201,8 @@ where ps.chain_id = ?
 		tickers[i].BaseVolume = baseVolume.String()
 		tickers[i].TargetVolume = targetVolume.String()
 
-		baseDecimal := types.NewDec(10).Power(uint64(t.BaseDecimals))
-		tickers[i].LastPrice = types.NewDecFromIntWithPrec(baseVolume.Quo(targetVolume).Mul(baseDecimal).RoundInt(), int64(t.BaseDecimals)).String()
+		targetDecimal := types.NewDec(10).Power(uint64(t.TargetDecimals))
+		tickers[i].LastPrice = types.NewDecFromIntWithPrec(targetVolume.Quo(baseVolume).Mul(targetDecimal).RoundInt(), int64(t.TargetDecimals)).String()
 	}
 
 	return tickers, nil
