@@ -1103,8 +1103,8 @@ func (d *dashboard) Txs(txType TxType, addr ...Addr) (Txs, error) {
 	).Table("(?) as pt", subQuery).Joins(`
 		JOIN tokens AS t0 ON pt.asset0 = t0.address AND pt.chain_id = t0.chain_id
 		JOIN tokens AS t1 ON pt.asset1 = t1.address AND pt.chain_id = t1.chain_id
-		LEFT JOIN LATERAL (SELECT * FROM price WHERE token_id = t0.id AND tx_id <= pt.id ORDER BY tx_id DESC LIMIT 1) pr0 ON TRUE
-		LEFT JOIN LATERAL (SELECT * FROM price WHERE token_id = t1.id AND tx_id <= pt.id ORDER BY tx_id DESC LIMIT 1) pr1 ON TRUE
+		LEFT JOIN LATERAL (select price from price p join (SELECT max(tx_id) tx_id FROM price WHERE token_id = t0.id AND tx_id <= pt.id) t on p.tx_id = t.tx_id where p.token_id = t0.id) pr0 ON TRUE
+		LEFT JOIN LATERAL (select price from price p join (SELECT max(tx_id) tx_id FROM price WHERE token_id = t1.id AND tx_id <= pt.id) t on p.tx_id = t.tx_id where p.token_id = t1.id) pr1 ON TRUE
 	`,
 	).Order(`pt. "timestamp" DESC`)
 
@@ -1154,8 +1154,8 @@ func (d *dashboard) TxsOfToken(txType TxType, addr Addr) (Txs, error) {
 	).Table("(?) as pt", subQuery).Joins(`
 		JOIN tokens AS t0 ON pt.asset0 = t0.address AND pt.chain_id = t0.chain_id
 		JOIN tokens AS t1 ON pt.asset1 = t1.address AND pt.chain_id = t1.chain_id
-		LEFT JOIN LATERAL (SELECT * FROM price WHERE token_id = t1.id AND tx_id <= pt.id ORDER BY tx_id DESC LIMIT 1) pr1 ON TRUE
-		LEFT JOIN LATERAL (SELECT * FROM price WHERE token_id = t0.id AND tx_id <= pt.id ORDER BY tx_id DESC LIMIT 1) pr0 ON TRUE
+		LEFT JOIN LATERAL (select price from price p join (SELECT max(tx_id) tx_id FROM price WHERE token_id = t0.id AND tx_id <= pt.id) t on p.tx_id = t.tx_id where p.token_id = t0.id) pr0 ON TRUE
+		LEFT JOIN LATERAL (select price from price p join (SELECT max(tx_id) tx_id FROM price WHERE token_id = t1.id AND tx_id <= pt.id) t on p.tx_id = t.tx_id where p.token_id = t1.id) pr1 ON TRUE
 	`,
 	).Order(`pt. "timestamp" DESC`)
 
