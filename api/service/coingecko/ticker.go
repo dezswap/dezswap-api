@@ -52,6 +52,13 @@ func (s *tickerService) Get(key string) (*Ticker, error) {
 	ticker := &Ticker{}
 	if len(tickers) > 0 {
 		ticker = &tickers[len(tickers)-1]
+		if ticker.LastPrice == "" {
+			price, err := s.lastSwapPrice(ticker.PoolId)
+			if err != nil {
+				return nil, errors.Wrap(err, "tickerService.Get")
+			}
+			ticker.LastPrice = price
+		}
 	} else {
 		err := s.liquidity(tokens[0], tokens[1], ticker)
 		if err != nil {
@@ -73,6 +80,19 @@ func (s *tickerService) Get(key string) (*Ticker, error) {
 	ticker.BaseLiquidityInPrice = baseLiquidityInUsd
 
 	return ticker, nil
+}
+
+func (s *tickerService) lastSwapPrice(poolId string) (string, error) {
+	cond := "p.contract = '" + poolId + "'"
+	inactiveTickers, err := s.inactivePools(cond)
+	if err != nil {
+		return "", err
+	}
+	if len(inactiveTickers) == 0 {
+		return "", errors.New("no ticker has returned")
+	}
+
+	return inactiveTickers[0].LastPrice, nil
 }
 
 func (s *tickerService) liquidity(base string, target string, ticker *Ticker) error {
@@ -110,17 +130,33 @@ func (s *tickerService) GetAll() ([]Ticker, error) {
 		return nil, errors.Wrap(err, "tickerService.GetAll")
 	}
 
-	poolIds := make([]string, 0, len(tickers))
+	var activePoolIds []string
+	zeroPricePoolIdIdxMap := make(map[string]int)
+
 	latestTs := tickers[len(tickers)-1].Timestamp
-	for _, t := range tickers {
-		poolIds = append(poolIds, t.PoolId)
+	for i, t := range tickers {
+		if len(t.LastPrice) > 0 {
+			activePoolIds = append(activePoolIds, t.PoolId)
+		} else {
+			zeroPricePoolIdIdxMap[t.PoolId] = i
+		}
 	}
 
-	inactiveTickers, err := s.inactivePools(poolIds)
+	var cond string
+	if len(activePoolIds) > 0 {
+		cond = "p.contract not in ('" + strings.Join(activePoolIds, "','") + "')"
+	}
+	inactiveTickers, err := s.inactivePools(cond)
 	if err != nil {
 		return nil, errors.Wrap(err, "tickerService.GetAll")
 	}
-	tickers = append(tickers, inactiveTickers...)
+	for _, t := range inactiveTickers {
+		if i, ok := zeroPricePoolIdIdxMap[t.PoolId]; ok {
+			tickers[i].LastPrice = t.LastPrice
+		} else {
+			tickers = append(tickers, t)
+		}
+	}
 
 	if latestTs == 0 {
 		for _, t := range inactiveTickers {
@@ -202,13 +238,15 @@ where ps.chain_id = ?
 		tickers[i].TargetVolume = targetVolume.String()
 
 		targetDecimal := types.NewDec(10).Power(uint64(t.TargetDecimals))
-		tickers[i].LastPrice = types.NewDecFromIntWithPrec(targetVolume.Quo(baseVolume).Mul(targetDecimal).RoundInt(), int64(t.TargetDecimals)).String()
+		if !baseVolume.IsZero() {
+			tickers[i].LastPrice = types.NewDecFromIntWithPrec(targetVolume.Quo(baseVolume).Mul(targetDecimal).RoundInt(), int64(t.TargetDecimals)).String()
+		}
 	}
 
 	return tickers, nil
 }
 
-func (s *tickerService) inactivePools(activePoolIds []string) ([]Ticker, error) {
+func (s *tickerService) inactivePools(cond string) ([]Ticker, error) {
 	query := `
 select p.asset0 base_currency,
        p.asset1 target_currency,
@@ -230,11 +268,11 @@ from pair_stats_30m ps
 where p.chain_id = ?
 `
 
-	if len(activePoolIds) > 0 {
-		query += " and p.contract not in ('" + strings.Join(activePoolIds, "','") + "')"
+	if cond != "" {
+		query += " and " + cond
 	}
 
-	tickers := []Ticker{}
+	var tickers []Ticker
 	if tx := s.Raw(query, s.chainId).Find(&tickers); tx.Error != nil {
 		return nil, errors.Wrap(tx.Error, "TickerService.inactivePools")
 	}
