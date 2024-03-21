@@ -133,7 +133,10 @@ func (s *tickerService) GetAll() ([]Ticker, error) {
 	var activePoolIds []string
 	zeroPricePoolIdIdxMap := make(map[string]int)
 
-	latestTs := tickers[len(tickers)-1].Timestamp
+	var latestTs float64
+	if len(tickers) > 0 {
+		latestTs = tickers[len(tickers)-1].Timestamp
+	}
 	for i, t := range tickers {
 		if len(t.LastPrice) > 0 {
 			activePoolIds = append(activePoolIds, t.PoolId)
