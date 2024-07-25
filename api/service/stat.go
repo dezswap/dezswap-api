@@ -1,6 +1,7 @@
 package service
 
 import (
+	"github.com/dezswap/dezswap-api/pkg"
 	"time"
 
 	"github.com/cosmos/cosmos-sdk/types"
@@ -173,27 +174,27 @@ where ps.chain_id = ? and ps.timestamp > extract(epoch from now()-?::interval)
 }
 
 func (s *statService) sumPairStat(stat db.PairStat, sumStatMap map[string][countOfStatType]types.Dec) error {
-	volume0, err := types.NewDecFromStr(stat.Volume0InPrice)
+	volume0, err := pkg.NewDecFromStrWithTruncate(stat.Volume0InPrice)
 	if err != nil {
 		return err
 	}
-	volume1, err := types.NewDecFromStr(stat.Volume1InPrice)
+	volume1, err := pkg.NewDecFromStrWithTruncate(stat.Volume1InPrice)
 	if err != nil {
 		return err
 	}
-	commission0, err := types.NewDecFromStr(stat.Commission0InPrice)
+	commission0, err := pkg.NewDecFromStrWithTruncate(stat.Commission0InPrice)
 	if err != nil {
 		return err
 	}
-	commission1, err := types.NewDecFromStr(stat.Commission1InPrice)
+	commission1, err := pkg.NewDecFromStrWithTruncate(stat.Commission1InPrice)
 	if err != nil {
 		return err
 	}
-	liquidity0, err := types.NewDecFromStr(stat.Liquidity0InPrice)
+	liquidity0, err := pkg.NewDecFromStrWithTruncate(stat.Liquidity0InPrice)
 	if err != nil {
 		return err
 	}
-	liquidity1, err := types.NewDecFromStr(stat.Liquidity1InPrice)
+	liquidity1, err := pkg.NewDecFromStrWithTruncate(stat.Liquidity1InPrice)
 	if err != nil {
 		return err
 	}

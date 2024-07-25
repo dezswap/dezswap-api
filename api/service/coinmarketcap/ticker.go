@@ -3,6 +3,7 @@ package coinmarketcap
 import (
 	"github.com/cosmos/cosmos-sdk/types"
 	"github.com/dezswap/dezswap-api/api/service"
+	"github.com/dezswap/dezswap-api/pkg"
 	"github.com/pkg/errors"
 	"gorm.io/gorm"
 	"strings"
@@ -51,11 +52,11 @@ func (s tickerService) Get(key string) (*Ticker, error) {
 	totalQuoteVolume := types.ZeroDec()
 	lastPrice := "0"
 	for _, t := range tickers {
-		baseVolume, err := types.NewDecFromStr(t.BaseVolume)
+		baseVolume, err := pkg.NewDecFromStrWithTruncate(t.BaseVolume)
 		if err != nil {
 			return nil, err
 		}
-		quoteVolume, err := types.NewDecFromStr(t.QuoteVolume)
+		quoteVolume, err := pkg.NewDecFromStrWithTruncate(t.QuoteVolume)
 		if err != nil {
 			return nil, err
 		}
@@ -154,11 +155,11 @@ order by ps.timestamp asc
 	}
 	tickerMap := make(map[string]tickerWithDec)
 	for _, t := range tickers {
-		baseVolume, err := types.NewDecFromStr(t.BaseVolume)
+		baseVolume, err := pkg.NewDecFromStrWithTruncate(t.BaseVolume)
 		if err != nil {
 			return nil, err
 		}
-		quoteVolume, err := types.NewDecFromStr(t.QuoteVolume)
+		quoteVolume, err := pkg.NewDecFromStrWithTruncate(t.QuoteVolume)
 		if err != nil {
 			return nil, err
 		}

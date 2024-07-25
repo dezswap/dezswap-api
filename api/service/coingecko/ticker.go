@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"github.com/cosmos/cosmos-sdk/types"
 	"github.com/dezswap/dezswap-api/api/service"
+	"github.com/dezswap/dezswap-api/pkg"
 	"github.com/pkg/errors"
 	"gorm.io/gorm"
 	"math"
@@ -224,14 +225,14 @@ where ps.chain_id = ?
 
 	for i, t := range tickers {
 		var baseVolume types.Dec
-		if v, err := types.NewDecFromStr(t.BaseVolume); err != nil {
+		if v, err := pkg.NewDecFromStrWithTruncate(t.BaseVolume); err != nil {
 			return nil, errors.Wrap(err, "tickerService.tickers")
 		} else {
 			baseVolume = types.NewDecFromIntWithPrec(v.TruncateInt(), int64(t.BaseDecimals))
 		}
 
 		var targetVolume types.Dec
-		if v, err := types.NewDecFromStr(t.TargetVolume); err != nil {
+		if v, err := pkg.NewDecFromStrWithTruncate(t.TargetVolume); err != nil {
 			return nil, errors.Wrap(err, "tickerService.tickers")
 		} else {
 			targetVolume = types.NewDecFromIntWithPrec(v.TruncateInt(), int64(t.TargetDecimals))
