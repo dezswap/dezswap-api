@@ -110,7 +110,14 @@ func (app *app) setMiddlewares(cache cache.Cache) {
 	conf.AllowMethods = []string{"GET", "OPTIONS"}
 	app.engine.Use(cors.New(conf))
 	if cache != nil {
-		app.engine.Use(gin_cache.CacheByRequestURI(cache, time.Second*xpla.BLOCK_SECOND))
+		app.engine.Use(gin_cache.Cache(cache, time.Second*xpla.BLOCK_SECOND,
+			gin_cache.WithCacheStrategyByRequest(func(c *gin.Context) (bool, gin_cache.Strategy) {
+				return true, gin_cache.Strategy{
+					CacheKey: c.Request.Host + c.Request.RequestURI,
+				}
+			}),
+			gin_cache.WithDiscardHeaders(gin_cache.CorsHeaders()),
+		))
 	}
 	app.engine.UseRawPath = true
 }
