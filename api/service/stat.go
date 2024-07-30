@@ -43,7 +43,8 @@ func (s *statService) Get(key string) (*PairStats, error) {
 	switch key {
 	case statPeriod24h:
 		minTs := time.Now().Add(-24 * time.Hour)
-		err := s.sumPairStatsFrom(float64(minTs.UnixMicro())/1_000_000, pairStatMap)
+
+		err := s.sumRecentPairStatsSince(float64(minTs.Unix()), pairStatMap)
 		if err != nil {
 			return nil, errors.Wrap(err, "statService.Get")
 		}
@@ -67,7 +68,7 @@ func (s *statService) Get(key string) (*PairStats, error) {
 			}
 		}
 
-		err = s.sumPairStatsFrom(latestTimestamp+1, pairStatMap)
+		err = s.sumRecentPairStatsSince(latestTimestamp+1, pairStatMap)
 		if err != nil {
 			return nil, errors.Wrap(err, "statService.Get")
 		}
@@ -83,35 +84,47 @@ func (s *statService) Get(key string) (*PairStats, error) {
 func (s *statService) GetAll() ([]PairStats, error) {
 	pairStatsByPeriod := make([]PairStats, CountOfPeriodType)
 	pairStatMap := make(map[string][countOfStatType]types.Dec)
-	now := time.Now()
 
-	stats30m, err := s.pairStats30m("1mon")
-	if err != nil {
-		return nil, errors.Wrap(err, "statService.GetAll")
-	}
-	if len(stats30m) > 0 {
-		err = s.sumPairStatsFrom(stats30m[len(stats30m)-1].Timestamp+1, pairStatMap)
+	var stats30m []db.PairStat
+	var err error
+
+	// retrieve stats from db
+	{
+		stats30m, err = s.pairStats30m("1mon")
 		if err != nil {
 			return nil, errors.Wrap(err, "statService.GetAll")
 		}
+		err = s.sumRecentPairStatsSince(stats30m[len(stats30m)-1].Timestamp+1, pairStatMap)
+		if err != nil {
+			return nil, errors.Wrap(err, "statService.GetAll")
+		}
+	}
 
-		tsBefore24h := now.AddDate(0, 0, -1).UnixMicro() * 1000
-		tsBefore7d := now.AddDate(0, 0, -7).UnixMicro() * 1000
+	if len(stats30m) == 0 {
+		pairStatsByPeriod[Period24h] = s.mapToSlice(pairStatMap)
+		return pairStatsByPeriod, nil
+	}
+
+	// calculate and assign stat sum by period
+	{
+		now := time.Now()
+		tsBefore24h := now.AddDate(0, 0, -1).Unix()
+		tsBefore7d := now.AddDate(0, 0, -7).Unix()
 
 		done24h := false
 		done7d := false
 
 		for _, stat := range stats30m {
-			if stat.Timestamp > float64(tsBefore24h) && !done24h {
+			if stat.Timestamp < float64(tsBefore24h) && !done24h {
 				pairStatsByPeriod[Period24h] = s.mapToSlice(pairStatMap)
 				done24h = true
-			} else if stat.Timestamp > float64(tsBefore7d) && !done7d {
+			}
+			if stat.Timestamp < float64(tsBefore7d) && !done7d {
 				pairStatsByPeriod[Period7d] = s.mapToSlice(pairStatMap)
 				done7d = true
 			}
 
-			err := s.sumPairStat(stat, pairStatMap)
-			if err != nil {
+			if err := s.sumPairStat(stat, pairStatMap); err != nil {
 				return nil, errors.Wrap(err, "statService.GetAll")
 			}
 		}
@@ -121,7 +134,7 @@ func (s *statService) GetAll() ([]PairStats, error) {
 	return pairStatsByPeriod, nil
 }
 
-func (s *statService) sumPairStatsFrom(minTimestamp float64, sumStatMap map[string][countOfStatType]types.Dec) error {
+func (s *statService) sumRecentPairStatsSince(minTimestamp float64, sumStatMap map[string][countOfStatType]types.Dec) error {
 	query := `
 select p.contract address,
        ps.volume0_in_price,
@@ -138,12 +151,12 @@ where ps.chain_id = ?
 `
 	stats := []db.PairStat{}
 	if tx := s.Raw(query, s.chainId, minTimestamp).Find(&stats); tx.Error != nil {
-		return errors.Wrap(tx.Error, "statService.sumPairStatsFrom")
+		return errors.Wrap(tx.Error, "statService.sumRecentPairStatsSince")
 	}
 	for _, stat := range stats {
 		err := s.sumPairStat(stat, sumStatMap)
 		if err != nil {
-			return errors.Wrap(err, "statService.sumPairStatsFrom")
+			return errors.Wrap(err, "statService.sumRecentPairStatsSince")
 		}
 	}
 
@@ -163,6 +176,7 @@ select p.contract address,
 from pair_stats_30m ps
      join pair p on p.id = ps.pair_id
 where ps.chain_id = ? and ps.timestamp > extract(epoch from now()-?::interval)
+order by ps.timestamp desc
 `
 
 	stats := []db.PairStat{}
