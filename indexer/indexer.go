@@ -117,8 +117,12 @@ func (d *dexIndexer) UpdateVerifiedTokens() error {
 		return errors.Wrap(err, "dexIndexer.UpdateTokens")
 	}
 	tokenMap := make(map[string]Token)
+	verifiedTokenMap := make(map[string]Token)
 	for _, t := range tokens {
 		tokenMap[t.Address] = t
+		if t.Verified {
+			verifiedTokenMap[t.Address] = t
+		}
 	}
 
 	updatableTokens := []Token{}
@@ -129,6 +133,12 @@ func (d *dexIndexer) UpdateVerifiedTokens() error {
 			updatableTokens = append(updatableTokens, vt)
 			tokenMap[vt.Address] = vt
 		}
+		delete(verifiedTokenMap, vt.Address)
+	}
+
+	for _, t := range verifiedTokenMap {
+		t.Verified = false
+		updatableTokens = append(updatableTokens, t)
 	}
 
 	if err := d.repo.SaveTokens(updatableTokens); err != nil {
