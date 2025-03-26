@@ -3,20 +3,21 @@ package repo
 import (
 	"github.com/dezswap/dezswap-api/configs"
 	"github.com/dezswap/dezswap-api/indexer"
+	"github.com/dezswap/dezswap-api/pkg"
 	"github.com/dezswap/dezswap-api/pkg/dezswap"
 	"github.com/dezswap/dezswap-api/pkg/xpla"
 	"github.com/pkg/errors"
 )
 
 type nodeRepoImpl struct {
-	xpla.GrpcClient
+	pkg.GrpcClient
 	nodeMapper
 	chainId string
 }
 
 var _ indexer.NodeRepo = &nodeRepoImpl{}
 
-func NewNodeRepo(client xpla.GrpcClient, c configs.IndexerConfig) (indexer.NodeRepo, error) {
+func NewNodeRepo(client pkg.GrpcClient, c configs.IndexerConfig) (indexer.NodeRepo, error) {
 	return &nodeRepoImpl{client, &nodeMapperImpl{}, c.ChainId}, nil
 }
 

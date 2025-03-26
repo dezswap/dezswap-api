@@ -2,6 +2,7 @@ package dezswap
 
 import (
 	"fmt"
+	"github.com/dezswap/dezswap-api/pkg"
 	"testing"
 
 	"github.com/dezswap/dezswap-api/configs"
@@ -13,7 +14,7 @@ import (
 func _Test_QueryContract(t *testing.T) {
 	cf := configs.New().Indexer.SrcNode
 	assert := assert.New(t)
-	c, err := xpla.NewGrpcClient(fmt.Sprintf("%s:%s", cf.Host, cf.Port))
+	c, err := pkg.NewGrpcClient(fmt.Sprintf("%s:%s", cf.Host, cf.Port))
 	assert.NoError(err)
 	res, err := c.QueryContract(TESTNET_FACTORY, []byte(`{"pairs": {}}`), xpla.LATEST_HEIGHT_INDICATOR)
 	assert.NotNil(res)
@@ -23,7 +24,7 @@ func _Test_QueryContract(t *testing.T) {
 func _Test_SyncedHeight(t *testing.T) {
 	cf := configs.New().Indexer.SrcNode
 	assert := assert.New(t)
-	c, err := xpla.NewGrpcClient(fmt.Sprintf("%s:%s", cf.Host, cf.Port))
+	c, err := pkg.NewGrpcClient(fmt.Sprintf("%s:%s", cf.Host, cf.Port))
 	assert.NoError(err)
 	res, err := c.SyncedHeight()
 	assert.NotNil(res)

@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"github.com/dezswap/dezswap-api/pkg"
 	"math"
 	"os"
 	"reflect"
@@ -69,7 +70,7 @@ func main() {
 		panic(err)
 	}
 	target := fmt.Sprintf("%s:%s", c.Indexer.SrcNode.Host, c.Indexer.SrcNode.Port)
-	grpcCli, err := xpla.NewGrpcClient(target)
+	grpcCli, err := pkg.NewGrpcClient(target)
 	if err != nil {
 		panic(err)
 	}

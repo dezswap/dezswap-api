@@ -1,6 +1,7 @@
 package repo
 
 import (
+	"github.com/dezswap/dezswap-api/pkg"
 	"strings"
 	"testing"
 
@@ -8,13 +9,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
 
-	"github.com/dezswap/dezswap-api/pkg/xpla"
 	xpla_mock "github.com/dezswap/dezswap-api/pkg/xpla/mock"
 )
 
 type repoSuite struct {
 	suite.Suite
-	client  xpla.GrpcClient
+	client  pkg.GrpcClient
 	chainId string
 	r       nodeRepoImpl
 }
