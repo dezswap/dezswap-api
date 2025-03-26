@@ -7,6 +7,12 @@ import (
 	"net/http"
 )
 
+var assetListEndpointMap = map[pkg.NetworkName]string{
+	pkg.NetworkNameAsiAlliance:  "https://raw.githubusercontent.com/cosmos/chain-registry/refs/heads/master/fetchhub/assetlist.json",
+	pkg.NetworkNameTerraClassic: "https://raw.githubusercontent.com/cosmos/chain-registry/refs/heads/master/terra/assetlist.json",
+	pkg.NetworkNameTerra2:       "https://raw.githubusercontent.com/cosmos/chain-registry/refs/heads/master/terra2/assetlist.json",
+}
+
 type client struct {
 	http.Client
 	AssetListEndpoint string
@@ -14,8 +20,13 @@ type client struct {
 
 var _ pkg.Client = &client{}
 
-func NewClient(assetListEndpoint string) pkg.Client {
-	return &client{http.Client{}, assetListEndpoint}
+func NewClient(networkName pkg.NetworkName) (pkg.Client, error) {
+	ep, ok := assetListEndpointMap[networkName]
+	if !ok {
+		return nil, errors.New("unsupported network")
+	}
+
+	return &client{http.Client{}, ep}, nil
 }
 
 // VerifiedCw20s implements Client

@@ -1,6 +1,7 @@
 package indexer
 
 import (
+	"github.com/dezswap/dezswap-api/pkg/xpla"
 	"testing"
 
 	"github.com/dezswap/dezswap-api/pkg/db"
@@ -31,7 +32,7 @@ func (m *mockRepo) SaveTokens(tokens []Token) error {
 
 func Test_UpdateVerified(t *testing.T) {
 	repo := mockRepo{nil, &mock.Mock{}}
-	dexIndexer := dexIndexer{&repo, "chainId"}
+	dexIndexer := dexIndexer{xpla.NetworkMetadata, &repo, "chainId"}
 
 	type testcase struct {
 		tokens                  []Token

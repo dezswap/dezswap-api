@@ -2,10 +2,10 @@ package repo
 
 import (
 	"fmt"
+	"github.com/dezswap/dezswap-api/pkg"
 	"github.com/dezswap/dezswap-api/pkg/types"
 
 	"github.com/dezswap/dezswap-api/indexer"
-	"github.com/dezswap/dezswap-api/pkg/xpla"
 )
 
 type assetMapper interface {
@@ -53,7 +53,7 @@ func (*assetMapperImpl) IbcsResToTokens(res *types.IbcResMap, chainId string) []
 		token := indexer.Token{
 			Address:  fmt.Sprintf("ibc/%s", k),
 			ChainId:  chainId,
-			Decimals: xpla.IBC_DEFAULT_TOKEN_DECIMALS,
+			Decimals: pkg.IBC_DEFAULT_TOKEN_DECIMALS,
 			Verified: true,
 		}
 		if v.Icon != nil {

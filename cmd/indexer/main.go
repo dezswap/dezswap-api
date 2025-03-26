@@ -3,6 +3,9 @@ package main
 import (
 	"fmt"
 	"github.com/dezswap/dezswap-api/pkg"
+	"github.com/dezswap/dezswap-api/pkg/asi"
+	"github.com/dezswap/dezswap-api/pkg/chainregistry"
+	"github.com/pkg/errors"
 	"math"
 	"os"
 	"reflect"
@@ -64,7 +67,17 @@ func main() {
 	logger := setLogger(c)
 	defer catch(logger)
 
-	assetRepo := repo.NewAssetRepo(xpla.NewClient())
+	networkMetadata, err := getNetworkMetadata(c.Indexer.ChainId)
+	if err != nil {
+		panic(err)
+	}
+
+	client, err := initClient(networkMetadata)
+	if err != nil {
+		panic(err)
+	}
+
+	assetRepo := repo.NewAssetRepo(client, networkMetadata)
 	dbRepo, err := repo.NewDbRepo(c.Indexer.ChainId, c.Indexer.SrcDb, c.Indexer.Db)
 	if err != nil {
 		panic(err)
@@ -74,18 +87,18 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	nodeRepo, err := repo.NewNodeRepo(grpcCli, c.Indexer)
+	nodeRepo, err := repo.NewNodeRepo(grpcCli, c.Indexer, networkMetadata)
 	if err != nil {
 		panic(err)
 	}
 
 	indexerRepo := repo.NewRepo(nodeRepo, dbRepo, assetRepo)
-	app := indexer.NewDexIndexer(indexerRepo, c.Indexer.ChainId)
+	app := indexer.NewDexIndexer(networkMetadata, indexerRepo, c.Indexer.ChainId)
 
 	jobs := []*repeatableJob{
-		{each: app.UpdateTokens, errorHandler: nil, delay: xpla.BLOCK_SECOND * time.Second, errCount: 0, tolerance: 3, exponential: true},
-		{each: app.UpdateVerifiedTokens, errorHandler: nil, delay: xpla.BLOCK_SECOND * time.Second, errCount: 0, tolerance: 3, exponential: true},
-		{each: app.UpdateLatestPools, errorHandler: nil, delay: xpla.BLOCK_SECOND * time.Second, errCount: 0, tolerance: 3, exponential: true},
+		{each: app.UpdateTokens, errorHandler: nil, delay: time.Duration(networkMetadata.BlockSecond) * time.Second, errCount: 0, tolerance: 3, exponential: true},
+		{each: app.UpdateVerifiedTokens, errorHandler: nil, delay: time.Duration(networkMetadata.BlockSecond) * time.Second, errCount: 0, tolerance: 3, exponential: true},
+		{each: app.UpdateLatestPools, errorHandler: nil, delay: time.Duration(networkMetadata.BlockSecond) * time.Second, errCount: 0, tolerance: 3, exponential: true},
 	}
 
 	logger.Info("Starting indexer...")
@@ -102,6 +115,28 @@ func main() {
 
 	s.StartBlocking()
 }
+
+func getNetworkMetadata(chainId string) (pkg.NetworkMetadata, error) {
+	if xpla.NetworkMetadata.IsMainnetOrTestnet(chainId) {
+		return xpla.NetworkMetadata, nil
+	} else if asi.NetworkMetadata.IsMainnetOrTestnet(chainId) {
+		return asi.NetworkMetadata, nil
+	}
+
+	return pkg.NetworkMetadata{}, errors.New("unsupported network")
+}
+
+func initClient(networkMetadata pkg.NetworkMetadata) (pkg.Client, error) {
+	switch networkMetadata.NetworkName {
+	case pkg.NetworkNameXplaChain:
+		return xpla.NewClient(), nil
+	case pkg.NetworkNameAsiAlliance:
+		return chainregistry.NewClient(networkMetadata.NetworkName)
+	}
+
+	return nil, errors.New("unsupported network")
+}
+
 func setLogger(c configs.Config) logging.Logger {
 	c.Log.ChainId = c.Indexer.ChainId
 	logger := logging.New("dezswap-api", c.Log)

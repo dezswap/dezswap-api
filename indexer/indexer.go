@@ -1,20 +1,21 @@
 package indexer
 
 import (
+	"github.com/dezswap/dezswap-api/pkg"
 	"github.com/dezswap/dezswap-api/pkg/db"
-	"github.com/dezswap/dezswap-api/pkg/xpla"
 	"github.com/pkg/errors"
 )
 
 type dexIndexer struct {
+	pkg.NetworkMetadata
 	repo    Repo
 	chainId string
 }
 
 var _ Indexer = &dexIndexer{}
 
-func NewDexIndexer(repo Repo, chainId string) Indexer {
-	return &dexIndexer{repo, chainId}
+func NewDexIndexer(networkMetadata pkg.NetworkMetadata, repo Repo, chainId string) Indexer {
+	return &dexIndexer{networkMetadata, repo, chainId}
 }
 
 // UpdatePools implements Indexer
@@ -84,7 +85,7 @@ func (d *dexIndexer) UpdateTokens() error {
 			var t *Token
 			var err error
 			// TODO: remove this after xpla supports denom metadata query
-			if xpla.IsCw20(addr) || xpla.IsIbcToken(addr) {
+			if d.NetworkMetadata.IsCw20(addr) || d.NetworkMetadata.IsIbcToken(addr) {
 				t, err = d.repo.TokenFromNode(addr)
 			} else {
 				t, err = d.repo.Token(addr)
@@ -112,31 +113,31 @@ func (d *dexIndexer) UpdateVerifiedTokens() error {
 	if err != nil {
 		return errors.Wrap(err, "dexIndexer.UpdateTokens")
 	}
-	verifiedTokens, err := d.repo.VerifiedTokens(d.chainId)
+	newVerifiedTokens, err := d.repo.VerifiedTokens(d.chainId)
 	if err != nil {
 		return errors.Wrap(err, "dexIndexer.UpdateTokens")
 	}
 	tokenMap := make(map[string]Token)
-	verifiedTokenMap := make(map[string]Token)
+	orgVerifiedTokenMap := make(map[string]Token)
 	for _, t := range tokens {
 		tokenMap[t.Address] = t
 		if t.Verified {
-			verifiedTokenMap[t.Address] = t
+			orgVerifiedTokenMap[t.Address] = t
 		}
 	}
 
 	updatableTokens := []Token{}
-	for _, vt := range verifiedTokens {
+	for _, vt := range newVerifiedTokens {
 		t, ok := tokenMap[vt.Address]
 		if !ok || !isEqual(&t, &vt) {
 			vt.ID = t.ID
 			updatableTokens = append(updatableTokens, vt)
 			tokenMap[vt.Address] = vt
 		}
-		delete(verifiedTokenMap, vt.Address)
+		delete(orgVerifiedTokenMap, vt.Address)
 	}
 
-	for _, t := range verifiedTokenMap {
+	for _, t := range orgVerifiedTokenMap {
 		t.Verified = false
 		updatableTokens = append(updatableTokens, t)
 	}

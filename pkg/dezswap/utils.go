@@ -13,7 +13,7 @@ func ToAssetInfoRes(addr string, amount string) AssetInfoRes {
 		Amount: assetAmount,
 		Info:   AssetInfoTokenRes{},
 	}
-	if xpla.IsCw20(addr) {
+	if xpla.NetworkMetadata.IsCw20(addr) {
 		res.Info.Token = &TokenAssetInfoRes{
 			ContractAddress: addr,
 		}
@@ -27,7 +27,7 @@ func ToAssetInfoRes(addr string, amount string) AssetInfoRes {
 
 func ToAssetInfoTokenRes(addr string) AssetInfoTokenRes {
 	res := AssetInfoTokenRes{}
-	if xpla.IsCw20(addr) {
+	if xpla.NetworkMetadata.IsCw20(addr) {
 		res.Token = &TokenAssetInfoRes{
 			ContractAddress: addr,
 		}

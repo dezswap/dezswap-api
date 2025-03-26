@@ -6,6 +6,52 @@ import (
 	"strings"
 )
 
+const (
+	IBC_PREFIX                 = "ibc/"
+	IBC_DEFAULT_TOKEN_DECIMALS = 6
+)
+
+type NetworkMetadata struct {
+	NetworkName           NetworkName
+	mainnetPrefix         string
+	testnetPrefix         string
+	addrPrefix            string
+	BlockSecond           uint8
+	LatestHeightIndicator uint64
+}
+
+func NewNetworkMetadata(
+	networkName NetworkName, mainnetPrefix string, testnetPrefix string, addrPrefix string, blockSecond uint8, latestHeightIndicator uint64) NetworkMetadata {
+	return NetworkMetadata{
+		networkName,
+		mainnetPrefix,
+		testnetPrefix,
+		addrPrefix,
+		blockSecond,
+		latestHeightIndicator,
+	}
+}
+
+func (i NetworkMetadata) IsMainnet(chainId string) bool {
+	return strings.Contains(chainId, i.mainnetPrefix)
+}
+
+func (i NetworkMetadata) IsTestnet(chainId string) bool {
+	return strings.Contains(chainId, i.testnetPrefix)
+}
+
+func (i NetworkMetadata) IsMainnetOrTestnet(chainId string) bool {
+	return i.IsMainnet(chainId) || i.IsTestnet(chainId)
+}
+
+func (i NetworkMetadata) IsCw20(addr string) bool {
+	return strings.HasPrefix(addr, i.addrPrefix)
+}
+
+func (i NetworkMetadata) IsIbcToken(addr string) bool {
+	return strings.HasPrefix(addr, IBC_PREFIX)
+}
+
 func NewDecFromStrWithTruncate(input string) (types.Dec, error) {
 	truncatedInput := truncateDecimal(input)
 	dec, err := types.NewDecFromStr(truncatedInput)

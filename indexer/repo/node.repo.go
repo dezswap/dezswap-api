@@ -5,20 +5,20 @@ import (
 	"github.com/dezswap/dezswap-api/indexer"
 	"github.com/dezswap/dezswap-api/pkg"
 	"github.com/dezswap/dezswap-api/pkg/dezswap"
-	"github.com/dezswap/dezswap-api/pkg/xpla"
 	"github.com/pkg/errors"
 )
 
 type nodeRepoImpl struct {
 	pkg.GrpcClient
 	nodeMapper
+	pkg.NetworkMetadata
 	chainId string
 }
 
 var _ indexer.NodeRepo = &nodeRepoImpl{}
 
-func NewNodeRepo(client pkg.GrpcClient, c configs.IndexerConfig) (indexer.NodeRepo, error) {
-	return &nodeRepoImpl{client, &nodeMapperImpl{}, c.ChainId}, nil
+func NewNodeRepo(client pkg.GrpcClient, c configs.IndexerConfig, networkMetadata pkg.NetworkMetadata) (indexer.NodeRepo, error) {
+	return &nodeRepoImpl{client, &nodeMapperImpl{}, networkMetadata, c.ChainId}, nil
 }
 
 // LatestHeightFromNode implements NodeRepo
@@ -49,9 +49,9 @@ func (r *nodeRepoImpl) TokenFromNode(addr string) (*indexer.Token, error) {
 	var token *indexer.Token
 	var err error
 
-	if xpla.IsIbcToken(addr) {
+	if r.NetworkMetadata.IsIbcToken(addr) {
 		token, err = r.ibcFromNode(addr)
-	} else if xpla.IsCw20(addr) {
+	} else if r.NetworkMetadata.IsCw20(addr) {
 		token, err = r.cw20FromNode(addr)
 	} else {
 		// currently, query denom is supported (no metadata)
@@ -87,7 +87,7 @@ func (r *nodeRepoImpl) ibcFromNode(addr string) (*indexer.Token, error) {
 }
 
 func (r *nodeRepoImpl) cw20FromNode(addr string) (*indexer.Token, error) {
-	res, err := r.QueryContract(addr, dezswap.QUERY_TOKEN, xpla.LATEST_HEIGHT_INDICATOR)
+	res, err := r.QueryContract(addr, dezswap.QUERY_TOKEN, r.NetworkMetadata.LatestHeightIndicator)
 	if err != nil {
 		return nil, errors.Wrap(err, "nodeRepoImpl.cw20FromNode")
 	}
