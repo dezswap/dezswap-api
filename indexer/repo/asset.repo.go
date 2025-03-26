@@ -3,6 +3,8 @@ package repo
 import (
 	"github.com/dezswap/dezswap-api/indexer"
 	"github.com/dezswap/dezswap-api/pkg"
+	"github.com/dezswap/dezswap-api/pkg/chainregistry"
+	"github.com/dezswap/dezswap-api/pkg/xpla"
 	"github.com/pkg/errors"
 )
 
@@ -14,8 +16,23 @@ type assetRepoImpl struct {
 
 var _ indexer.AssetRepo = &assetRepoImpl{}
 
-func NewAssetRepo(client pkg.Client, networkMetadata pkg.NetworkMetadata) indexer.AssetRepo {
-	return &assetRepoImpl{client, &assetMapperImpl{}, networkMetadata}
+func NewAssetRepo(networkMetadata pkg.NetworkMetadata) (indexer.AssetRepo, error) {
+	var client pkg.Client
+
+	switch networkMetadata.NetworkName {
+	case pkg.NetworkNameXplaChain:
+		client = xpla.NewClient()
+	case pkg.NetworkNameAsiAlliance:
+		var err error
+		client, err = chainregistry.NewClient(networkMetadata.NetworkName)
+		if err != nil {
+			return nil, err
+		}
+	default:
+		return nil, errors.New("unsupported network")
+	}
+
+	return &assetRepoImpl{client, &assetMapperImpl{}, networkMetadata}, nil
 }
 
 // VerifiedTokens implements indexer.AssetRepo

@@ -1,7 +1,6 @@
 package repo
 
 import (
-	"github.com/dezswap/dezswap-api/configs"
 	"github.com/dezswap/dezswap-api/indexer"
 	"github.com/dezswap/dezswap-api/pkg"
 	"github.com/dezswap/dezswap-api/pkg/dezswap"
@@ -17,8 +16,18 @@ type nodeRepoImpl struct {
 
 var _ indexer.NodeRepo = &nodeRepoImpl{}
 
-func NewNodeRepo(client pkg.GrpcClient, c configs.IndexerConfig, networkMetadata pkg.NetworkMetadata) (indexer.NodeRepo, error) {
-	return &nodeRepoImpl{client, &nodeMapperImpl{}, networkMetadata, c.ChainId}, nil
+func NewNodeRepo(grpcEndpoint string, chainId string, networkMetadata pkg.NetworkMetadata) (indexer.NodeRepo, error) {
+	grpcClient, err := pkg.NewGrpcClient(grpcEndpoint)
+	if err != nil {
+		return nil, err
+	}
+
+	return &nodeRepoImpl{
+		grpcClient,
+		&nodeMapperImpl{},
+		networkMetadata,
+		chainId,
+	}, nil
 }
 
 // LatestHeightFromNode implements NodeRepo
