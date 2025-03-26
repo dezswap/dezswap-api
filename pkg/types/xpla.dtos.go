@@ -1,8 +1,4 @@
-package xpla
-
-type unmarshalable interface {
-	TokensRes | IbcsRes
-}
+package types
 
 type TokensRes struct {
 	Mainnet TokenResMap `json:"mainnet"`
