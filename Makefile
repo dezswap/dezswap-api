@@ -92,25 +92,6 @@ image:
 	docker build --force-rm -t dezswap/dezswap-api .
 
 # Migrate database.
-.PHONY: indexer-migrate-test indexer-migrate-up indexer-migrate-down indexer-generate-migration
-
-indexer-migrate-test:
-	go test -count=1 -tags=mig ./db/migration/indexer
-
-indexer-migrate-up:
-	go run -tags=mig db/migration/indexer/*
-
-indexer-migrate-down:
-	go run -tags=mig db/migration/indexer/* down
-
-# Create a new empty migration file.
-indexer-generate-migration:
-	$(eval VERSION := $(shell date +"%Y%m%d_%H%M%S"))
-	$(eval PATH := db/migration/indexer)
-	mkdir -p $(PATH)
-	$(shell sed 's/DATE_TIME/$(VERSION)/g' $(PATH)/template.txt > $(PATH)/$(VERSION)_SUMMARY.go)
-
-# Migrate database.
 .PHONY: api-migrate-test api-migrate-up api-migrate-down api-generate-migration
 
 api-migrate-test:

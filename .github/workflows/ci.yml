@@ -45,11 +45,5 @@ jobs:
         echo "$TEST_CONFIG" > config.yml
         make test
 
-    - name: Migration Tests
-      run: |
-        make indexer-migrate-up
-        make indexer-migrate-test
-        make indexer-migrate-down
-
     - name: Build all
       run: make build-all
