@@ -1,6 +1,8 @@
 package repo
 
 import (
+	"github.com/dezswap/dezswap-api/pkg"
+	"github.com/dezswap/dezswap-api/pkg/xpla"
 	"strings"
 	"testing"
 
@@ -8,21 +10,22 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
 
-	"github.com/dezswap/dezswap-api/pkg/xpla"
 	xpla_mock "github.com/dezswap/dezswap-api/pkg/xpla/mock"
 )
 
 type repoSuite struct {
 	suite.Suite
-	client  xpla.GrpcClient
-	chainId string
-	r       nodeRepoImpl
+	client          pkg.GrpcClient
+	chainId         string
+	r               nodeRepoImpl
+	networkMetadata pkg.NetworkMetadata
 }
 
 func (s *repoSuite) SetupSuite() {
 	s.client = xpla_mock.NewGrpcClientMock()
 	s.chainId = "test"
-	s.r = nodeRepoImpl{s.client, &nodeMapperImpl{}, s.chainId}
+	s.networkMetadata = xpla.NetworkMetadata
+	s.r = nodeRepoImpl{s.client, &nodeMapperImpl{}, s.networkMetadata, s.chainId}
 }
 
 func (s *repoSuite) Test_LatestHeightFromNode() {
@@ -81,6 +84,6 @@ func (s *repoSuite) Test_LatestHeightFromNode() {
 // 	}
 // }
 
-func TestMain(t *testing.T) {
+func Test_repo(t *testing.T) {
 	suite.Run(t, new(repoSuite))
 }
