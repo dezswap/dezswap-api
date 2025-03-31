@@ -2,6 +2,7 @@ package controller
 
 import (
 	"errors"
+	"github.com/dezswap/dezswap-api/pkg"
 	"net/http"
 
 	"github.com/dezswap/dezswap-api/api/service"
@@ -16,8 +17,8 @@ type poolController struct {
 	poolMapper
 }
 
-func InitPoolController(s service.Getter[service.Pool], route *gin.RouterGroup, logger logging.Logger) PoolController {
-	c := poolController{s, logger, poolMapper{}}
+func InitPoolController(s service.Getter[service.Pool], route *gin.RouterGroup, networkMetadata pkg.NetworkMetadata, logger logging.Logger) PoolController {
+	c := poolController{s, logger, poolMapper{networkMetadata}}
 	c.register(route)
 	return &c
 }

@@ -1,10 +1,10 @@
 package dezswap
 
 import (
-	"github.com/dezswap/dezswap-api/pkg/xpla"
+	"github.com/dezswap/dezswap-api/pkg"
 )
 
-func ToAssetInfoRes(addr string, amount string) AssetInfoRes {
+func ToAssetInfoRes(addr string, amount string, networkMetadata pkg.NetworkMetadata) AssetInfoRes {
 	var assetAmount *string
 	if amount != "" {
 		assetAmount = &amount
@@ -13,7 +13,7 @@ func ToAssetInfoRes(addr string, amount string) AssetInfoRes {
 		Amount: assetAmount,
 		Info:   AssetInfoTokenRes{},
 	}
-	if xpla.NetworkMetadata.IsCw20(addr) {
+	if networkMetadata.IsCw20(addr) {
 		res.Info.Token = &TokenAssetInfoRes{
 			ContractAddress: addr,
 		}
@@ -25,9 +25,9 @@ func ToAssetInfoRes(addr string, amount string) AssetInfoRes {
 	return res
 }
 
-func ToAssetInfoTokenRes(addr string) AssetInfoTokenRes {
+func ToAssetInfoTokenRes(addr string, networkMetadata pkg.NetworkMetadata) AssetInfoTokenRes {
 	res := AssetInfoTokenRes{}
-	if xpla.NetworkMetadata.IsCw20(addr) {
+	if networkMetadata.IsCw20(addr) {
 		res.Token = &TokenAssetInfoRes{
 			ContractAddress: addr,
 		}

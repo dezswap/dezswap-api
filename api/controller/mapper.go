@@ -2,11 +2,16 @@ package controller
 
 import (
 	"github.com/dezswap/dezswap-api/api/service"
+	"github.com/dezswap/dezswap-api/pkg"
 	"github.com/dezswap/dezswap-api/pkg/dezswap"
 )
 
-type pairMapper struct{}
-type poolMapper struct{}
+type pairMapper struct {
+	pkg.NetworkMetadata
+}
+type poolMapper struct {
+	pkg.NetworkMetadata
+}
 type tokenMapper struct{}
 
 type statMapper struct{}
@@ -18,8 +23,8 @@ func (m *poolMapper) poolToRes(pool service.Pool) PoolRes {
 	}
 	res.TotalShare = pool.LpAmount
 	res.Assets = []dezswap.AssetInfoRes{
-		dezswap.ToAssetInfoRes(pool.Asset0, pool.Asset0Amount),
-		dezswap.ToAssetInfoRes(pool.Asset1, pool.Asset1Amount),
+		dezswap.ToAssetInfoRes(pool.Asset0, pool.Asset0Amount, m.NetworkMetadata),
+		dezswap.ToAssetInfoRes(pool.Asset1, pool.Asset1Amount, m.NetworkMetadata),
 	}
 	return res
 }
@@ -36,8 +41,8 @@ func (m *pairMapper) pairToRes(pair service.Pair) PairRes {
 		PairRes: &dezswap.PairRes{
 			ContractAddr: pair.Address,
 			AssetInfos: []dezswap.AssetInfoTokenRes{
-				dezswap.ToAssetInfoTokenRes(pair.Asset0.Address),
-				dezswap.ToAssetInfoTokenRes(pair.Asset1.Address),
+				dezswap.ToAssetInfoTokenRes(pair.Asset0.Address, m.NetworkMetadata),
+				dezswap.ToAssetInfoTokenRes(pair.Asset1.Address, m.NetworkMetadata),
 			},
 			LiquidityToken: pair.Lp.Address,
 			AssetDecimals:  []uint{uint(pair.Asset0.Decimals), uint(pair.Asset1.Decimals)},

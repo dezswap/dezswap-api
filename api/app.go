@@ -2,6 +2,7 @@ package api
 
 import (
 	"fmt"
+	"github.com/dezswap/dezswap-api/pkg"
 	"net/http"
 	"regexp"
 	"time"
@@ -30,7 +31,6 @@ import (
 	"github.com/dezswap/dezswap-api/pkg/cache"
 	"github.com/dezswap/dezswap-api/pkg/db/api"
 	"github.com/dezswap/dezswap-api/pkg/logging"
-	"github.com/dezswap/dezswap-api/pkg/xpla"
 	"github.com/evalphobia/logrus_sentry"
 	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
@@ -42,20 +42,28 @@ import (
 type app struct {
 	engine *gin.Engine
 	config configs.ApiConfig
+	pkg.NetworkMetadata
 	logger logging.Logger
 }
 
 func RunServer(c configs.Config, cache cache.Cache, db *gorm.DB) {
+	serverConfig := c.Api.Server
+	networkMetadata, err := pkg.GetNetworkMetadata(serverConfig.ChainId)
+	if err != nil {
+		panic(err)
+	}
+
 	logger := logging.New(c.Api.Server.Name, c.Log)
 	app := app{
 		gin.Default(),
 		c.Api,
+		networkMetadata,
 		logger,
 	}
-	serverConfig := c.Api.Server
+
 	gin.SetMode(serverConfig.Mode)
 	app.setMiddlewares(cache)
-	app.initApis(c.Api, db)
+	app.initApis(serverConfig.ChainId, serverConfig.Version, db)
 	if c.Sentry.DSN != "" {
 		if err := app.configureReporter(c.Sentry.DSN, serverConfig.ChainId, map[string]string{
 			"x-app":      "dezswap-api",
@@ -110,7 +118,7 @@ func (app *app) setMiddlewares(cache cache.Cache) {
 	conf.AllowMethods = []string{"GET", "OPTIONS"}
 	app.engine.Use(cors.New(conf))
 	if cache != nil {
-		app.engine.Use(gin_cache.Cache(cache, time.Second*time.Duration(xpla.NetworkMetadata.BlockSecond),
+		app.engine.Use(gin_cache.Cache(cache, time.Second*time.Duration(app.NetworkMetadata.BlockSecond),
 			gin_cache.WithCacheStrategyByRequest(func(c *gin.Context) (bool, gin_cache.Strategy) {
 				return true, gin_cache.Strategy{
 					CacheKey: c.Request.Host + c.Request.RequestURI,
@@ -122,20 +130,15 @@ func (app *app) setMiddlewares(cache cache.Cache) {
 	app.engine.UseRawPath = true
 }
 
-func (app *app) initApis(c configs.ApiConfig, db *gorm.DB) {
-	chainId := c.Server.ChainId
-	if chainId == "" {
-		panic("chainId is empty")
-	}
+func (app *app) initApis(chainId string, version string, db *gorm.DB) {
 	pairService := service.NewPairService(chainId, db)
 	poolService := service.NewPoolService(chainId, db)
 	tokenService := service.NewTokenService(chainId, db)
 	statService := service.NewStatService(chainId, db)
 
-	version := c.Server.Version
 	router := app.engine.Group(version)
-	controller.InitPairController(pairService, router, app.logger)
-	controller.InitPoolController(poolService, router, app.logger)
+	controller.InitPairController(pairService, router, app.NetworkMetadata, app.logger)
+	controller.InitPoolController(poolService, router, app.NetworkMetadata, app.logger)
 	controller.InitTokenController(tokenService, router, app.logger)
 	controller.InitStatController(statService, router, app.logger)
 

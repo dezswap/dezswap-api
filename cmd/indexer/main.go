@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"github.com/dezswap/dezswap-api/indexer/repo"
 	"github.com/dezswap/dezswap-api/pkg"
-	"github.com/dezswap/dezswap-api/pkg/asi"
-	"github.com/pkg/errors"
 	"math"
 	"os"
 	"reflect"
@@ -17,7 +15,6 @@ import (
 	"github.com/dezswap/dezswap-api/configs"
 	"github.com/dezswap/dezswap-api/indexer"
 	"github.com/dezswap/dezswap-api/pkg/logging"
-	"github.com/dezswap/dezswap-api/pkg/xpla"
 	"github.com/go-co-op/gocron"
 )
 
@@ -66,7 +63,7 @@ func main() {
 	logger := setLogger(c)
 	defer catch(logger)
 
-	networkMetadata, err := getNetworkMetadata(c.Indexer.ChainId)
+	networkMetadata, err := pkg.GetNetworkMetadata(c.Indexer.ChainId)
 	if err != nil {
 		panic(err)
 	}
@@ -112,16 +109,6 @@ func initApp(config configs.IndexerConfig, networkMetadata pkg.NetworkMetadata) 
 	indexerRepo := repo.NewRepo(nodeRepo, dbRepo, assetRepo)
 
 	return indexer.NewDexIndexer(networkMetadata, indexerRepo, config.ChainId)
-}
-
-func getNetworkMetadata(chainId string) (pkg.NetworkMetadata, error) {
-	if xpla.NetworkMetadata.IsMainnetOrTestnet(chainId) {
-		return xpla.NetworkMetadata, nil
-	} else if asi.NetworkMetadata.IsMainnetOrTestnet(chainId) {
-		return asi.NetworkMetadata, nil
-	}
-
-	return pkg.NetworkMetadata{}, errors.New("unsupported network")
 }
 
 func setLogger(c configs.Config) logging.Logger {
