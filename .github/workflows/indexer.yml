@@ -21,6 +21,10 @@ env:
   CUBE_TASK_DEFINITION: cube-dezswap-api-indexer
   CUBE_CONTAINER_NAME: cube-dezswap-api-indexer
 
+  FETCHHUB_ECS_SERVICE: fetchhub-dezswap-api-indexer
+  FETCHHUB_TASK_DEFINITION: fetchhub-dezswap-api-indexer
+  FETCHHUB_CONTAINER_NAME: fetchhub-dezswap-api-indexer
+
 permissions:
   id-token: write
   contents: read
@@ -61,6 +65,7 @@ jobs:
     outputs:
       dimension-tag: ${{ steps.build-image.outputs.dimension-tag }}
       cube-tag: ${{ steps.build-image.outputs.cube-tag }}
+      fetchhub-tag: ${{ steps.build-image.outputs.fetchhub-tag }}
 
     steps:
       - name: checkout
@@ -84,6 +89,7 @@ jobs:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           DIMENSION_CONFIG: ${{ secrets.DIMENSION_CONFIG }}
           CUBE_CONFIG: ${{ secrets.CUBE_CONFIG }}
+          FETCHHUB_CONFIG: ${{ secrets.FETCHHUB_CONFIG }}
           APP_TYPE: ${{ env.APP_TYPE }}
         run: |
           make test
@@ -94,8 +100,8 @@ jobs:
           echo "FROM $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
           COPY config.yml /app/config.yml" > Dockerfile.final
 
-          configs=("$DIMENSION_CONFIG" "$CUBE_CONFIG")
-          networks=("dimension" "cube")
+          configs=("$DIMENSION_CONFIG" "$CUBE_CONFIG" "$FETCHHUB_CONFIG")
+          networks=("dimension" "cube" "fetchhub")
           for i in "${!configs[@]}"; do
             echo "${configs[i]}" > config.yml
             imgTag=${networks[i]}-$APP_TYPE-$IMAGE_TAG
@@ -179,5 +185,44 @@ jobs:
         with:
           task-definition: ${{ steps.task-def.outputs.task-definition }}
           service: ${{ env.CUBE_ECS_SERVICE }}
+          cluster: ${{ env.ECS_CLUSTER }}
+          wait-for-service-stability: true
+
+  deploy-fetchhub:
+    name: Deploy fetchhub
+    runs-on: ubuntu-latest
+    needs: build
+    environment: production
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v3
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          role-session-name: dezswap-api-indexer-fetchhub
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Download Task Definition
+        id: download-task-definition
+        working-directory: .
+        run: |
+          aws ecs describe-task-definition --task-definition ${{ env.FETCHHUB_TASK_DEFINITION }} | jq '.taskDefinition' > ${{ env.FETCHHUB_TASK_DEFINITION }}.json
+
+      - name: Fill in the new image ID in the Amazon ECS task definition
+        id: task-def
+        uses: aws-actions/amazon-ecs-render-task-definition@v1.1.1
+        with:
+          task-definition: ./${{ env.FETCHHUB_TASK_DEFINITION }}.json
+          container-name: ${{ env.FETCHHUB_CONTAINER_NAME }}
+          image: ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY}}:${{ needs.build.outputs.fetchhub-tag }}
+
+      - name: Deploy Amazon ECS task definition
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v1.4.11
+        with:
+          task-definition: ${{ steps.task-def.outputs.task-definition }}
+          service: ${{ env.FETCHHUB_ECS_SERVICE }}
           cluster: ${{ env.ECS_CLUSTER }}
           wait-for-service-stability: true
