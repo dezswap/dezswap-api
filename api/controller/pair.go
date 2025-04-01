@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"github.com/dezswap/dezswap-api/pkg"
 	"net/http"
 
 	"github.com/dezswap/dezswap-api/api/service"
@@ -16,8 +17,8 @@ type pairController struct {
 	pairMapper
 }
 
-func InitPairController(s service.Getter[service.Pair], route *gin.RouterGroup, logger logging.Logger) PairController {
-	c := pairController{s, logger, pairMapper{}}
+func InitPairController(s service.Getter[service.Pair], route *gin.RouterGroup, networkMetadata pkg.NetworkMetadata, logger logging.Logger) PairController {
+	c := pairController{s, logger, pairMapper{networkMetadata}}
 	c.register(route)
 	return &c
 }

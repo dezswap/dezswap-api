@@ -3,7 +3,6 @@ package dezswap
 import (
 	"fmt"
 	"github.com/dezswap/dezswap-api/pkg"
-	"github.com/dezswap/dezswap-api/pkg/xpla"
 	"testing"
 
 	"github.com/dezswap/dezswap-api/configs"
@@ -12,11 +11,14 @@ import (
 )
 
 func _Test_QueryContract(t *testing.T) {
-	cf := configs.New().Indexer.SrcNode
+	cf := configs.New().Indexer
+	snc := configs.New().Indexer.SrcNode
+	networkMetadata, _ := pkg.GetNetworkMetadata(cf.ChainId)
+
 	assert := assert.New(t)
-	c, err := pkg.NewGrpcClient(fmt.Sprintf("%s:%s", cf.Host, cf.Port))
+	c, err := pkg.NewGrpcClient(fmt.Sprintf("%s:%s", snc.Host, snc.Port))
 	assert.NoError(err)
-	res, err := c.QueryContract(TESTNET_FACTORY, []byte(`{"pairs": {}}`), xpla.NetworkMetadata.LatestHeightIndicator)
+	res, err := c.QueryContract(TESTNET_FACTORY, []byte(`{"pairs": {}}`), networkMetadata.LatestHeightIndicator)
 	assert.NotNil(res)
 	assert.NoError(err)
 }

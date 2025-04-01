@@ -2,7 +2,6 @@ package repo
 
 import (
 	"github.com/dezswap/dezswap-api/pkg"
-	"github.com/dezswap/dezswap-api/pkg/xpla"
 	"strings"
 	"testing"
 
@@ -24,7 +23,7 @@ type repoSuite struct {
 func (s *repoSuite) SetupSuite() {
 	s.client = xpla_mock.NewGrpcClientMock()
 	s.chainId = "test"
-	s.networkMetadata = xpla.NetworkMetadata
+	s.networkMetadata = pkg.NetworkMetadata{}
 	s.r = nodeRepoImpl{s.client, &nodeMapperImpl{}, s.networkMetadata, s.chainId}
 }
 

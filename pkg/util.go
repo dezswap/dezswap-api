@@ -3,12 +3,8 @@ package pkg
 import (
 	"fmt"
 	"github.com/cosmos/cosmos-sdk/types"
+	"github.com/pkg/errors"
 	"strings"
-)
-
-const (
-	IBC_PREFIX                 = "ibc/"
-	IBC_DEFAULT_TOKEN_DECIMALS = 6
 )
 
 type NetworkMetadata struct {
@@ -50,6 +46,16 @@ func (i NetworkMetadata) IsCw20(addr string) bool {
 
 func (i NetworkMetadata) IsIbcToken(addr string) bool {
 	return strings.HasPrefix(addr, IBC_PREFIX)
+}
+
+func GetNetworkMetadata(chainId string) (NetworkMetadata, error) {
+	for _, nm := range networkMetadataList {
+		if nm.IsMainnetOrTestnet(chainId) {
+			return nm, nil
+		}
+	}
+
+	return NetworkMetadata{}, errors.New("unsupported network")
 }
 
 func NewDecFromStrWithTruncate(input string) (types.Dec, error) {
