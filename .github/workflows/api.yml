@@ -76,6 +76,7 @@ jobs:
           DIMENSION_CONFIG: ${{ secrets.DIMENSION_CONFIG }}
           CUBE_CONFIG: ${{ secrets.CUBE_CONFIG }}
           FETCHHUB_CONFIG: ${{ secrets.FETCHHUB_CONFIG }}
+          DORADO_CONFIG: ${{ secrets.DORADO_CONFIG }}
           APP_TYPE: ${{ env.APP_TYPE }}
         run: |
           make test
@@ -86,8 +87,8 @@ jobs:
           echo "FROM $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
           COPY config.yml /app/config.yml" > Dockerfile.final
 
-          configs=("$DIMENSION_CONFIG" "$CUBE_CONFIG" "$FETCHHUB_CONFIG")
-          networks=("dimension" "cube" "fetchhub")
+          configs=("$DIMENSION_CONFIG" "$CUBE_CONFIG" "$FETCHHUB_CONFIG" "$DORADO_CONFIG")
+          networks=("dimension" "cube" "fetchhub" "dorado")
           image_tags=()
           
           for i in "${!configs[@]}"; do
@@ -110,7 +111,7 @@ jobs:
     environment: production
     strategy:
       matrix:
-        service: [ dimension, cube, fetchhub]
+        service: [ dimension, cube, fetchhub, dorado]
     steps:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
