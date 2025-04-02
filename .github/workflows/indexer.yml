@@ -25,7 +25,7 @@ jobs:
       run_next_job: ${{ steps.check_paths.outputs.run_next_job }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
         with:
           fetch-depth: 2
 
@@ -55,10 +55,10 @@ jobs:
 
     steps:
       - name: checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v3
+        uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           role-session-name: dezswap-api-indexer-build
@@ -113,7 +113,7 @@ jobs:
         service: [ dimension, cube, fetchhub ]
     steps:
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v3
+        uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           role-session-name: dezswap-api-indexer-deploy
@@ -139,7 +139,7 @@ jobs:
 
       - name: Fill in the new image ID in the Amazon ECS task definition
         id: task-def
-        uses: aws-actions/amazon-ecs-render-task-definition@v1.5.1
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
         with:
           task-definition: ./${{ matrix.service }}-dezswap-api-indexer.json
           container-name: ${{ matrix.service }}-dezswap-api-indexer
