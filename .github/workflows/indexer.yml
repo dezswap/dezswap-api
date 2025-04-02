@@ -121,21 +121,6 @@ jobs:
       - name: Parse Image Tags
         id: parse-tags
         run: |
-          echo "${{ needs.build.outputs.image-tags }}" > image_tags.json
+          printf '${{ needs.build.outputs.image-tags }}' > image_tags.json
           IMAGE_TAG=$(jq -r '.["'${{ matrix.service }}'"]' image_tags.json)
-          echo "image-tag=$IMAGE_TAG" >> $GITHUB_OUTPUT
-
-      - name: Download Task Definition
-        id: download-task-definition
-        working-directory: .
-        run: |
-          TASK_DEFINITION=${{ matrix.service }}-dezswap-api-indexer
-          aws ecs describe-task-definition --task-definition $TASK_DEFINITION | jq '.taskDefinition' > $TASK_DEFINITION.json
-
-      - name: Fill in the new image ID in the Amazon ECS task definition
-        id: task-def
-        uses: aws-actions/amazon-ecs-render-task-definition@v1
-        with:
-          task-definition: ./${{ matrix.service }}-dezswap-api-indexer.json
-          container-name: ${{ matrix.service }}-dezswap-api-indexer
-          image: ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY}}:${{ steps.parse-tags.outputs.image-tag }}
+          echo "image-tag=$IMAGE_TAG"
