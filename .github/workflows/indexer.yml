@@ -1,11 +1,8 @@
 name: Deploy Dezswap Indexer
 
 on:
-  workflow_run:
-    workflows: ["CI"]
-    branches: [main]
-    types:
-      - completed
+  push:
+    branches: [ "**" ]
 
 env:
   APP_TYPE: indexer
@@ -20,7 +17,6 @@ permissions:
 jobs:
   check_paths:
     runs-on: ubuntu-latest
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     outputs:
       run_next_job: ${{ steps.check_paths.outputs.run_next_job }}
     steps:
@@ -76,7 +72,6 @@ jobs:
           DIMENSION_CONFIG: ${{ secrets.DIMENSION_CONFIG }}
           CUBE_CONFIG: ${{ secrets.CUBE_CONFIG }}
           FETCHHUB_CONFIG: ${{ secrets.FETCHHUB_CONFIG }}
-          DORADO_CONFIG: ${{ secrets.DORADO_CONFIG }}
           APP_TYPE: ${{ env.APP_TYPE }}
         run: |
           make test
@@ -97,7 +92,6 @@ jobs:
             docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$imgTag -f Dockerfile.final .
             image_tags+=("\"${networks[i]}\": \"$imgTag\"")
           done
-          docker image push -a $ECR_REGISTRY/$ECR_REPOSITORY
           
           # Create JSON string of all image tags
           image_tags_string=$(IFS=, ; echo "${image_tags[*]}")
@@ -145,11 +139,3 @@ jobs:
           task-definition: ./${{ matrix.service }}-dezswap-api-indexer.json
           container-name: ${{ matrix.service }}-dezswap-api-indexer
           image: ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY}}:${{ steps.parse-tags.outputs.image-tag }}
-
-      - name: Deploy Amazon ECS task definition
-        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
-        with:
-          task-definition: ${{ steps.task-def.outputs.task-definition }}
-          service: ${{ matrix.service }}-dezswap-api-indexer
-          cluster: ${{ env.ECS_CLUSTER }}
-          wait-for-service-stability: true
