@@ -1,7 +1,6 @@
 package chainregistry
 
 import (
-	"github.com/dezswap/dezswap-api/pkg"
 	"github.com/stretchr/testify/assert"
 	"testing"
 )
@@ -9,7 +8,7 @@ import (
 func Test_VerifiedCw20s(t *testing.T) {
 	assert := assert.New(t)
 
-	c, err := NewClient(pkg.NetworkNameTerra2)
+	c, err := NewClient("phoenix-1")
 	assert.NoError(err)
 
 	res, err := c.VerifiedCw20s()
@@ -20,7 +19,7 @@ func Test_VerifiedCw20s(t *testing.T) {
 func Test_VerifiedIbcs(t *testing.T) {
 	assert := assert.New(t)
 
-	c, err := NewClient(pkg.NetworkNameTerra2)
+	c, err := NewClient("columbus-5")
 	assert.NoError(err)
 
 	res, err := c.VerifiedIbcs()
