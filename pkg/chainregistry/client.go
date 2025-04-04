@@ -1,16 +1,24 @@
 package chainregistry
 
 import (
+	"fmt"
 	"github.com/dezswap/dezswap-api/pkg"
 	"github.com/dezswap/dezswap-api/pkg/types"
 	"github.com/pkg/errors"
 	"net/http"
+	"strings"
 )
 
-var assetListEndpointMap = map[pkg.NetworkName]string{
-	pkg.NetworkNameAsiAlliance:  "https://raw.githubusercontent.com/cosmos/chain-registry/refs/heads/master/fetchhub/assetlist.json",
-	pkg.NetworkNameTerraClassic: "https://raw.githubusercontent.com/cosmos/chain-registry/refs/heads/master/terra/assetlist.json",
-	pkg.NetworkNameTerra2:       "https://raw.githubusercontent.com/cosmos/chain-registry/refs/heads/master/terra2/assetlist.json",
+const mainnetAssetlistEndpointFormat = "https://raw.githubusercontent.com/cosmos/chain-registry/refs/heads/master/%s/assetlist.json"
+const testnetAssetlistEndpointFormat = "https://raw.githubusercontent.com/cosmos/chain-registry/refs/heads/master/testnets/%s/assetlist.json"
+
+// key: chain ID prefix
+var assetListEndpointMap = map[string]string{
+	"fetchhub": fmt.Sprintf(mainnetAssetlistEndpointFormat, "fetchhub"),
+	"dorado":   fmt.Sprintf(testnetAssetlistEndpointFormat, "fetchhubtestnet"),
+	"columbus": fmt.Sprintf(mainnetAssetlistEndpointFormat, "terra"),
+	"phoenix":  fmt.Sprintf(mainnetAssetlistEndpointFormat, "terra2"),
+	"pisco":    fmt.Sprintf(testnetAssetlistEndpointFormat, "terra2testnet"),
 }
 
 type client struct {
@@ -20,13 +28,14 @@ type client struct {
 
 var _ pkg.Client = &client{}
 
-func NewClient(networkName pkg.NetworkName) (pkg.Client, error) {
-	ep, ok := assetListEndpointMap[networkName]
-	if !ok {
-		return nil, errors.New("unsupported network")
+func NewClient(chainId string) (pkg.Client, error) {
+	for k, v := range assetListEndpointMap {
+		if strings.HasPrefix(chainId, k) {
+			return &client{http.Client{}, v}, nil
+		}
 	}
 
-	return &client{http.Client{}, ep}, nil
+	return nil, errors.New("unsupported network")
 }
 
 // VerifiedCw20s implements Client

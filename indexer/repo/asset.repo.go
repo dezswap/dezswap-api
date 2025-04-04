@@ -16,7 +16,7 @@ type assetRepoImpl struct {
 
 var _ indexer.AssetRepo = &assetRepoImpl{}
 
-func NewAssetRepo(networkMetadata pkg.NetworkMetadata) (indexer.AssetRepo, error) {
+func NewAssetRepo(networkMetadata pkg.NetworkMetadata, chainId string) (indexer.AssetRepo, error) {
 	var client pkg.Client
 
 	switch networkMetadata.NetworkName {
@@ -24,7 +24,7 @@ func NewAssetRepo(networkMetadata pkg.NetworkMetadata) (indexer.AssetRepo, error
 		client = xpla.NewClient()
 	case pkg.NetworkNameAsiAlliance:
 		var err error
-		client, err = chainregistry.NewClient(networkMetadata.NetworkName)
+		client, err = chainregistry.NewClient(chainId)
 		if err != nil {
 			return nil, err
 		}

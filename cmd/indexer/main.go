@@ -101,7 +101,7 @@ func initApp(config configs.IndexerConfig, networkMetadata pkg.NetworkMetadata) 
 		panic(err)
 	}
 
-	assetRepo, err := repo.NewAssetRepo(networkMetadata)
+	assetRepo, err := repo.NewAssetRepo(networkMetadata, config.ChainId)
 	if err != nil {
 		panic(err)
 	}
