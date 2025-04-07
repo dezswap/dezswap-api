@@ -16,7 +16,7 @@ func _Test_QueryContract(t *testing.T) {
 	networkMetadata, _ := pkg.GetNetworkMetadata(cf.ChainId)
 
 	assert := assert.New(t)
-	c, err := pkg.NewGrpcClient(fmt.Sprintf("%s:%s", snc.Host, snc.Port))
+	c, err := pkg.NewGrpcClient(fmt.Sprintf("%s:%s", snc.Host, snc.Port), false)
 	assert.NoError(err)
 	res, err := c.QueryContract(TESTNET_FACTORY, []byte(`{"pairs": {}}`), networkMetadata.LatestHeightIndicator)
 	assert.NotNil(res)
@@ -26,7 +26,7 @@ func _Test_QueryContract(t *testing.T) {
 func _Test_SyncedHeight(t *testing.T) {
 	cf := configs.New().Indexer.SrcNode
 	assert := assert.New(t)
-	c, err := pkg.NewGrpcClient(fmt.Sprintf("%s:%s", cf.Host, cf.Port))
+	c, err := pkg.NewGrpcClient(fmt.Sprintf("%s:%s", cf.Host, cf.Port), false)
 	assert.NoError(err)
 	res, err := c.SyncedHeight()
 	assert.NotNil(res)

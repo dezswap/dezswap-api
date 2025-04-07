@@ -8,8 +8,9 @@ import (
 )
 
 type GrpcConfig struct {
-	Host string
-	Port string
+	Host   string
+	Port   string
+	UseTls bool
 }
 
 func (lhs *GrpcConfig) Override(rhs GrpcConfig) {
@@ -19,6 +20,9 @@ func (lhs *GrpcConfig) Override(rhs GrpcConfig) {
 	if rhs.Port != "" {
 		lhs.Port = rhs.Port
 	}
+	if rhs.UseTls {
+		lhs.UseTls = rhs.UseTls
+	}
 }
 
 func grpcConfig(v *viper.Viper) GrpcConfig {
@@ -26,8 +30,9 @@ func grpcConfig(v *viper.Viper) GrpcConfig {
 		return GrpcConfig{}
 	}
 	return GrpcConfig{
-		Host: v.GetString("host"),
-		Port: v.GetString("port"),
+		Host:   v.GetString("host"),
+		Port:   v.GetString("port"),
+		UseTls: v.GetBool("use_tls"),
 	}
 }
 
@@ -36,7 +41,8 @@ func grpcConfigFromEnv(v *viper.Viper, prefix string) GrpcConfig {
 		return GrpcConfig{}
 	}
 	return GrpcConfig{
-		Host: v.GetString(strings.ToUpper(fmt.Sprintf("%s_%s", prefix, "host"))),
-		Port: v.GetString(strings.ToUpper(fmt.Sprintf("%s_%s", prefix, "port"))),
+		Host:   v.GetString(strings.ToUpper(fmt.Sprintf("%s_%s", prefix, "host"))),
+		Port:   v.GetString(strings.ToUpper(fmt.Sprintf("%s_%s", prefix, "port"))),
+		UseTls: v.GetBool(strings.ToUpper(fmt.Sprintf("%s_%s", prefix, "use_tls"))),
 	}
 }
