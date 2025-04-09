@@ -16,8 +16,8 @@ type nodeRepoImpl struct {
 
 var _ indexer.NodeRepo = &nodeRepoImpl{}
 
-func NewNodeRepo(grpcEndpoint string, chainId string, networkMetadata pkg.NetworkMetadata) (indexer.NodeRepo, error) {
-	grpcClient, err := pkg.NewGrpcClient(grpcEndpoint)
+func NewNodeRepo(grpcEndpoint string, useTls bool, chainId string, networkMetadata pkg.NetworkMetadata) (indexer.NodeRepo, error) {
+	grpcClient, err := pkg.NewGrpcClient(grpcEndpoint, useTls)
 	if err != nil {
 		return nil, err
 	}

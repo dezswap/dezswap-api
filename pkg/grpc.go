@@ -2,7 +2,10 @@ package pkg
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
+	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/credentials/insecure"
 	"strconv"
 
 	cosmwasm_types "github.com/CosmWasm/wasmd/x/wasm/types"
@@ -11,7 +14,6 @@ import (
 	ibc_types "github.com/cosmos/ibc-go/v3/modules/apps/transfer/types"
 	"github.com/pkg/errors"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 )
 
 type GrpcClient interface {
@@ -26,8 +28,15 @@ type grpcClient struct {
 
 var _ GrpcClient = &grpcClient{}
 
-func NewGrpcClient(target string) (GrpcClient, error) {
-	conn, err := grpc.Dial(target, grpc.WithTransportCredentials(insecure.NewCredentials()))
+func NewGrpcClient(target string, useTls bool) (GrpcClient, error) {
+	var cred credentials.TransportCredentials
+	if useTls {
+		cred = credentials.NewTLS(&tls.Config{})
+	} else {
+		cred = insecure.NewCredentials()
+	}
+
+	conn, err := grpc.Dial(target, grpc.WithTransportCredentials(cred))
 	if err != nil {
 		return nil, errors.Wrap(err, "NewGrpcClient: failed to dial")
 	}
