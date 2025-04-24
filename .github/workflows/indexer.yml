@@ -37,7 +37,7 @@ jobs:
           MATCHING_FILES=$(echo "$CHANGED_FILES" | grep -v '^api/')
 
           if [[ -z "$MATCHING_FILES" ]]; then
-            echo "no matching file"
+            echo "no matching files"
             echo "run_next_job=false" >> $GITHUB_OUTPUT
           else
             echo "matching file $MATCHING_FILES"
