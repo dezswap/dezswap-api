@@ -71,12 +71,12 @@ jobs:
           echo "image_tag=$IMAGE_TAG" >> $GITHUB_OUTPUT
 
           # Build and package base image
+          touch config.yml
           docker build --build-arg APP_TYPE=$APP_TYPE -t dezswap-api:latest -t dezswap-api:$IMAGE_TAG .
           docker save -o ${{ runner.temp }}/dezswap-api-latest.tar dezswap-api:latest
           docker save -o ${{ runner.temp }}/dezswap-api-$IMAGE_TAG.tar dezswap-api:$IMAGE_TAG
 
           # Create Dockerfile for network-specific images
-          touch config.yml
           echo "FROM dezswap-api:$IMAGE_TAG
           COPY config.yml /app/config.yml" > Dockerfile.final
 
