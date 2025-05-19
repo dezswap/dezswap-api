@@ -124,6 +124,7 @@ jobs:
   push_to_ecr:
     name: Push images to ECR
     needs: build
+    environment: production
     runs-on: ubuntu-latest
     steps:
       - name: Configure AWS credentials
