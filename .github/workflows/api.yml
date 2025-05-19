@@ -79,14 +79,17 @@ jobs:
           DORADO_CONFIG: ${{ secrets.DORADO_CONFIG }}
           APP_TYPE: ${{ env.APP_TYPE }}
         run: |
+          # Build base image
           make test
           IMAGE_TAG=`git rev-parse --short HEAD`
           touch config.yml
           docker build --build-arg APP_TYPE=$APP_TYPE -t $ECR_REGISTRY/$ECR_REPOSITORY:latest -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
 
+          # Create Dockerfile for network-specific images
           echo "FROM $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
           COPY config.yml /app/config.yml" > Dockerfile.final
 
+          # Build network-specific images
           configs=("$DIMENSION_CONFIG" "$CUBE_CONFIG" "$FETCHHUB_CONFIG" "$DORADO_CONFIG")
           networks=("dimension" "cube" "fetchhub" "dorado")
           image_tags=()
