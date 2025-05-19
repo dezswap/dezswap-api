@@ -9,9 +9,14 @@ on:
 
 env:
   APP_TYPE: api
+  # AWS
   AWS_REGION: ${{ secrets.AWS_REGION }}
   ECR_REPOSITORY: dezswap-api
   ECS_CLUSTER: dezswap-api
+  # GCP
+  PROJECT_ID: delightlabs-platform-all
+  REGION: asia-northeast3
+  GAR_LOCATION: asia-northeast3-docker.pkg.dev/delightlabs-platform-all/docker-images
 
 permissions:
   id-token: write
@@ -152,6 +157,41 @@ jobs:
             tag=$(echo $image | cut -d ':' -f 2)
             docker tag $image $ECR_REGISTRY/$ECR_REPOSITORY:$tag
             docker push $ECR_REGISTRY/$ECR_REPOSITORY:$tag
+          done
+
+  push_to_gar:
+    name: Push images to Google Artifact Registry
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Authenticate to GCP
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: "${{ secrets.SERVICE_ACCOUNT_KEY }}"
+
+      - name: Setup gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: docker-images
+          path: ${{ runner.temp }}
+
+      - name: Load, tag and push image to GAR
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        run: |
+          # Load all saved Docker images
+          for tar in ${{ runner.temp }}/dezswap-api-*.tar; do
+            docker load -i "$tar"
+          done
+
+          # Retag and push each loaded image
+          for image in $(docker images --format "{{.Repository}}:{{.Tag}}" | grep ^dezswap-api:); do
+            tag=$(echo $image | cut -d ':' -f 2)
+            docker tag $image $GAR_LOCATION/dezswap-api:$tag
+            docker push $GAR_LOCATION/dezswap-api:$tag
           done
 
   deploy_to_ecs:
