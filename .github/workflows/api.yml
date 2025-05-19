@@ -49,7 +49,6 @@ jobs:
     needs: check_paths
     if: ${{ needs.check_paths.outputs.run_next_job == 'true' }}
     runs-on: ubuntu-latest
-    environment: production
     outputs:
       image-tags: ${{ steps.build-final-images.outputs.image-tags }}
 
@@ -121,7 +120,6 @@ jobs:
     name: Push images to ECR
     needs: build
     runs-on: ubuntu-latest
-    environment: production
     steps:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
