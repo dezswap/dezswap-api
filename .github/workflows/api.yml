@@ -173,6 +173,10 @@ jobs:
       - name: Setup gcloud
         uses: google-github-actions/setup-gcloud@v2
 
+      - name: Authenticate to Repo
+        run: |
+          gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev --quiet
+
       - name: Download artifact
         uses: actions/download-artifact@v4
         with:
