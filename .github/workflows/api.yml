@@ -14,9 +14,9 @@ env:
   ECR_REPOSITORY: dezswap-api
   ECS_CLUSTER: dezswap-api
   # GCP
-  PROJECT_ID: delightlabs-platform-all
-  REGION: asia-northeast3
-  GAR_LOCATION: asia-northeast3-docker.pkg.dev/delightlabs-platform-all/docker-images
+  PROJECT_ID: ${{ vars.PROJECT_ID }}
+  REGION: ${{ vars.REGION }}
+  GAR_LOCATION: ${{ vars.GAR_LOCATION }}
 
 permissions:
   id-token: write
@@ -164,6 +164,7 @@ jobs:
     name: Push images to Google Artifact Registry
     needs: build
     runs-on: ubuntu-latest
+    environment: production
     steps:
       - name: Authenticate to GCP
         uses: google-github-actions/auth@v2
