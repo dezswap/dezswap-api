@@ -14,9 +14,8 @@ env:
   ECR_REPOSITORY: dezswap-api
   ECS_CLUSTER: dezswap-api
   # GCP
-  PROJECT_ID: ${{ vars.PROJECT_ID }}
-  REGION: ${{ vars.REGION }}
-  GAR_LOCATION: ${{ vars.GAR_LOCATION }}
+  GCP_GAR_REPOSITORY: ${{ vars.GCP_GAR_REPOSITORY }}
+  GCP_REGION: ${{ vars.GCP_REGION }}
 
 permissions:
   id-token: write
@@ -176,7 +175,7 @@ jobs:
 
       - name: Authenticate to Repo
         run: |
-          gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev --quiet
+          gcloud auth configure-docker ${{ env.GCP_REGION }}-docker.pkg.dev --quiet
 
       - name: Download artifact
         uses: actions/download-artifact@v4
@@ -196,8 +195,8 @@ jobs:
           # Retag and push each loaded image
           for image in $(docker images --format "{{.Repository}}:{{.Tag}}" | grep ^dezswap-api:); do
             tag=$(echo $image | cut -d ':' -f 2)
-            docker tag $image $GAR_LOCATION/dezswap-api:$tag
-            docker push $GAR_LOCATION/dezswap-api:$tag
+            docker tag $image $GCP_GAR_REPOSITORY/dezswap-api:$tag
+            docker push $GCP_GAR_REPOSITORY/dezswap-api:$tag
           done
 
   deploy_to_ecs:
