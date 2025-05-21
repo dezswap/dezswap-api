@@ -9,9 +9,15 @@ on:
 
 env:
   APP_TYPE: api
+  # AWS
   AWS_REGION: ${{ secrets.AWS_REGION }}
   ECR_REPOSITORY: dezswap-api
   ECS_CLUSTER: dezswap-api
+  # GCP
+  GCP_GAR_REPOSITORY: ${{ vars.GCP_GAR_REPOSITORY }}
+  GCP_REGION: ${{ vars.GCP_REGION }}
+  GCP_SERVICE_ACCOUNT_EMAIL: ${{ secrets.GCP_SERVICE_ACCOUNT_EMAIL }}
+  GCP_WORKLOAD_IDENTITY_PROVIDER: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
 
 permissions:
   id-token: write
@@ -45,18 +51,83 @@ jobs:
           fi
 
   build:
-    name: build dezswap-api api image
+    name: Build dezswap-api images
     needs: check_paths
     if: ${{ needs.check_paths.outputs.run_next_job == 'true' }}
     runs-on: ubuntu-latest
-    environment: production
     outputs:
-      image-tags: ${{ steps.build-image.outputs.image-tags }}
+      image-tags: ${{ steps.build-final-images.outputs.image-tags }}
 
     steps:
       - name: checkout
         uses: actions/checkout@v4
 
+      - name: Test, build and package base image
+        id: build-base-image
+        working-directory: .
+        env:
+          APP_TYPE: ${{ env.APP_TYPE }}
+        run: |
+          # Test
+          make test
+
+          # Get image tag and make persistent
+          IMAGE_TAG=$(git rev-parse --short HEAD)
+          echo "image_tag=$IMAGE_TAG" >> $GITHUB_OUTPUT
+
+          # Build and package base image
+          touch config.yml
+          docker build --build-arg APP_TYPE=$APP_TYPE -t dezswap-api:latest -t dezswap-api:$IMAGE_TAG .
+          docker save -o ${{ runner.temp }}/dezswap-api-latest.tar dezswap-api:latest
+          docker save -o ${{ runner.temp }}/dezswap-api-$IMAGE_TAG.tar dezswap-api:$IMAGE_TAG
+
+          # Create Dockerfile for network-specific images
+          echo "FROM dezswap-api:$IMAGE_TAG
+          COPY config.yml /app/config.yml" > Dockerfile.final
+
+      - name: Build and package network-specific images
+        id: build-final-images
+        working-directory: .
+        env:
+          DIMENSION_CONFIG: ${{ secrets.DIMENSION_CONFIG }}
+          CUBE_CONFIG: ${{ secrets.CUBE_CONFIG }}
+          FETCHHUB_CONFIG: ${{ secrets.FETCHHUB_CONFIG }}
+          DORADO_CONFIG: ${{ secrets.DORADO_CONFIG }}
+          APP_TYPE: ${{ env.APP_TYPE }}
+        run: |
+          # Fetch image tag
+          IMAGE_TAG="${{ steps.build-base-image.outputs.image_tag }}"
+
+          # Build network-specific images
+          configs=("$DIMENSION_CONFIG" "$CUBE_CONFIG" "$FETCHHUB_CONFIG" "$DORADO_CONFIG")
+          networks=("dimension" "cube" "fetchhub" "dorado")
+          image_tags=()
+          
+          for i in "${!configs[@]}"; do
+            echo "${configs[i]}" > config.yml
+            FINAL_IMAGE_TAG=${networks[i]}-$APP_TYPE-$IMAGE_TAG
+            docker build -t dezswap-api:$FINAL_IMAGE_TAG -f Dockerfile.final .
+            image_tags+=("\"${networks[i]}\": \"$FINAL_IMAGE_TAG\"")
+            docker save -o ${{ runner.temp }}/dezswap-api-$FINAL_IMAGE_TAG.tar dezswap-api:$FINAL_IMAGE_TAG
+          done
+          
+          # Create JSON string of all image tags
+          image_tags_string=$(IFS=, ; echo "${image_tags[*]}")
+          echo "{ ${image_tags_string} }" > image_tags.json
+          echo "image-tags=$(cat image_tags.json)" >> $GITHUB_OUTPUT
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: docker-images
+          path: ${{ runner.temp }}/dezswap-api-*.tar
+
+  push_to_ecr:
+    name: Push images to ECR
+    needs: build
+    environment: production
+    runs-on: ubuntu-latest
+    steps:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -68,46 +139,73 @@ jobs:
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Test, build, tag, and push image to Amazon ECR
-        id: build-image
-        working-directory: .
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: docker-images
+          path: ${{ runner.temp }}
+
+      - name: Load, tag and push image to ECR
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          DIMENSION_CONFIG: ${{ secrets.DIMENSION_CONFIG }}
-          CUBE_CONFIG: ${{ secrets.CUBE_CONFIG }}
-          FETCHHUB_CONFIG: ${{ secrets.FETCHHUB_CONFIG }}
-          DORADO_CONFIG: ${{ secrets.DORADO_CONFIG }}
-          APP_TYPE: ${{ env.APP_TYPE }}
         run: |
-          make test
-          IMAGE_TAG=`git rev-parse --short HEAD`
-          touch config.yml
-          docker build --build-arg APP_TYPE=$APP_TYPE -t $ECR_REGISTRY/$ECR_REPOSITORY:latest -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
-
-          echo "FROM $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-          COPY config.yml /app/config.yml" > Dockerfile.final
-
-          configs=("$DIMENSION_CONFIG" "$CUBE_CONFIG" "$FETCHHUB_CONFIG" "$DORADO_CONFIG")
-          networks=("dimension" "cube" "fetchhub" "dorado")
-          image_tags=()
-          
-          for i in "${!configs[@]}"; do
-            echo "${configs[i]}" > config.yml
-            imgTag=${networks[i]}-$APP_TYPE-$IMAGE_TAG
-            docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$imgTag -f Dockerfile.final .
-            image_tags+=("\"${networks[i]}\": \"$imgTag\"")
+          # Load all saved Docker images
+          for tar in ${{ runner.temp }}/dezswap-api-*.tar; do
+            docker load -i "$tar"
           done
-          docker image push -a $ECR_REGISTRY/$ECR_REPOSITORY
-          
-          # Create JSON string of all image tags
-          image_tags_string=$(IFS=, ; echo "${image_tags[*]}")
-          echo "{ ${image_tags_string} }" > image_tags.json
-          echo "image-tags=$(cat image_tags.json)" >> $GITHUB_OUTPUT
 
-  deploy:
+          # Retag and push each loaded image
+          for image in $(docker images --format "{{.Repository}}:{{.Tag}}" | grep ^dezswap-api:); do
+            tag=$(echo $image | cut -d ':' -f 2)
+            docker tag $image $ECR_REGISTRY/$ECR_REPOSITORY:$tag
+            docker push $ECR_REGISTRY/$ECR_REPOSITORY:$tag
+          done
+
+  push_to_gar:
+    name: Push images to Google Artifact Registry
+    needs: build
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Authenticate to GCP
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT_EMAIL }}
+
+      - name: Setup gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Authenticate to Repo
+        run: |
+          gcloud auth configure-docker ${{ env.GCP_REGION }}-docker.pkg.dev --quiet
+
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: docker-images
+          path: ${{ runner.temp }}
+
+      - name: Load, tag and push image to GAR
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        run: |
+          # Load all saved Docker images
+          for tar in ${{ runner.temp }}/dezswap-api-*.tar; do
+            docker load -i "$tar"
+          done
+
+          # Retag and push each loaded image
+          for image in $(docker images --format "{{.Repository}}:{{.Tag}}" | grep ^dezswap-api:); do
+            tag=$(echo $image | cut -d ':' -f 2)
+            docker tag $image $GCP_GAR_REPOSITORY/dezswap-api:$tag
+            docker push $GCP_GAR_REPOSITORY/dezswap-api:$tag
+          done
+
+  deploy_to_ecs:
     name: Deploy API
     runs-on: ubuntu-latest
-    needs: build
+    needs: push_to_ecr
     environment: production
     strategy:
       matrix:
