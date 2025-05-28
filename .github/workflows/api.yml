@@ -57,10 +57,22 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       image-tags: ${{ steps.build-final-images.outputs.image-tags }}
-
+      git-tag: ${{ steps.get-git-tag.outputs.tag }}
     steps:
       - name: checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Get Git tag if present
+        id: get-git-tag
+        run: |
+          GIT_TAG=$(git tag --points-at HEAD | head -n 1 | sed 's/^v//')
+          if [[ -n "$GIT_TAG" ]]; then
+            echo $GIT_TAG
+            echo "tag=$GIT_TAG" >> $GITHUB_OUTPUT
+          fi
 
       - name: Test, build and package base image
         id: build-base-image
@@ -167,40 +179,46 @@ jobs:
     runs-on: ubuntu-latest
     environment: production
     steps:
+      - name: Check if tag is present
+        id: check-git-tag
+        run: |
+          if [[ -z "${{ needs.build.outputs.git-tag }}" ]]; then
+            echo "No Git tag found. Skipping GAR push."
+            echo "git-tag-exists=false" >> $GITHUB_OUTPUT
+          else
+            echo "git-tag-exists=true" >> $GITHUB_OUTPUT
+          fi
+
       - name: Authenticate to GCP
+        if: steps.check.outputs.git-tag-exists == 'true'
         uses: google-github-actions/auth@v2
         with:
           workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
           service_account: ${{ secrets.GCP_SERVICE_ACCOUNT_EMAIL }}
 
       - name: Setup gcloud
+        if: steps.check.outputs.git-tag-exists == 'true'
         uses: google-github-actions/setup-gcloud@v2
 
       - name: Authenticate to Repo
+        if: steps.check.outputs.git-tag-exists == 'true'
         run: |
           gcloud auth configure-docker ${{ env.GCP_REGION }}-docker.pkg.dev --quiet
 
       - name: Download artifact
+        if: steps.check.outputs.git-tag-exists == 'true'
         uses: actions/download-artifact@v4
         with:
           name: docker-images
           path: ${{ runner.temp }}
 
       - name: Load, tag and push image to GAR
-        env:
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        if: steps.check.outputs.git-tag-exists == 'true'
         run: |
-          # Load all saved Docker images
-          for tar in ${{ runner.temp }}/dezswap-api-*.tar; do
-            docker load -i "$tar"
-          done
-
-          # Retag and push each loaded image
-          for image in $(docker images --format "{{.Repository}}:{{.Tag}}" | grep ^dezswap-api:); do
-            tag=$(echo $image | cut -d ':' -f 2)
-            docker tag $image $GCP_GAR_REPOSITORY/dezswap-api:$tag
-            docker push $GCP_GAR_REPOSITORY/dezswap-api:$tag
-          done
+          docker load ${{ runner.temp }}/dezswap-api-latest.tar
+          tag=${{ needs.build.outputs.git_tag }}
+          docker tag dezswap-api:latest $GCP_GAR_REPOSITORY/dezswap-api:$tag
+          docker push $GCP_GAR_REPOSITORY/dezswap-api:$tag
 
   deploy_to_ecs:
     name: Deploy API
