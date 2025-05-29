@@ -202,7 +202,7 @@ jobs:
 
       - name: Load, tag and push image to GAR
         run: |
-          docker load ${{ runner.temp }}/dezswap-api-latest.tar
+          docker load -i ${{ runner.temp }}/dezswap-api-latest.tar
           tag=${{ needs.build.outputs.git-tag }}
           docker tag dezswap-api:latest $GCP_GAR_REPOSITORY/dezswap-api:$tag
           docker push $GCP_GAR_REPOSITORY/dezswap-api:$tag
