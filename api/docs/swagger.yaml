@@ -808,7 +808,7 @@ paths:
         in: query
         name: pool
         type: string
-      - description: Token address
+      - description: Token addresses
         in: query
         name: token
         type: string

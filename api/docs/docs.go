@@ -742,7 +742,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "Token address",
+                        "description": "Token addresses",
                         "name": "token",
                         "in": "query"
                     },

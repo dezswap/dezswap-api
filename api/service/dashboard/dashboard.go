@@ -1116,15 +1116,15 @@ func (d *dashboard) Txs(txType TxType, addr ...Addr) (Txs, error) {
 }
 
 // TxsOfToken implements Dashboard.
-func (d *dashboard) TxsOfToken(txType TxType, addr Addr) (Txs, error) {
+func (d *dashboard) TxsOfToken(txType TxType, tokenAddrs ...Addr) (Txs, error) {
 	m := parser.ParsedTx{}
 	subQuery := d.DB.Model(&m).Select("*").Where("chain_id = ?", d.chainId).Order("timestamp DESC").Limit(100)
 
 	if txType != TX_TYPE_ALL {
 		subQuery = subQuery.Where("type = ?", string(txType))
 	}
-	if len(addr) > 0 {
-		subQuery = subQuery.Where("asset0 = ? OR asset1 = ?", string(addr), string(addr))
+	if len(tokenAddrs) > 0 {
+		subQuery = subQuery.Where("asset0 IN ? OR asset1 IN ?", tokenAddrs, tokenAddrs)
 	}
 
 	query := d.DB.Select(`
