@@ -137,6 +137,7 @@ jobs:
   push_to_ecr:
     name: Push images to ECR
     needs: build
+    if: ${{ needs.build.outputs.git-tag == '' }}
     environment: production
     runs-on: ubuntu-latest
     steps:
@@ -176,47 +177,33 @@ jobs:
   push_to_gar:
     name: Push images to Google Artifact Registry
     needs: build
+    if: ${{ needs.build.outputs.git-tag != '' }}
     runs-on: ubuntu-latest
     environment: production
     steps:
-      - name: Check if tag is present
-        id: check-git-tag
-        run: |
-          if [[ -z "${{ needs.build.outputs.git-tag }}" ]]; then
-            echo "No Git tag found. Skipping GAR push."
-            echo "git-tag-exists=false" >> $GITHUB_OUTPUT
-          else
-            echo "git-tag-exists=true" >> $GITHUB_OUTPUT
-          fi
-
       - name: Authenticate to GCP
-        if: steps.check.outputs.git-tag-exists == 'true'
         uses: google-github-actions/auth@v2
         with:
           workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
           service_account: ${{ secrets.GCP_SERVICE_ACCOUNT_EMAIL }}
 
       - name: Setup gcloud
-        if: steps.check.outputs.git-tag-exists == 'true'
         uses: google-github-actions/setup-gcloud@v2
 
       - name: Authenticate to Repo
-        if: steps.check.outputs.git-tag-exists == 'true'
         run: |
           gcloud auth configure-docker ${{ env.GCP_REGION }}-docker.pkg.dev --quiet
 
       - name: Download artifact
-        if: steps.check.outputs.git-tag-exists == 'true'
         uses: actions/download-artifact@v4
         with:
           name: docker-images
           path: ${{ runner.temp }}
 
       - name: Load, tag and push image to GAR
-        if: steps.check.outputs.git-tag-exists == 'true'
         run: |
           docker load ${{ runner.temp }}/dezswap-api-latest.tar
-          tag=${{ needs.build.outputs.git_tag }}
+          tag=${{ needs.build.outputs.git-tag }}
           docker tag dezswap-api:latest $GCP_GAR_REPOSITORY/dezswap-api:$tag
           docker push $GCP_GAR_REPOSITORY/dezswap-api:$tag
 
