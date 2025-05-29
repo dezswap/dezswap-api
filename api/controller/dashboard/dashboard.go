@@ -2,6 +2,7 @@ package dashboard
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/dezswap/dezswap-api/api/controller"
 	dashboardService "github.com/dezswap/dezswap-api/api/service/dashboard"
@@ -408,7 +409,7 @@ func (c *dashboardController) Tokens(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, res)
 }
 
-// Dashboard godoc
+// Txs godoc
 //
 //	@Summary		Dezswap's Transactions
 //	@Description	get Transactions data of dezswap
@@ -419,24 +420,23 @@ func (c *dashboardController) Tokens(ctx *gin.Context) {
 //	@Failure		400	{object}	httputil.BadRequestError
 //	@Failure		500	{object}	httputil.InternalServerError
 //	@Param			pool		query	string	false	"Pool address"
-//	@Param			token		query	string	false	"Token address"
+//	@Param			token		query	string	false	"Token addresses" e.g. token=axpla,xpla1abcd
 //	@Param			type		query	string	false	"Transaction type, empty value is for all types"  Enums(swap, add, remove)
 //	@Router			/dashboard/txs [get]
 func (c *dashboardController) Txs(ctx *gin.Context) {
-
 	pool := dashboardService.Addr(ctx.Query("pool"))
-	token := dashboardService.Addr(ctx.Query("token"))
+	tokens := parseTokenAddrs(ctx.Query("token"))
 	txType := c.txTypeToServiceTxType(TxType(ctx.Query("type")))
 
-	if len(pool) > 0 && len(token) > 0 {
+	if len(pool) > 0 && len(tokens) > 0 {
 		httputil.NewError(ctx, http.StatusBadRequest, errors.New("invalid query, must choose one of (pool or token, not both)"))
 		return
 	}
 
 	var txs dashboardService.Txs
 	var err error
-	if len(token) > 0 {
-		txs, err = c.Dashboard.TxsOfToken(txType, token)
+	if len(tokens) > 0 {
+		txs, err = c.Dashboard.TxsOfToken(txType, tokens...)
 	} else if len(pool) > 0 {
 		txs, err = c.Dashboard.Txs(txType, pool)
 	} else {
@@ -449,4 +449,14 @@ func (c *dashboardController) Txs(ctx *gin.Context) {
 	}
 	txsRes := c.txsToRes(txs)
 	ctx.JSON(http.StatusOK, txsRes)
+}
+
+func parseTokenAddrs(tokenStr string) []dashboardService.Addr {
+	var tokens []dashboardService.Addr
+	for _, t := range strings.Split(tokenStr, ",") {
+		if trimmed := strings.TrimSpace(t); trimmed != "" {
+			tokens = append(tokens, dashboardService.Addr(trimmed))
+		}
+	}
+	return tokens
 }

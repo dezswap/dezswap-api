@@ -17,7 +17,7 @@ type Dashboard interface {
 	TokenPrices(addr Addr, itv Duration) (TokenChart, error)
 
 	Txs(txType TxType, addr ...Addr) (Txs, error)
-	TxsOfToken(txType TxType, token Addr) (Txs, error)
+	TxsOfToken(txType TxType, tokenAddrs ...Addr) (Txs, error)
 
 	Volumes(Duration) (Volumes, error)
 	VolumesOf(Addr, Duration) (Volumes, error)
