@@ -127,6 +127,8 @@ jobs:
     needs: build
     environment: production
     runs-on: ubuntu-latest
+    outputs:
+      image-tags: ${{ needs.build.outputs.image-tags }}
     steps:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -225,7 +227,7 @@ jobs:
       - name: Parse Image Tags
         id: parse-tags
         run: |
-          printf '${{ needs.build.outputs.image-tags }}' > image_tags.json
+          printf '${{ needs.push_to_ecr.outputs.image-tags }}' > image_tags.json
           IMAGE_TAG=$(jq -r '.["'${{ matrix.service }}'"]' image_tags.json)
           echo "image-tag=$IMAGE_TAG" >> $GITHUB_OUTPUT
 
