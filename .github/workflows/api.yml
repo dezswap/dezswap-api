@@ -99,6 +99,7 @@ jobs:
 
       - name: Build and package network-specific images
         id: build-final-images
+        if: steps.get-git-tag.outputs.tag == ''
         working-directory: .
         env:
           DIMENSION_CONFIG: ${{ secrets.DIMENSION_CONFIG }}
