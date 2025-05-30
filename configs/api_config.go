@@ -40,7 +40,6 @@ func apiServerConfig(v *viper.Viper) ApiServerConfig {
 		Port:    v.GetString("port"),
 		Swagger: v.GetBool("swagger"),
 		Mode:    v.GetString("mode"),
-		Version: v.GetString("version"),
 		ChainId: v.GetString("chain_id"),
 	}
 }
@@ -55,7 +54,6 @@ func apiServerConfigFromEnv(v *viper.Viper, prefix string) ApiServerConfig {
 		Port:    v.GetString(strings.ToUpper(fmt.Sprintf("%s_%s", prefix, "port"))),
 		Swagger: v.GetBool(strings.ToUpper(fmt.Sprintf("%s_%s", prefix, "swagger"))),
 		Mode:    v.GetString(strings.ToUpper(fmt.Sprintf("%s_%s", prefix, "mode"))),
-		Version: v.GetString(strings.ToUpper(fmt.Sprintf("%s_%s", prefix, "version"))),
 		ChainId: v.GetString(strings.ToUpper(fmt.Sprintf("%s_%s", prefix, "chain_id"))),
 	}
 }
@@ -73,7 +71,6 @@ type ApiServerConfig struct {
 	Port    string
 	Swagger bool
 	Mode    string
-	Version string
 	ChainId string
 }
 
@@ -92,9 +89,6 @@ func (lhs *ApiServerConfig) Override(rhs ApiServerConfig) {
 	}
 	if rhs.Mode != "" {
 		lhs.Mode = rhs.Mode
-	}
-	if rhs.Version != "" {
-		lhs.Version = rhs.Version
 	}
 	if rhs.ChainId != "" {
 		lhs.ChainId = rhs.ChainId

@@ -15,6 +15,7 @@ type Codable interface {
 // / Cache is an interface for cache
 // / destination must be a pointer
 type Cache interface {
+	Ping() error
 	Get(Key string, dest interface{}) error
 	Set(Key string, value interface{}, ttl time.Duration) error
 	Delete(key string) error
