@@ -57,10 +57,26 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       image-tags: ${{ steps.build-final-images.outputs.image-tags }}
-
+      git-tag: ${{ steps.get-git-tag.outputs.tag }}
     steps:
       - name: checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Get Git tag if present
+        id: get-git-tag
+        run: |
+          GIT_TAG=$(git tag --points-at HEAD | head -n 1)
+          echo "Git tag: $GIT_TAG"
+          if [[ "$GIT_TAG" == v* ]]; then
+            VERSION_TAG=$(echo "$GIT_TAG" | sed 's/^v//')
+            echo "tag=$VERSION_TAG" >> $GITHUB_OUTPUT
+          else
+            echo "No valid version tag (v*) found. Skipping push to GAR."
+            echo "tag=" >> $GITHUB_OUTPUT
+          fi
 
       - name: Test, build and package base image
         id: build-base-image
@@ -87,6 +103,7 @@ jobs:
 
       - name: Build and package network-specific images
         id: build-final-images
+        if: steps.get-git-tag.outputs.tag == ''
         working-directory: .
         env:
           DIMENSION_CONFIG: ${{ secrets.DIMENSION_CONFIG }}
@@ -125,6 +142,7 @@ jobs:
   push_to_ecr:
     name: Push images to ECR
     needs: build
+    if: ${{ needs.build.outputs.git-tag == '' }}
     environment: production
     runs-on: ubuntu-latest
     outputs:
@@ -166,6 +184,7 @@ jobs:
   push_to_gar:
     name: Push images to Google Artifact Registry
     needs: build
+    if: ${{ needs.build.outputs.git-tag != '' }}
     runs-on: ubuntu-latest
     environment: production
     steps:
@@ -189,20 +208,11 @@ jobs:
           path: ${{ runner.temp }}
 
       - name: Load, tag and push image to GAR
-        env:
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
         run: |
-          # Load all saved Docker images
-          for tar in ${{ runner.temp }}/dezswap-api-*.tar; do
-            docker load -i "$tar"
-          done
-
-          # Retag and push each loaded image
-          for image in $(docker images --format "{{.Repository}}:{{.Tag}}" | grep ^dezswap-api:); do
-            tag=$(echo $image | cut -d ':' -f 2)
-            docker tag $image $GCP_GAR_REPOSITORY/dezswap-api:$tag
-            docker push $GCP_GAR_REPOSITORY/dezswap-api:$tag
-          done
+          docker load -i ${{ runner.temp }}/dezswap-api-latest.tar
+          tag=${{ needs.build.outputs.git-tag }}
+          docker tag dezswap-api:latest $GCP_GAR_REPOSITORY/dezswap-api:$tag
+          docker push $GCP_GAR_REPOSITORY/dezswap-api:$tag
 
   deploy_to_ecs:
     name: Deploy API
