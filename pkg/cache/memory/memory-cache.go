@@ -27,6 +27,10 @@ func NewMemoryCache(codec cache.Codable) cache.Cache {
 	}
 }
 
+func (r *memoryCacheImpl) Ping() error {
+	return nil
+}
+
 func (c *memoryCacheImpl) Get(key string, dest interface{}) error {
 	c.RLock()
 	defer c.RUnlock()
