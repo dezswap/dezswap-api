@@ -90,7 +90,9 @@ jobs:
 
           # Build and package base image
           touch config.yml
-          docker build --build-arg APP_TYPE=$APP_TYPE -t dezswap-api:latest -t dezswap-api:$IMAGE_TAG .
+          tag=${{ steps.get-git-tag.outputs.tag }}
+          tag=${tag:-$IMAGE_TAG}
+          docker build --build-arg APP_TYPE=$APP_TYPE --build-arg APP_VERSION=$tag -t dezswap-api:latest -t dezswap-api:$IMAGE_TAG .
           docker save -o ${{ runner.temp }}/dezswap-api-latest.tar dezswap-api:latest
           docker save -o ${{ runner.temp }}/dezswap-api-$IMAGE_TAG.tar dezswap-api:$IMAGE_TAG
 
