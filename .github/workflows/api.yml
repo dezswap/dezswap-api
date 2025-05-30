@@ -68,10 +68,14 @@ jobs:
       - name: Get Git tag if present
         id: get-git-tag
         run: |
-          GIT_TAG=$(git tag --points-at HEAD | head -n 1 | sed 's/^v//')
-          if [[ -n "$GIT_TAG" ]]; then
-            echo $GIT_TAG
-            echo "tag=$GIT_TAG" >> $GITHUB_OUTPUT
+          GIT_TAG=$(git tag --points-at HEAD | head -n 1)
+          echo "Git tag: $GIT_TAG"
+          if [[ "$GIT_TAG" == v* ]]; then
+            VERSION_TAG=$(echo "$GIT_TAG" | sed 's/^v//')
+            echo "tag=$VERSION_TAG" >> $GITHUB_OUTPUT
+          else
+            echo "No valid version tag (v*) found. Skipping push to GAR."
+            echo "tag=" >> $GITHUB_OUTPUT
           fi
 
       - name: Test, build and package base image
