@@ -47,15 +47,17 @@ func (c *statusController) Version(ctx *gin.Context) {
 // @Router       /health [get]
 func (c *statusController) Health(ctx *gin.Context) {
 	status := "ok"
-	var deps []HealthDependency
 
-	for _, d := range []struct {
+	checks := []struct {
 		name  string
 		check func() error
 	}{
 		{name: "db", check: c.service.CheckDB},
 		{name: "cache", check: c.service.CheckCache},
-	} {
+	}
+
+	deps := make([]HealthDependency, 0, len(checks))
+	for _, d := range checks {
 		depStatus := "ok"
 		if err := d.check(); err != nil {
 			status = "unhealthy"

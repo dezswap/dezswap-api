@@ -23,7 +23,7 @@ func New(codec cache.Codable, redis *redis.Client) cache.Cache {
 
 // Ping implements cache.Cache
 func (r *redisClient) Ping() error {
-	return r.Ping()
+	return r.Client.Ping(context.Background()).Err()
 }
 
 // Get implements cache.Cache.

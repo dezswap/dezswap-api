@@ -37,10 +37,10 @@ func NewAssetRepo(networkMetadata pkg.NetworkMetadata, chainId string) (indexer.
 
 // VerifiedTokens implements indexer.AssetRepo
 func (r *assetRepoImpl) VerifiedTokens(chainId string) ([]indexer.Token, error) {
-	if !r.NetworkMetadata.IsMainnetOrTestnet(chainId) {
+	if !r.IsMainnetOrTestnet(chainId) {
 		return nil, errors.New("assetRepo.VerifiedTokens: invalid chainId")
 	}
-	isMainnet := r.NetworkMetadata.IsMainnet(chainId)
+	isMainnet := r.IsMainnet(chainId)
 
 	cw20s, err := r.VerifiedCw20s()
 	if err != nil {
