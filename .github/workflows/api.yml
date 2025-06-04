@@ -38,15 +38,16 @@ jobs:
         id: check_branch
         run: |
           branches_containing_tag=$(git branch -r --contains ${{ github.ref }} --format "%(refname:lstrip=3)")
+          echo $branches_containing_tag
 
-          echo "run_next_job=true" >> $GITHUB_OUTPUT
 
-          if echo "$branches_containing_tag" | grep -q "^origin/main$"; then
+          if echo "$branches_containing_tag" | grep -q "^ci/change-api-workflow-condition$"; then
             GIT_TAG=$(echo "${{ github.ref }}" | sed 's|refs/tags/v||')
             echo "tag=$GIT_TAG" >> $GITHUB_OUTPUT
+            echo "run_next_job=true" >> $GITHUB_OUTPUT
           else
             echo "The tag commit is NOT on main branch. Exiting."
-            echo "run_next_job=false" >> $GITHUB_OUTPUT
+            echo "run_next_job=true" >> $GITHUB_OUTPUT
           fi
 
       - name: Check changed file paths
@@ -59,6 +60,8 @@ jobs:
           if [[ -z "$MATCHING_FILES" ]]; then
             echo "no matching file"
             echo "run_next_job=false" >> $GITHUB_OUTPUT
+          else
+            echo "run_next_job=true" >> $GITHUB_OUTPUT
           fi
 
   build:
