@@ -25,11 +25,10 @@ permissions:
 jobs:
   check_paths:
     runs-on: ubuntu-latest
-    if: |
-      github.event.workflow_run.conclusion == 'success' &&
-      startsWith(github.event.workflow_run.head_branch, 'refs/tags/v')
+    if: github.event.workflow_run.conclusion == 'success'
     outputs:
       run_next_job: ${{ steps.check_paths.outputs.run_next_job }}
+      tag: ${{ steps.check_paths.outputs.tag }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -39,8 +38,18 @@ jobs:
       - name: Check changed file paths
         id: check_paths
         run: |
+          GIT_TAG=$(git tag --points-at HEAD | head -n 1)
+          if [[ "$GIT_TAG" == v* ]]; then
+            echo "tag found: $GIT_TAG"
+            VERSION=$(echo "$GIT_TAG" | sed 's/^v//')
+            echo "tag=$VERSION" >> $GITHUB_OUTPUT
+          else
+            echo "No tag found. Skipping."
+            echo "run_next_job=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
           CHANGED_FILES=$(git diff HEAD~1 --name-only)
-          # files except api related
           MATCHING_FILES=$(echo "$CHANGED_FILES" | grep -v '^indexer/')
 
           if [[ -z "$MATCHING_FILES" ]]; then
@@ -58,7 +67,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       image-tags: ${{ steps.build-final-images.outputs.image-tags }}
-      git-tag: ${{ steps.get-git-tag.outputs.tag }}
+      tag: ${{ needs.check_paths.outputs.tag }}
     steps:
       - name: checkout
         uses: actions/checkout@v4
@@ -66,20 +75,12 @@ jobs:
           fetch-depth: 0
           fetch-tags: true
 
-      - name: Get Git tag
-        id: get-git-tag
-        run: |
-          GIT_TAG=$(git tag --points-at HEAD | head -n 1)
-          echo "Git tag detected: $GIT_TAG"
-          VERSION_TAG=$(echo "$GIT_TAG" | sed 's/^v//')
-          echo "tag=$VERSION_TAG" >> $GITHUB_OUTPUT
-
       - name: Test, build and package base image
         id: build-base-image
         working-directory: .
         env:
           APP_TYPE: ${{ env.APP_TYPE }}
-          IMAGE_TAG: ${{ steps.get-git-tag.outputs.tag }}
+          IMAGE_TAG: ${{ needs.check_paths.outputs.tag }}
         run: |
           # Test
           make test
@@ -103,7 +104,7 @@ jobs:
           FETCHHUB_CONFIG: ${{ secrets.FETCHHUB_CONFIG }}
           DORADO_CONFIG: ${{ secrets.DORADO_CONFIG }}
           APP_TYPE: ${{ env.APP_TYPE }}
-          IMAGE_TAG: ${{ steps.get-git-tag.outputs.tag }}
+          IMAGE_TAG: ${{ needs.check_paths.outputs.tag }}
         run: |
           # Build network-specific images
           configs=("$DIMENSION_CONFIG" "$CUBE_CONFIG" "$FETCHHUB_CONFIG" "$DORADO_CONFIG")
@@ -197,7 +198,7 @@ jobs:
 
       - name: Load, tag and push image to GAR
         env:
-          IMAGE_TAG: ${{ needs.build.outputs.git-tag }}
+          IMAGE_TAG: ${{ needs.build.outputs.tag }}
         run: |
           docker load -i ${{ runner.temp }}/dezswap-api-latest.tar
           docker tag dezswap-api:latest $GCP_GAR_REPOSITORY/dezswap-api:$IMAGE_TAG
@@ -226,7 +227,7 @@ jobs:
       - name: Parse Image Tags
         id: parse-tags
         run: |
-          printf '${{ needs.push_to_ecr.outputs.image-tags }}' > image_tags.json
+          printf '${{ needs.push_to_ecr.outputs.tag }}' > image_tags.json
           IMAGE_TAG=$(jq -r '.["'${{ matrix.service }}'"]' image_tags.json)
           echo "image-tag=$IMAGE_TAG" >> $GITHUB_OUTPUT
 
