@@ -41,7 +41,7 @@ jobs:
 
           echo "run_next_job=true" >> $GITHUB_OUTPUT
 
-          if echo "$branches_containing_tag" | grep -q "^origin/main$"; then
+          if echo "$branches_containing_tag" | grep -q "^origin/ci/change-api-workflow-condition$"; then
             GIT_TAG=$(echo "${{ github.ref }}" | sed 's|refs/tags/v||')
             echo "tag=$GIT_TAG" >> $GITHUB_OUTPUT
           else
