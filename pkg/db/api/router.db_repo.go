@@ -1,7 +1,7 @@
 package api
 
 import (
-	rs "github.com/dezswap/dezswap-api/api/service/router"
+	rs "github.com/dezswap/dezswap-api/api/v1/service/router"
 	"github.com/dezswap/dezswap-api/pkg/db/aggregator"
 
 	"gorm.io/gorm"

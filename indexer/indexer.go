@@ -85,7 +85,7 @@ func (d *dexIndexer) UpdateTokens() error {
 			var t *Token
 			var err error
 			// TODO: remove this after xpla supports denom metadata query
-			if d.NetworkMetadata.IsCw20(addr) || d.NetworkMetadata.IsIbcToken(addr) {
+			if d.IsCw20(addr) || d.IsIbcToken(addr) {
 				t, err = d.repo.TokenFromNode(addr)
 			} else {
 				t, err = d.repo.Token(addr)

@@ -58,9 +58,9 @@ func (r *nodeRepoImpl) TokenFromNode(addr string) (*indexer.Token, error) {
 	var token *indexer.Token
 	var err error
 
-	if r.NetworkMetadata.IsIbcToken(addr) {
+	if r.IsIbcToken(addr) {
 		token, err = r.ibcFromNode(addr)
-	} else if r.NetworkMetadata.IsCw20(addr) {
+	} else if r.IsCw20(addr) {
 		token, err = r.cw20FromNode(addr)
 	} else {
 		// currently, query denom is supported (no metadata)
@@ -96,7 +96,7 @@ func (r *nodeRepoImpl) ibcFromNode(addr string) (*indexer.Token, error) {
 }
 
 func (r *nodeRepoImpl) cw20FromNode(addr string) (*indexer.Token, error) {
-	res, err := r.QueryContract(addr, dezswap.QUERY_TOKEN, r.NetworkMetadata.LatestHeightIndicator)
+	res, err := r.QueryContract(addr, dezswap.QUERY_TOKEN, r.LatestHeightIndicator)
 	if err != nil {
 		return nil, errors.Wrap(err, "nodeRepoImpl.cw20FromNode")
 	}
