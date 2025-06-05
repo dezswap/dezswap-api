@@ -51,7 +51,7 @@ jobs:
           fi
 
       - name: Check changed file paths
-        if: ${{ needs.check_branch.outputs.run_next_job == 'true' }}
+        if: ${{ steps.check_branch.outputs.run_next_job == 'true' }}
         id: check_paths
         run: |
           CHANGED_FILES=$(git diff HEAD~1 --name-only)
