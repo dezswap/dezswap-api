@@ -107,11 +107,11 @@ func (c *dashboardController) ChartByToken(ctx *gin.Context) {
 	var chart dashboardService.TokenChart
 	switch chartType {
 	case ChartTypeVolume:
-		chart, err = c.Dashboard.TokenVolumes(addr, duration)
+		chart, err = c.TokenVolumes(addr, duration)
 	case ChartTypeTvl:
-		chart, err = c.Dashboard.TokenTvls(addr, duration)
+		chart, err = c.TokenTvls(addr, duration)
 	case ChartTypePrice:
-		chart, err = c.Dashboard.TokenPrices(addr, duration)
+		chart, err = c.TokenPrices(addr, duration)
 	default:
 		httputil.NewError(ctx, http.StatusBadRequest, errors.New("unsupported chart type"))
 		return
@@ -169,19 +169,19 @@ func (c *dashboardController) ChartByPool(ctx *gin.Context) {
 	switch chartType {
 	case ChartTypeVolume:
 		var volumes dashboardService.Volumes
-		volumes, err = c.Dashboard.VolumesOf(addr, duration)
+		volumes, err = c.VolumesOf(addr, duration)
 		res = c.volumesToChartRes(volumes)
 	case ChartTypeTvl:
 		var tvls dashboardService.Tvls
-		tvls, err = c.Dashboard.TvlsOf(addr, duration)
+		tvls, err = c.TvlsOf(addr, duration)
 		res = c.tvlsToChartRes(tvls)
 	case ChartTypeApr:
 		var aprs dashboardService.Aprs
-		aprs, err = c.Dashboard.AprsOf(addr, duration)
+		aprs, err = c.AprsOf(addr, duration)
 		res = c.aprsToChartRes(aprs)
 	case ChartTypeFee:
 		var fees dashboardService.Fees
-		fees, err = c.Dashboard.FeesOf(addr, duration)
+		fees, err = c.FeesOf(addr, duration)
 		res = c.feesToChartRes(fees)
 	default:
 		httputil.NewError(ctx, http.StatusBadRequest, errors.New("invalid chart type"))
@@ -229,19 +229,19 @@ func (c *dashboardController) Chart(ctx *gin.Context) {
 	switch chartType {
 	case ChartTypeVolume:
 		var volumes dashboardService.Volumes
-		volumes, err = c.Dashboard.Volumes(duration)
+		volumes, err = c.Volumes(duration)
 		res = c.volumesToChartRes(volumes)
 	case ChartTypeTvl:
 		var tvls dashboardService.Tvls
-		tvls, err = c.Dashboard.Tvls(duration)
+		tvls, err = c.Tvls(duration)
 		res = c.tvlsToChartRes(tvls)
 	case ChartTypeApr:
 		var aprs dashboardService.Aprs
-		aprs, err = c.Dashboard.Aprs(duration)
+		aprs, err = c.Aprs(duration)
 		res = c.aprsToChartRes(aprs)
 	case ChartTypeFee:
 		var fees dashboardService.Fees
-		fees, err = c.Dashboard.Fees(duration)
+		fees, err = c.Fees(duration)
 		res = c.feesToChartRes(fees)
 	default:
 		httputil.NewError(ctx, http.StatusBadRequest, errors.New("invalid chart type"))
@@ -336,7 +336,7 @@ func (c *dashboardController) Pool(ctx *gin.Context) {
 		return
 	}
 
-	poolDetail, err := c.Dashboard.PoolDetail(dashboardService.Addr(address))
+	poolDetail, err := c.PoolDetail(dashboardService.Addr(address))
 	if err != nil {
 		c.logger.Warn(err)
 		httputil.NewError(ctx, http.StatusInternalServerError, errors.New("internal server error"))
@@ -436,7 +436,7 @@ func (c *dashboardController) Txs(ctx *gin.Context) {
 	var txs dashboardService.Txs
 	var err error
 	if len(tokens) > 0 {
-		txs, err = c.Dashboard.TxsOfToken(txType, tokens...)
+		txs, err = c.TxsOfToken(txType, tokens...)
 	} else if len(pool) > 0 {
 		txs, err = c.Dashboard.Txs(txType, pool)
 	} else {

@@ -82,7 +82,7 @@ func (c *routerController) Routes(ctx *gin.Context) {
 		reverse = true
 	}
 
-	routes, err := c.Router.RoutesOfToken(addr, hopCount, reverse)
+	routes, err := c.RoutesOfToken(addr, hopCount, reverse)
 	if err != nil {
 		c.logger.Warn(err)
 		httputil.NewError(ctx, http.StatusInternalServerError, errors.New("internal server error"))

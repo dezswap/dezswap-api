@@ -1,0 +1,14 @@
+version: "2"
+run:
+  timeout: 5m
+  tests: false
+linters:
+  enable:
+    - unparam
+    - misspell
+    - prealloc
+  settings:
+    errcheck:
+      exclude-functions:
+        - (*database/sql.Rows).Close
+        - (io.Closer).Close

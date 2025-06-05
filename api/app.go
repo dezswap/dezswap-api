@@ -118,7 +118,7 @@ func (app *app) setMiddlewares(cache cache.Cache) {
 	conf.AllowMethods = []string{"GET", "OPTIONS"}
 	app.engine.Use(cors.New(conf))
 	if cache != nil {
-		app.engine.Use(gin_cache.Cache(cache, time.Second*time.Duration(app.NetworkMetadata.BlockSecond),
+		app.engine.Use(gin_cache.Cache(cache, time.Second*time.Duration(app.BlockSecond),
 			gin_cache.WithCacheStrategyByRequest(func(c *gin.Context) (bool, gin_cache.Strategy) {
 				return true, gin_cache.Strategy{
 					CacheKey: c.Request.Host + c.Request.RequestURI,
