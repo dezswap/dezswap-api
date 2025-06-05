@@ -40,17 +40,18 @@ jobs:
           branches_containing_tag=$(git branch -r --contains ${{ github.ref }} --format "%(refname:lstrip=3)")
           echo "Branches containing tag: $branches_containing_tag"
 
-          if echo "$branches_containing_tag" | grep -q "^ci/change-api-workflow-condition$"; then
+          if echo "$branches_containing_tag" | grep -q "^origin/main$"; then
             # get version from tag
             GIT_TAG=$(echo "${{ github.ref }}" | sed 's|refs/tags/v||')
             echo "tag=$GIT_TAG" >> $GITHUB_OUTPUT
             echo "run_next_job=true" >> $GITHUB_OUTPUT
           else
             echo "The tag commit is NOT on main branch. Exiting."
-            echo "run_next_job=true" >> $GITHUB_OUTPUT
+            echo "run_next_job=false" >> $GITHUB_OUTPUT
           fi
 
       - name: Check changed file paths
+        if: ${{ needs.check_branch.outputs.run_next_job == 'true' }}
         id: check_paths
         run: |
           CHANGED_FILES=$(git diff HEAD~1 --name-only)
