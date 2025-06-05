@@ -1,10 +1,9 @@
 name: Deploy Dezswap API
 
 on:
-  workflow_run:
-    workflows: ["CI"]
-    types:
-      - completed
+  push:
+    tags:
+      - 'v*'
 
 env:
   APP_TYPE: api
@@ -25,18 +24,34 @@ permissions:
 jobs:
   check_paths:
     runs-on: ubuntu-latest
-    if: |
-      github.event.workflow_run.conclusion == 'success' &&
-      startsWith(github.ref, 'refs/tags/v')
     outputs:
       run_next_job: ${{ steps.check_paths.outputs.run_next_job }}
+      tag: ${{ steps.check_branch.outputs.tag }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 2
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Check if tag commit is on main branch
+        id: check_branch
+        run: |
+          branches_containing_tag=$(git branch -r --contains ${{ github.ref }} --format "%(refname:lstrip=3)")
+          echo "Branches containing tag: $branches_containing_tag"
+
+          if echo "$branches_containing_tag" | grep -Eq "^(origin/)?main$"; then
+            # get version from tag
+            GIT_TAG=$(echo "${{ github.ref }}" | sed 's|refs/tags/v||')
+            echo "tag=$GIT_TAG" >> $GITHUB_OUTPUT
+            echo "run_next_job=true" >> $GITHUB_OUTPUT
+          else
+            echo "The tag commit is NOT on main branch. Exiting."
+            echo "run_next_job=false" >> $GITHUB_OUTPUT
+          fi
 
       - name: Check changed file paths
+        if: ${{ steps.check_branch.outputs.run_next_job == 'true' }}
         id: check_paths
         run: |
           CHANGED_FILES=$(git diff HEAD~1 --name-only)
@@ -58,28 +73,17 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       image-tags: ${{ steps.build-final-images.outputs.image-tags }}
-      git-tag: ${{ steps.get-git-tag.outputs.tag }}
+      tag: ${{ needs.check_paths.outputs.tag }}
     steps:
       - name: checkout
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          fetch-tags: true
-
-      - name: Get Git tag
-        id: get-git-tag
-        run: |
-          GIT_TAG=$(git tag --points-at HEAD | head -n 1)
-          echo "Git tag detected: $GIT_TAG"
-          VERSION_TAG=$(echo "$GIT_TAG" | sed 's/^v//')
-          echo "tag=$VERSION_TAG" >> $GITHUB_OUTPUT
 
       - name: Test, build and package base image
         id: build-base-image
         working-directory: .
         env:
           APP_TYPE: ${{ env.APP_TYPE }}
-          IMAGE_TAG: ${{ steps.get-git-tag.outputs.tag }}
+          IMAGE_TAG: ${{ needs.check_paths.outputs.tag }}
         run: |
           # Test
           make test
@@ -103,7 +107,7 @@ jobs:
           FETCHHUB_CONFIG: ${{ secrets.FETCHHUB_CONFIG }}
           DORADO_CONFIG: ${{ secrets.DORADO_CONFIG }}
           APP_TYPE: ${{ env.APP_TYPE }}
-          IMAGE_TAG: ${{ steps.get-git-tag.outputs.tag }}
+          IMAGE_TAG: ${{ needs.check_paths.outputs.tag }}
         run: |
           # Build network-specific images
           configs=("$DIMENSION_CONFIG" "$CUBE_CONFIG" "$FETCHHUB_CONFIG" "$DORADO_CONFIG")
@@ -197,7 +201,7 @@ jobs:
 
       - name: Load, tag and push image to GAR
         env:
-          IMAGE_TAG: ${{ needs.build.outputs.git-tag }}
+          IMAGE_TAG: ${{ needs.build.outputs.tag }}
         run: |
           docker load -i ${{ runner.temp }}/dezswap-api-latest.tar
           docker tag dezswap-api:latest $GCP_GAR_REPOSITORY/dezswap-api:$IMAGE_TAG
