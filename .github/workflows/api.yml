@@ -40,7 +40,7 @@ jobs:
           branches_containing_tag=$(git branch -r --contains ${{ github.ref }} --format "%(refname:lstrip=3)")
           echo "Branches containing tag: $branches_containing_tag"
 
-          if echo "$branches_containing_tag" | grep -q "^origin/main$"; then
+          if echo "$branches_containing_tag" | grep -Eq "^(origin/)?main$"; then
             # get version from tag
             GIT_TAG=$(echo "${{ github.ref }}" | sed 's|refs/tags/v||')
             echo "tag=$GIT_TAG" >> $GITHUB_OUTPUT
