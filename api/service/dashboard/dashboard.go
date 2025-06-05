@@ -262,9 +262,9 @@ func (d *dashboard) Pools(tokens ...Addr) (Pools, error) {
 	var tx *gorm.DB
 	if len(tokens) > 0 {
 		tokensCond := " WHERE p.asset0 in ? OR p.asset1 in ?"
-		tx = d.DB.Raw(query+tokensCond+orderBy, tokens, tokens)
+		tx = d.Raw(query+tokensCond+orderBy, tokens, tokens)
 	} else {
-		tx = d.DB.Raw(query + orderBy)
+		tx = d.Raw(query + orderBy)
 	}
 	if err := tx.Scan(&pools).Error; err != nil {
 		return nil, errors.Wrap(err, "dashboard.Pools")
