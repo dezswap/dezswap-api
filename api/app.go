@@ -2,6 +2,8 @@ package api
 
 import (
 	"fmt"
+	"github.com/dezswap/dezswap-api/api/docs"
+	v1 "github.com/dezswap/dezswap-api/api/v1"
 	"github.com/dezswap/dezswap-api/pkg"
 	"net/http"
 	"regexp"
@@ -10,26 +12,10 @@ import (
 	gin_cache "github.com/chenyahui/gin-cache"
 	"gorm.io/gorm"
 
-	geckoController "github.com/dezswap/dezswap-api/api/controller/coingecko"
-	comarcapController "github.com/dezswap/dezswap-api/api/controller/coinmarketcap"
-	dashboardController "github.com/dezswap/dezswap-api/api/controller/dashboard"
-	nc "github.com/dezswap/dezswap-api/api/controller/notice"
-	routerController "github.com/dezswap/dezswap-api/api/controller/router"
-
-	"github.com/dezswap/dezswap-api/api/service/coingecko"
-	"github.com/dezswap/dezswap-api/api/service/coinmarketcap"
-	"github.com/dezswap/dezswap-api/api/service/dashboard"
-	ns "github.com/dezswap/dezswap-api/api/service/notice"
-	rs "github.com/dezswap/dezswap-api/api/service/router"
-
-	"github.com/dezswap/dezswap-api/api/controller"
-	"github.com/dezswap/dezswap-api/api/docs"
 	"github.com/gin-contrib/cors"
 
-	"github.com/dezswap/dezswap-api/api/service"
 	"github.com/dezswap/dezswap-api/configs"
 	"github.com/dezswap/dezswap-api/pkg/cache"
-	"github.com/dezswap/dezswap-api/pkg/db/api"
 	"github.com/dezswap/dezswap-api/pkg/logging"
 	"github.com/evalphobia/logrus_sentry"
 	"github.com/gin-gonic/gin"
@@ -38,6 +24,10 @@ import (
 	ginSwagger "github.com/swaggo/gin-swagger" // gin-swagger middleware
 	// swagger embed files
 )
+
+const ApiVersion = "v1"
+
+var AppVersion = "dev"
 
 type app struct {
 	engine *gin.Engine
@@ -63,7 +53,10 @@ func RunServer(c configs.Config, cache cache.Cache, db *gorm.DB) {
 
 	gin.SetMode(serverConfig.Mode)
 	app.setMiddlewares(cache)
-	app.initApis(serverConfig.ChainId, serverConfig.Version, db)
+
+	v1Router := app.engine.Group(ApiVersion)
+	v1.RegisterRoutes(v1Router, serverConfig.ChainId, AppVersion, app.NetworkMetadata, db, cache, app.logger)
+
 	if c.Sentry.DSN != "" {
 		if err := app.configureReporter(c.Sentry.DSN, serverConfig.ChainId, map[string]string{
 			"x-app":      "dezswap-api",
@@ -75,9 +68,7 @@ func RunServer(c configs.Config, cache cache.Cache, db *gorm.DB) {
 	}
 
 	if c.Api.Server.Swagger {
-		if c.Api.Server.Version != "" {
-			docs.SwaggerInfo.BasePath = "/" + c.Api.Server.Version
-		}
+		docs.SwaggerInfo.BasePath = fmt.Sprintf("/%s", ApiVersion)
 		app.engine.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 	}
 
@@ -128,42 +119,6 @@ func (app *app) setMiddlewares(cache cache.Cache) {
 		))
 	}
 	app.engine.UseRawPath = true
-}
-
-func (app *app) initApis(chainId string, version string, db *gorm.DB) {
-	pairService := service.NewPairService(chainId, db)
-	poolService := service.NewPoolService(chainId, db)
-	tokenService := service.NewTokenService(chainId, db)
-	statService := service.NewStatService(chainId, db)
-
-	router := app.engine.Group(version)
-	controller.InitPairController(pairService, router, app.NetworkMetadata, app.logger)
-	controller.InitPoolController(poolService, router, app.NetworkMetadata, app.logger)
-	controller.InitTokenController(tokenService, router, app.logger)
-	controller.InitStatController(statService, router, app.logger)
-
-	// CoinGecko endpoint
-	r := router.Group("/coingecko")
-	coinGeckoPairService := coingecko.NewPairService(chainId, db)
-	coinGeckoTickerService := coingecko.NewTickerService(chainId, db)
-
-	geckoController.InitPairController(coinGeckoPairService, r, app.logger)
-	geckoController.InitTickerController(coinGeckoTickerService, r, app.logger)
-
-	// CoinMarketCap endpoint
-	r = router.Group("/coinmarketcap")
-	coinMarketCapTickerService := coinmarketcap.NewTickerService(chainId, db)
-	comarcapController.InitTickerController(coinMarketCapTickerService, r, app.logger)
-
-	dashboardService := dashboard.NewDashboardService(chainId, db)
-	dashboardController.InitDashboardController(dashboardService, router.Group("/dashboard"), app.logger)
-
-	noticeService := ns.NewService(db)
-	nc.InitNoticeController(noticeService, router.Group("/notices"), app.logger)
-
-	routerRepo := api.NewRouterDbRepo(chainId, db)
-	routerService := rs.New(routerRepo)
-	routerController.InitRouterController(routerService, router.Group("/routes"), app.logger)
 }
 
 func (app *app) configureReporter(dsn, env string, tags map[string]string) error {

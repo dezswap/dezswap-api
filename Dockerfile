@@ -10,6 +10,7 @@
 FROM golang:1.20.10-alpine AS build
 ARG APP_TYPE=indexer
 ARG LIBWASMVM_VERSION=v1.0.0
+ARG APP_VERSION=dev
 
 WORKDIR /app
 
@@ -37,7 +38,9 @@ RUN cp /lib/libwasmvm_muslc.`uname -m`.a /lib/libwasmvm_muslc.a
 
 # install simapp, remove packages
 RUN go build -mod=readonly -tags "netgo muslc" \
-            -ldflags "-X github.com/cosmos/cosmos-sdk/version.BuildTags='netgo,muslc' \
+            -ldflags "\
+            -X github.com/cosmos/cosmos-sdk/version.BuildTags='netgo,muslc' \
+            -X github.com/dezswap/dezswap-api/api.AppVersion=${APP_VERSION} \
             -w -s -linkmode=external -extldflags '-Wl,-z,muldefs -static'" \
             -trimpath -o ./main ./cmd/${APP_TYPE}
 
