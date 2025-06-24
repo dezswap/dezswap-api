@@ -4,6 +4,7 @@ import "github.com/gin-gonic/gin"
 
 type StatusController interface {
 	Version(ctx *gin.Context)
+	Health(ctx *gin.Context)
 }
 
 type PairController interface {

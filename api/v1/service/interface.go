@@ -6,4 +6,6 @@ type Getter[T any] interface {
 }
 
 type StatusService interface {
+	CheckDB() error
+	CheckCache() error
 }

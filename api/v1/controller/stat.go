@@ -36,7 +36,7 @@ func (c *statController) register(route *gin.RouterGroup) {
 //	@Success		200	{object}	StatsRes
 //	@Failure		400	{object}	httputil.BadRequestError
 //	@Failure		500	{object}	httputil.InternalServerError
-//	@Router			/v1/stats [get]
+//	@Router			/stats [get]
 func (c *statController) Stats(ctx *gin.Context) {
 	stats, err := c.GetAll()
 	if err != nil {
