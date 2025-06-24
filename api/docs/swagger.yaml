@@ -54,6 +54,24 @@ definitions:
     additionalProperties:
       $ref: '#/definitions/coinmarketcap.TickerRes'
     type: object
+  controller.HealthDependency:
+    properties:
+      name:
+        type: string
+      status:
+        type: string
+    type: object
+  controller.HealthResponse:
+    properties:
+      dependencies:
+        items:
+          $ref: '#/definitions/controller.HealthDependency'
+        type: array
+      status:
+        type: string
+      timestamp:
+        type: string
+    type: object
   controller.PairRes:
     properties:
       asset_decimals:
@@ -840,6 +858,19 @@ paths:
       summary: Dezswap's Transactions
       tags:
       - dashboard
+  /health:
+    get:
+      description: Checks overall service and dependency health
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/controller.HealthResponse'
+      summary: Health check
+      tags:
+      - status
   /notices:
     get:
       consumes:
@@ -1145,4 +1176,19 @@ paths:
           schema:
             $ref: '#/definitions/httputil.InternalServerError'
       summary: Get a token
+  /version:
+    get:
+      description: Returns the current application version
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Get application version
+      tags:
+      - status
 swagger: "2.0"
