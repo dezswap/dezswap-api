@@ -376,7 +376,7 @@ func (d *dashboard) RecentOf(addr Addr) (Recent, error) {
 	tvl := func(at time.Time) string {
 		return fmt.Sprintf(`
 		SELECT
-			SUM(ps.liquidity0_in_price + ps.liquidity1_in_price) AS tvl
+			COALESCE(SUM(ps.liquidity0_in_price + ps.liquidity1_in_price), 0) AS tvl
 		FROM
 			pair_stats_30m as ps
 			JOIN (
@@ -399,7 +399,7 @@ func (d *dashboard) RecentOf(addr Addr) (Recent, error) {
 	volume := func(from, to time.Time) string {
 		return fmt.Sprintf(`
 		SELECT
-			SUM(ps0.volume0_in_price) AS volume
+			COALESCE(SUM(ps0.volume0_in_price), 0) AS volume
 		FROM
 			pair_stats_30m as ps0
 			JOIN pair as p ON ps0.pair_id = p.id
@@ -423,13 +423,13 @@ func (d *dashboard) RecentOf(addr Addr) (Recent, error) {
 		SELECT
             exists(select 1 from pair where chain_id = '%s' and contract = ?) pool_exists,
 			tvl.tvl AS tvl,
-			CAST((tvl.tvl / prev_tvl.tvl - 1) AS float4) AS tvl_change_rate,
+			COALESCE((tvl.tvl / NULLIF(prev_tvl.tvl, 0) - 1)::float4, 0) AS tvl_change_rate,
 			volume.volume AS volume,
-			CAST((volume.volume / prev_volume.volume - 1) AS float4) AS volume_change_rate,
+			COALESCE((volume.volume / NULLIF(prev_volume.volume, 0) - 1)::float4, 0) AS volume_change_rate,
 			volume.volume * %f as fee,
-			CAST((volume.volume / prev_volume.volume - 1) AS float4) AS fee_change_rate,
-			volume7d.volume / tvl.tvl * %f as apr,
-			(volume7d.volume / tvl.tvl) / (prev_volume7d.volume / prev_tvl.tvl) - 1 AS apr_change_rate
+			COALESCE((volume.volume / NULLIF(prev_volume.volume, 0) - 1)::float4, 0) AS fee_change_rate,
+			COALESCE(volume7d.volume / NULLIF(tvl.tvl, 0), 0) * %f as apr,
+			COALESCE((volume7d.volume / NULLIF(tvl.tvl, 0)) / NULLIF(prev_volume7d.volume / NULLIF(prev_tvl.tvl, 0), 0) - 1, 0) AS apr_change_rate
 		FROM
 			tvl, prev_tvl, volume, prev_volume, volume7d, prev_volume7d
 	`, tvl(current), tvl(dayAgo), volume(dayAgo, current), volume(twoDaysAgo, dayAgo), volume(sevenDaysAgo, current), volume(eightDaysAgo, dayAgo), d.chainId, dezswap.SWAP_FEE, dezswap.SWAP_FEE)

@@ -1,0 +1,16 @@
+api:
+  server:
+    name: dezswap-api
+    host: 0.0.0.0
+    port: 8000
+    swagger: true
+    mode: test # test, debug, release
+    chain_id: testchain-1
+  db:
+    host: localhost
+    port: 15432
+    database: test
+    username: app
+    password: appPW
+  cache:
+    memory_cache: true # true, false it indicates whether to use in-memory cache

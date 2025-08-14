@@ -44,6 +44,7 @@ func New() Config {
 func NewWithFileName(fileName string) Config {
 	v := initViper(fileName)
 	envConfig = Config{
+		Api:     apiConfig(v),
 		Log:     logConfig(v),
 		Sentry:  sentryConfig(v),
 		Indexer: indexerConfig(v),
