@@ -1,0 +1,15 @@
+services:
+  db:
+    image: postgres
+    container_name: dezswap_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: appPW
+      POSTGRES_DB: test
+      ALLOW_IP_RANGE: 0.0.0.0/0
+    volumes:
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "15432:5432"

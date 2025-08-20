@@ -37,6 +37,9 @@ jobs:
     - name: Run Golang linter
       uses: golangci/golangci-lint-action@v8
 
+    - name: Setup postgres
+      run: cd test_supplements && docker compose up -d
+
     - name: Tests
       shell: bash
       env:
