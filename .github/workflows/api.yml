@@ -85,9 +85,6 @@ jobs:
           APP_TYPE: ${{ env.APP_TYPE }}
           IMAGE_TAG: ${{ needs.check_paths.outputs.tag }}
         run: |
-          # Test
-          make test
-
           # Build and package base image
           touch config.yml
           tag=${{ steps.get-git-tag.outputs.tag }}

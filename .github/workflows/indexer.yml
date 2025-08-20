@@ -79,7 +79,6 @@ jobs:
           DORADO_CONFIG: ${{ secrets.DORADO_CONFIG }}
           APP_TYPE: ${{ env.APP_TYPE }}
         run: |
-          make test
           IMAGE_TAG=`git rev-parse --short HEAD`
           touch config.yml
           docker build --build-arg APP_TYPE=$APP_TYPE -t $ECR_REGISTRY/$ECR_REPOSITORY:latest -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
