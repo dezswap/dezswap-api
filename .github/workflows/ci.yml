@@ -3,7 +3,6 @@ name: CI
 on:
   push:
     branches: [ "main" ]
-    tags: [ "v*" ]
     paths-ignore: [ 'README.md', 'LICENSE', 'config.example.yml', '.gitignore', '.github/CODEOWNERS', '.github/pull_request_template.md' ]
   pull_request:
     branches: [ "*" ]
