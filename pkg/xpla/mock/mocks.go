@@ -33,3 +33,28 @@ func (g *GrpcClientMock) QueryIbcDenomTrace(hash string) (*ibc_types.DenomTrace,
 	args := g.MethodCalled("QueryIbcDenomTrace")
 	return args.Get(0).(*ibc_types.DenomTrace), args.Error(1)
 }
+
+type ClientMock struct {
+	*mock.Mock
+}
+
+var _ pkg.Client = &ClientMock{}
+
+func NewClientMock() *ClientMock {
+	return &ClientMock{&mock.Mock{}}
+}
+
+func (c ClientMock) VerifiedCw20s() (*types.TokensRes, error) {
+	args := c.MethodCalled("VerifiedCw20s")
+	return args.Get(0).(*types.TokensRes), args.Error(1)
+}
+
+func (c ClientMock) VerifiedIbcs() (*types.IbcsRes, error) {
+	args := c.MethodCalled("VerifiedIbcs")
+	return args.Get(0).(*types.IbcsRes), args.Error(1)
+}
+
+func (c ClientMock) VerifiedErc20s() (*types.TokensRes, error) {
+	args := c.MethodCalled("VerifiedErc20s")
+	return args.Get(0).(*types.TokensRes), args.Error(1)
+}

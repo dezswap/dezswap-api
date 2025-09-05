@@ -11,6 +11,7 @@ import (
 type Client interface {
 	VerifiedCw20s() (*types.TokensRes, error)
 	VerifiedIbcs() (*types.IbcsRes, error)
+	VerifiedErc20s() (*types.TokensRes, error)
 }
 
 func GetAndUnmarshal[T types.Unmarshalable](c *http.Client, url string) (*T, error) {
