@@ -89,7 +89,8 @@ func (r *assetRepoImpl) convertErc20Addr(tokens types.TokenResMap) *types.TokenR
 
 	for k, v := range tokens {
 		k = strings.TrimPrefix(k, EthHexPrefix)
-		convertedTokens["xerc20:"+k] = v
+		k = r.PrependErc20Prefix(k)
+		convertedTokens[k] = v
 	}
 
 	return &convertedTokens

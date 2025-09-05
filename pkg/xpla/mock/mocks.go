@@ -1,6 +1,7 @@
 package mock
 
 import (
+	"context"
 	ibctypes "github.com/cosmos/ibc-go/v10/modules/apps/transfer/types"
 	"github.com/dezswap/dezswap-api/pkg"
 	"github.com/dezswap/dezswap-api/pkg/types"
@@ -33,6 +34,23 @@ func (g *GrpcClientMock) SyncedHeight() (uint64, error) {
 func (g *GrpcClientMock) QueryIbcDenomTrace(hash string) (*ibctypes.Denom, error) {
 	args := g.MethodCalled("QueryIbcDenomTrace")
 	return args.Get(0).(*ibctypes.Denom), args.Error(1)
+}
+
+type EthClientMock struct {
+	*mock.Mock
+}
+
+var _ pkg.EthClient = &EthClientMock{}
+
+func NewEthClientMock() *EthClientMock {
+	return &EthClientMock{&mock.Mock{}}
+}
+
+// QueryErc20Info implements pkg.EthClient
+func (e EthClientMock) QueryErc20Info(ctx context.Context, contractAddr string) (pkg.ERC20Meta, error) {
+	args := e.MethodCalled("QueryErc20Info", ctx, contractAddr)
+
+	return args.Get(0).(pkg.ERC20Meta), args.Error(1)
 }
 
 type ClientMock struct {

@@ -1,5 +1,7 @@
 package pkg
 
+import "github.com/dezswap/dezswap-api/pkg/types"
+
 // NetworkName depends on https://github.com/cosmos/chain-registry
 type NetworkName string
 
@@ -22,6 +24,7 @@ var (
 			"dimension",
 			"cube",
 			"xpla1",
+			map[types.TokenType]string{types.TokenTypeCW20: "xcw20:", types.TokenTypeERC20: "xerc20:"},
 			5,
 			0),
 		NewNetworkMetadata(
@@ -29,6 +32,7 @@ var (
 			"fetchhub",
 			"dorado",
 			"fetch1",
+			map[types.TokenType]string{},
 			5,
 			0),
 	}

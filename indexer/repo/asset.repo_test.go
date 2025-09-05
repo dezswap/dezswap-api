@@ -25,6 +25,7 @@ func (s *assetRepoSuite) SetupSuite() {
 		"dimension",
 		"cube",
 		"xpla1",
+		map[types.TokenType]string{types.TokenTypeCW20: "xcw20:", types.TokenTypeERC20: "xerc20:"},
 		5,
 		0,
 	)

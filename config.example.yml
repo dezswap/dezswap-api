@@ -4,6 +4,7 @@ indexer:
     host: 10.0.0.1
     port: 9090
     factory:
+  src_evm_rpc_endpoint: "http://10.0.0.1:8545"
   src_db:
     host: localhost
     port: 5432

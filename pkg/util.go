@@ -3,6 +3,7 @@ package pkg
 import (
 	"cosmossdk.io/math"
 	"fmt"
+	"github.com/dezswap/dezswap-api/pkg/types"
 	"github.com/pkg/errors"
 	"strings"
 )
@@ -12,17 +13,19 @@ type NetworkMetadata struct {
 	mainnetPrefix         string
 	testnetPrefix         string
 	addrPrefix            string
+	tokenPrefixes         map[types.TokenType]string
 	BlockSecond           uint8
 	LatestHeightIndicator uint64
 }
 
 func NewNetworkMetadata(
-	networkName NetworkName, mainnetPrefix string, testnetPrefix string, addrPrefix string, blockSecond uint8, latestHeightIndicator uint64) NetworkMetadata {
+	networkName NetworkName, mainnetPrefix string, testnetPrefix string, addrPrefix string, tokenPrefixes map[types.TokenType]string, blockSecond uint8, latestHeightIndicator uint64) NetworkMetadata {
 	return NetworkMetadata{
 		networkName,
 		mainnetPrefix,
 		testnetPrefix,
 		addrPrefix,
+		tokenPrefixes,
 		blockSecond,
 		latestHeightIndicator,
 	}
@@ -41,7 +44,37 @@ func (i NetworkMetadata) IsMainnetOrTestnet(chainId string) bool {
 }
 
 func (i NetworkMetadata) IsCw20(addr string) bool {
+	if prefix, ok := i.tokenPrefixes[types.TokenTypeCW20]; ok {
+		addr, _ = strings.CutPrefix(addr, prefix)
+	}
+
 	return strings.HasPrefix(addr, i.addrPrefix)
+}
+
+func (i NetworkMetadata) IsErc20(addr string) bool {
+	if prefix, ok := i.tokenPrefixes[types.TokenTypeERC20]; ok {
+		return strings.HasPrefix(addr, prefix)
+	}
+
+	return false
+}
+
+func (i NetworkMetadata) PrependErc20Prefix(addr string) string {
+	if prefix, ok := i.tokenPrefixes[types.TokenTypeERC20]; ok {
+		return prefix + addr
+	}
+
+	return addr
+}
+
+func (i NetworkMetadata) TrimDenomPrefix(addr string) string {
+	for _, prefix := range i.tokenPrefixes {
+		if addr, found := strings.CutPrefix(addr, prefix); found {
+			return addr
+		}
+	}
+
+	return addr
 }
 
 func (i NetworkMetadata) IsIbcToken(addr string) bool {
@@ -60,7 +93,6 @@ func GetNetworkMetadata(chainId string) (NetworkMetadata, error) {
 
 func NewDecFromStrWithTruncate(input string) (math.LegacyDec, error) {
 	truncatedInput := truncateDecimal(input)
-
 	dec, err := math.LegacyNewDecFromStr(truncatedInput)
 	if err != nil {
 		return math.LegacyDec{}, fmt.Errorf("failed to parse decimal: %w", err)
