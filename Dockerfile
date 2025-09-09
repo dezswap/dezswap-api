@@ -7,9 +7,9 @@
 #   docker run --rm -it --env-file=path/to/.env --name dezswap-api-app dezswap/dezswap-api-service
 
 ### BUILD
-FROM golang:1.20.10-alpine AS build
+FROM golang:1.23-alpine AS build
 ARG APP_TYPE=indexer
-ARG LIBWASMVM_VERSION=v1.0.0
+ARG LIBWASMVM_VERSION=v2.2.4
 ARG APP_VERSION=dev
 
 WORKDIR /app
@@ -32,8 +32,8 @@ COPY . .
 # See https://github.com/CosmWasm/wasmvm/releases
 ADD https://github.com/CosmWasm/wasmvm/releases/download/${LIBWASMVM_VERSION}/libwasmvm_muslc.aarch64.a /lib/libwasmvm_muslc.aarch64.a
 ADD https://github.com/CosmWasm/wasmvm/releases/download/${LIBWASMVM_VERSION}/libwasmvm_muslc.x86_64.a /lib/libwasmvm_muslc.x86_64.a
-RUN sha256sum /lib/libwasmvm_muslc.aarch64.a | grep 7d2239e9f25e96d0d4daba982ce92367aacf0cbd95d2facb8442268f2b1cc1fc
-RUN sha256sum /lib/libwasmvm_muslc.x86_64.a | grep f6282df732a13dec836cda1f399dd874b1e3163504dbd9607c6af915b2740479
+RUN sha256sum /lib/libwasmvm_muslc.aarch64.a | grep 27fb13821dbc519119f4f98c30a42cb32429b111b0fdc883686c34a41777488f
+RUN sha256sum /lib/libwasmvm_muslc.x86_64.a | grep 70c989684d2b48ca17bbd55bb694bbb136d75c393c067ef3bdbca31d2b23b578
 RUN cp /lib/libwasmvm_muslc.`uname -m`.a /lib/libwasmvm_muslc.a
 
 # install simapp, remove packages

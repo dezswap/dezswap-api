@@ -1,8 +1,9 @@
 package mock
 
 import (
-	ibc_types "github.com/cosmos/ibc-go/v3/modules/apps/transfer/types"
+	ibctypes "github.com/cosmos/ibc-go/v10/modules/apps/transfer/types"
 	"github.com/dezswap/dezswap-api/pkg"
+	"github.com/dezswap/dezswap-api/pkg/types"
 	"github.com/stretchr/testify/mock"
 )
 
@@ -29,9 +30,9 @@ func (g *GrpcClientMock) SyncedHeight() (uint64, error) {
 }
 
 // QueryIbcDenomTrace implements pkg.GrpcClient
-func (g *GrpcClientMock) QueryIbcDenomTrace(hash string) (*ibc_types.DenomTrace, error) {
+func (g *GrpcClientMock) QueryIbcDenomTrace(hash string) (*ibctypes.Denom, error) {
 	args := g.MethodCalled("QueryIbcDenomTrace")
-	return args.Get(0).(*ibc_types.DenomTrace), args.Error(1)
+	return args.Get(0).(*ibctypes.Denom), args.Error(1)
 }
 
 type ClientMock struct {

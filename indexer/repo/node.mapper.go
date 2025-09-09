@@ -3,7 +3,7 @@ package repo
 import (
 	"encoding/json"
 
-	ibc_types "github.com/cosmos/ibc-go/v3/modules/apps/transfer/types"
+	ibc_types "github.com/cosmos/ibc-go/v10/modules/apps/transfer/types"
 	"github.com/dezswap/dezswap-api/indexer"
 	"github.com/dezswap/dezswap-api/pkg/dezswap"
 
@@ -14,7 +14,7 @@ type nodeMapper interface {
 	resToToken(addr, chainId string, data []byte) (*indexer.Token, error)
 	resToPoolInfo(addr, chainId string, height uint64, data []byte) (*indexer.PoolInfo, error)
 
-	denomTraceToToken(addr, chainId string, trace *ibc_types.DenomTrace) (*indexer.Token, error)
+	denomTraceToToken(addr, chainId string, trace *ibc_types.Denom) (*indexer.Token, error)
 }
 
 var _ nodeMapper = &nodeMapperImpl{}
@@ -55,10 +55,10 @@ func (*nodeMapperImpl) resToToken(addr, chainId string, data []byte) (*indexer.T
 }
 
 // denomTraceToToken implements nodeMapper
-func (*nodeMapperImpl) denomTraceToToken(addr, chainId string, trace *ibc_types.DenomTrace) (*indexer.Token, error) {
+func (*nodeMapperImpl) denomTraceToToken(addr, chainId string, trace *ibc_types.Denom) (*indexer.Token, error) {
 	return &indexer.Token{
-		Name:    trace.BaseDenom,
-		Symbol:  trace.BaseDenom,
+		Name:    trace.Base,
+		Symbol:  trace.Base,
 		Address: addr,
 		ChainId: chainId,
 

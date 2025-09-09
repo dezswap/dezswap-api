@@ -1,8 +1,8 @@
 package pkg
 
 import (
+	"cosmossdk.io/math"
 	"fmt"
-	"github.com/cosmos/cosmos-sdk/types"
 	"github.com/pkg/errors"
 	"strings"
 )
@@ -58,11 +58,12 @@ func GetNetworkMetadata(chainId string) (NetworkMetadata, error) {
 	return NetworkMetadata{}, errors.New("unsupported network")
 }
 
-func NewDecFromStrWithTruncate(input string) (types.Dec, error) {
+func NewDecFromStrWithTruncate(input string) (math.LegacyDec, error) {
 	truncatedInput := truncateDecimal(input)
-	dec, err := types.NewDecFromStr(truncatedInput)
+
+	dec, err := math.LegacyNewDecFromStr(truncatedInput)
 	if err != nil {
-		return types.Dec{}, fmt.Errorf("failed to parse decimal: %w", err)
+		return math.LegacyDec{}, fmt.Errorf("failed to parse decimal: %w", err)
 	}
 
 	return dec, nil
@@ -75,8 +76,8 @@ func truncateDecimal(input string) string {
 	}
 
 	fractional := parts[1]
-	if len(fractional) > types.Precision {
-		fractional = fractional[:types.Precision]
+	if len(fractional) > math.LegacyPrecision {
+		fractional = fractional[:math.LegacyPrecision]
 	}
 
 	return parts[0] + "." + fractional
