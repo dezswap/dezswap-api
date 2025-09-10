@@ -1,10 +1,10 @@
 package service
 
 import (
+	"cosmossdk.io/math"
 	"github.com/dezswap/dezswap-api/pkg"
 	"time"
 
-	"github.com/cosmos/cosmos-sdk/types"
 	"github.com/dezswap/dezswap-api/pkg/db"
 	"github.com/pkg/errors"
 	"gorm.io/gorm"
@@ -38,7 +38,7 @@ func NewStatService(chainId string, db *gorm.DB) Getter[PairStats] {
 
 // Get implements Getter
 func (s *statService) Get(key string) (*PairStats, error) {
-	pairStatMap := make(map[string][countOfStatType]types.Dec)
+	pairStatMap := make(map[string][countOfStatType]math.LegacyDec)
 
 	switch key {
 	case statPeriod24h:
@@ -83,7 +83,7 @@ func (s *statService) Get(key string) (*PairStats, error) {
 // GetAll implements Getter
 func (s *statService) GetAll() ([]PairStats, error) {
 	pairStatsByPeriod := make([]PairStats, CountOfPeriodType)
-	pairStatMap := make(map[string][countOfStatType]types.Dec)
+	pairStatMap := make(map[string][countOfStatType]math.LegacyDec)
 
 	var stats30m []db.PairStat
 	var err error
@@ -134,7 +134,7 @@ func (s *statService) GetAll() ([]PairStats, error) {
 	return pairStatsByPeriod, nil
 }
 
-func (s *statService) sumRecentPairStatsSince(minTimestamp float64, sumStatMap map[string][countOfStatType]types.Dec) error {
+func (s *statService) sumRecentPairStatsSince(minTimestamp float64, sumStatMap map[string][countOfStatType]math.LegacyDec) error {
 	query := `
 select p.contract address,
        ps.volume0_in_price,
@@ -187,7 +187,7 @@ order by ps.timestamp desc
 	return stats, nil
 }
 
-func (s *statService) sumPairStat(stat db.PairStat, sumStatMap map[string][countOfStatType]types.Dec) error {
+func (s *statService) sumPairStat(stat db.PairStat, sumStatMap map[string][countOfStatType]math.LegacyDec) error {
 	volume0, err := pkg.NewDecFromStrWithTruncate(stat.Volume0InPrice)
 	if err != nil {
 		return err
@@ -213,7 +213,7 @@ func (s *statService) sumPairStat(stat db.PairStat, sumStatMap map[string][count
 		return err
 	}
 
-	nps := [countOfStatType]types.Dec{}
+	nps := [countOfStatType]math.LegacyDec{}
 	nps[statVolume] = volume0.Add(volume1)
 	nps[statCommission] = commission0.Add(commission1)
 	nps[statLiquidity] = liquidity0.Add(liquidity1)
@@ -230,7 +230,7 @@ func (s *statService) sumPairStat(stat db.PairStat, sumStatMap map[string][count
 	return nil
 }
 
-func (s *statService) mapToSlice(pairStatMap map[string][countOfStatType]types.Dec) PairStats {
+func (s *statService) mapToSlice(pairStatMap map[string][countOfStatType]math.LegacyDec) PairStats {
 	var pairStats PairStats
 	for k, v := range pairStatMap {
 		pairStats = append(

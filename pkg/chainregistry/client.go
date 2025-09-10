@@ -103,6 +103,10 @@ func (c *client) VerifiedIbcs() (*types.IbcsRes, error) {
 	return &converted, nil
 }
 
+func (c *client) VerifiedErc20s() (*types.TokensRes, error) {
+	return &types.TokensRes{}, nil
+}
+
 func getDecimals(asset types.AssetRes) *uint8 {
 	decimals := uint8(0)
 	for _, du := range asset.DenomUnits {

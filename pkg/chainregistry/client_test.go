@@ -26,3 +26,14 @@ func Test_VerifiedIbcs(t *testing.T) {
 	assert.NotNil(res)
 	assert.NoError(err)
 }
+
+func Test_VerifiedErc20s(t *testing.T) {
+	assert := assert.New(t)
+
+	c, err := NewClient("columbus-5")
+	assert.NoError(err)
+
+	res, err := c.VerifiedErc20s()
+	assert.NotNil(res)
+	assert.NoError(err)
+}

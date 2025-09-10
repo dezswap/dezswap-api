@@ -4,9 +4,13 @@ import (
 	"github.com/dezswap/dezswap-api/indexer"
 	"github.com/dezswap/dezswap-api/pkg"
 	"github.com/dezswap/dezswap-api/pkg/chainregistry"
+	"github.com/dezswap/dezswap-api/pkg/types"
 	"github.com/dezswap/dezswap-api/pkg/xpla"
 	"github.com/pkg/errors"
+	"strings"
 )
+
+const EthHexPrefix = "0x"
 
 type assetRepoImpl struct {
 	pkg.Client
@@ -63,5 +67,31 @@ func (r *assetRepoImpl) VerifiedTokens(chainId string) ([]indexer.Token, error) 
 	} else {
 		tokens = append(tokens, r.IbcsResToTokens(&ibcs.Testnet, chainId)...)
 	}
+
+	erc20s, err := r.VerifiedErc20s()
+	if err != nil {
+		return nil, errors.Wrap(err, "assetRepo.VerifiedTokens")
+	}
+
+	var networkTokens *types.TokenResMap
+	if isMainnet {
+		networkTokens = r.convertErc20Addr(erc20s.Mainnet)
+	} else {
+		networkTokens = r.convertErc20Addr(erc20s.Testnet)
+	}
+	tokens = append(tokens, r.TokenResToTokens(networkTokens, chainId)...)
+
 	return tokens, nil
+}
+
+func (r *assetRepoImpl) convertErc20Addr(tokens types.TokenResMap) *types.TokenResMap {
+	convertedTokens := make(types.TokenResMap)
+
+	for k, v := range tokens {
+		k = strings.TrimPrefix(k, EthHexPrefix)
+		k = r.PrependErc20Prefix(k)
+		convertedTokens[k] = v
+	}
+
+	return &convertedTokens
 }

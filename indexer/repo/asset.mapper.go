@@ -2,10 +2,9 @@ package repo
 
 import (
 	"fmt"
+	"github.com/dezswap/dezswap-api/indexer"
 	"github.com/dezswap/dezswap-api/pkg"
 	"github.com/dezswap/dezswap-api/pkg/types"
-
-	"github.com/dezswap/dezswap-api/indexer"
 )
 
 type assetMapper interface {

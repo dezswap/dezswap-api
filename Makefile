@@ -19,6 +19,10 @@ down:
 deps:
 	go mod download
 
+.PHONY: generate
+generate:
+	go generate ./...
+
 .PHONY: build-all indexer api
 build-all: indexer api
 
@@ -74,7 +78,7 @@ endif
 # Apply https://github.com/golangci/golangci-lint to changes since forked from master branch
 .PHONY: lint
 lint:
-	golangci-lint run --timeout=5m --enable=unparam --enable=misspell --enable=prealloc --tests=false
+	golangci-lint run
 
 # Remove all compiled binaries from the directory
 .PHONY: clean
@@ -109,7 +113,6 @@ api-generate-migration:
 	$(eval PATH := db/migration/api)
 	mkdir -p $(PATH)
 	$(shell sed 's/DATE_TIME/$(VERSION)/g' $(PATH)/template.txt > $(PATH)/$(VERSION)_SUMMARY.go)
-
 
 # Generate docs
 api-prepare-swagger:

@@ -1,8 +1,10 @@
 package mock
 
 import (
-	ibc_types "github.com/cosmos/ibc-go/v3/modules/apps/transfer/types"
+	"context"
+	ibctypes "github.com/cosmos/ibc-go/v10/modules/apps/transfer/types"
 	"github.com/dezswap/dezswap-api/pkg"
+	"github.com/dezswap/dezswap-api/pkg/types"
 	"github.com/stretchr/testify/mock"
 )
 
@@ -29,7 +31,49 @@ func (g *GrpcClientMock) SyncedHeight() (uint64, error) {
 }
 
 // QueryIbcDenomTrace implements pkg.GrpcClient
-func (g *GrpcClientMock) QueryIbcDenomTrace(hash string) (*ibc_types.DenomTrace, error) {
+func (g *GrpcClientMock) QueryIbcDenomTrace(hash string) (*ibctypes.Denom, error) {
 	args := g.MethodCalled("QueryIbcDenomTrace")
-	return args.Get(0).(*ibc_types.DenomTrace), args.Error(1)
+	return args.Get(0).(*ibctypes.Denom), args.Error(1)
+}
+
+type EthClientMock struct {
+	*mock.Mock
+}
+
+var _ pkg.EthClient = &EthClientMock{}
+
+func NewEthClientMock() *EthClientMock {
+	return &EthClientMock{&mock.Mock{}}
+}
+
+// QueryErc20Info implements pkg.EthClient
+func (e EthClientMock) QueryErc20Info(ctx context.Context, contractAddr string) (pkg.ERC20Meta, error) {
+	args := e.MethodCalled("QueryErc20Info", ctx, contractAddr)
+
+	return args.Get(0).(pkg.ERC20Meta), args.Error(1)
+}
+
+type ClientMock struct {
+	*mock.Mock
+}
+
+var _ pkg.Client = &ClientMock{}
+
+func NewClientMock() *ClientMock {
+	return &ClientMock{&mock.Mock{}}
+}
+
+func (c ClientMock) VerifiedCw20s() (*types.TokensRes, error) {
+	args := c.MethodCalled("VerifiedCw20s")
+	return args.Get(0).(*types.TokensRes), args.Error(1)
+}
+
+func (c ClientMock) VerifiedIbcs() (*types.IbcsRes, error) {
+	args := c.MethodCalled("VerifiedIbcs")
+	return args.Get(0).(*types.IbcsRes), args.Error(1)
+}
+
+func (c ClientMock) VerifiedErc20s() (*types.TokensRes, error) {
+	args := c.MethodCalled("VerifiedErc20s")
+	return args.Get(0).(*types.TokensRes), args.Error(1)
 }

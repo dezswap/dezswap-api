@@ -92,7 +92,7 @@ func main() {
 
 func initApp(config configs.IndexerConfig, networkMetadata pkg.NetworkMetadata) indexer.Indexer {
 	grpcEndpoint := fmt.Sprintf("%s:%s", config.SrcNode.Host, config.SrcNode.Port)
-	nodeRepo, err := repo.NewNodeRepo(grpcEndpoint, config.SrcNode.UseTls, config.ChainId, networkMetadata)
+	nodeRepo, err := repo.NewNodeRepo(grpcEndpoint, config.SrcEvmRpcEndpoint, config.SrcNode.UseTls, config.ChainId, networkMetadata)
 	if err != nil {
 		panic(err)
 	}

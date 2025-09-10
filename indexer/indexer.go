@@ -70,33 +70,25 @@ func (d *dexIndexer) UpdateTokens() error {
 	if err != nil {
 		return errors.Wrap(err, "dexIndexer.UpdateTokens")
 	}
-	tokenMap := make(map[string]bool)
+	tokensInDB := make(map[string]bool)
 	for _, t := range tokens {
-		tokenMap[t] = true
+		tokensInDB[t] = true
 	}
 
-	newTokens := []Token{}
+	var newTokens []Token
 	for _, p := range pairs {
 		for _, addr := range []string{p.Asset0, p.Asset1, p.Lp} {
-			if _, ok := tokenMap[addr]; ok {
+			if _, ok := tokensInDB[addr]; ok {
 				continue
 			}
 
-			var t *Token
-			var err error
-			// TODO: remove this after xpla supports denom metadata query
-			if d.IsCw20(addr) || d.IsIbcToken(addr) {
-				t, err = d.repo.TokenFromNode(addr)
-			} else {
-				t, err = d.repo.Token(addr)
-			}
-
+			token, err := d.repo.TokenFromNode(addr)
 			if err != nil {
 				return errors.Wrap(err, "dexIndexer.UpdateTokens")
 			}
 
-			newTokens = append(newTokens, *t)
-			tokenMap[addr] = true
+			tokensInDB[addr] = true
+			newTokens = append(newTokens, *token)
 		}
 	}
 

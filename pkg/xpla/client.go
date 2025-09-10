@@ -37,3 +37,12 @@ func (c *client) VerifiedIbcs() (*types.IbcsRes, error) {
 
 	return res, nil
 }
+
+func (c *client) VerifiedErc20s() (*types.TokensRes, error) {
+	res, err := pkg.GetAndUnmarshal[types.TokensRes](&c.Client, "https://assets.xpla.io/erc20/tokens.json")
+	if err != nil {
+		return nil, errors.Wrap(err, "VerifiedErc20s")
+	}
+
+	return res, nil
+}

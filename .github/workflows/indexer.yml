@@ -25,7 +25,7 @@ jobs:
       run_next_job: ${{ steps.check_paths.outputs.run_next_job }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 2
 
@@ -55,7 +55,7 @@ jobs:
 
     steps:
       - name: checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -67,6 +67,12 @@ jobs:
       - name: Login to Amazon ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Generate bindings
+        run: |
+          go install github.com/ethereum/go-ethereum/cmd/abigen@v1.14.12
+          echo "$(go env GOPATH)/bin" >> $GITHUB_PATH
+          make generate
 
       - name: Test, build, tag, and push image to Amazon ECR
         id: build-image

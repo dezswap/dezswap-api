@@ -1,7 +1,7 @@
 package coinmarketcap
 
 import (
-	"github.com/cosmos/cosmos-sdk/types"
+	"cosmossdk.io/math"
 	"github.com/dezswap/dezswap-api/api/v1/service"
 	"github.com/dezswap/dezswap-api/pkg"
 	"github.com/pkg/errors"
@@ -48,8 +48,8 @@ func (s tickerService) Get(key string) (*Ticker, error) {
 		return nil, errors.Wrap(tx.Error, "TickerService.GetAll")
 	}
 
-	totalBaseVolume := types.ZeroDec()
-	totalQuoteVolume := types.ZeroDec()
+	totalBaseVolume := math.LegacyZeroDec()
+	totalQuoteVolume := math.LegacyZeroDec()
 	lastPrice := "0"
 	for _, t := range tickers {
 		baseVolume, err := pkg.NewDecFromStrWithTruncate(t.BaseVolume)
@@ -64,10 +64,10 @@ func (s tickerService) Get(key string) (*Ticker, error) {
 		totalBaseVolume = totalBaseVolume.Add(baseVolume)
 		totalQuoteVolume = totalQuoteVolume.Add(quoteVolume)
 		if t.QuoteDecimals > t.BaseDecimals {
-			decimalDiff := types.NewDec(10).Power(uint64(t.QuoteDecimals - t.BaseDecimals))
+			decimalDiff := math.LegacyNewDec(10).Power(uint64(t.QuoteDecimals - t.BaseDecimals))
 			lastPrice = baseVolume.Quo(quoteVolume).Mul(decimalDiff).Abs().String()
 		} else {
-			decimalDiff := types.NewDec(10).Power(uint64(t.BaseDecimals - t.QuoteDecimals))
+			decimalDiff := math.LegacyNewDec(10).Power(uint64(t.BaseDecimals - t.QuoteDecimals))
 			lastPrice = baseVolume.Quo(quoteVolume).Quo(decimalDiff).Abs().String()
 		}
 	}
@@ -150,8 +150,8 @@ order by ps.timestamp asc
 
 	type tickerWithDec struct {
 		Ticker
-		BaseVolume  types.Dec
-		QuoteVolume types.Dec
+		BaseVolume  math.LegacyDec
+		QuoteVolume math.LegacyDec
 	}
 	tickerMap := make(map[string]tickerWithDec)
 	for _, t := range tickers {
@@ -164,12 +164,12 @@ order by ps.timestamp asc
 			return nil, err
 		}
 
-		var lastPrice types.Dec
+		var lastPrice math.LegacyDec
 		if t.QuoteDecimals > t.BaseDecimals {
-			decimalDiff := types.NewDec(10).Power(uint64(t.QuoteDecimals - t.BaseDecimals))
+			decimalDiff := math.LegacyNewDec(10).Power(uint64(t.QuoteDecimals - t.BaseDecimals))
 			lastPrice = baseVolume.Quo(quoteVolume).Mul(decimalDiff).Abs()
 		} else {
-			decimalDiff := types.NewDec(10).Power(uint64(t.BaseDecimals - t.QuoteDecimals))
+			decimalDiff := math.LegacyNewDec(10).Power(uint64(t.BaseDecimals - t.QuoteDecimals))
 			lastPrice = baseVolume.Quo(quoteVolume).Quo(decimalDiff).Abs()
 		}
 

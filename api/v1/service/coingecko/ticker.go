@@ -2,8 +2,8 @@ package coingecko
 
 import (
 	"context"
+	cmath "cosmossdk.io/math"
 	"encoding/json"
-	"github.com/cosmos/cosmos-sdk/types"
 	"github.com/dezswap/dezswap-api/api/v1/service"
 	"github.com/dezswap/dezswap-api/pkg"
 	"github.com/pkg/errors"
@@ -224,26 +224,26 @@ where ps.chain_id = ?
 	}
 
 	for i, t := range tickers {
-		var baseVolume types.Dec
+		var baseVolume cmath.LegacyDec
 		if v, err := pkg.NewDecFromStrWithTruncate(t.BaseVolume); err != nil {
 			return nil, errors.Wrap(err, "tickerService.tickers")
 		} else {
-			baseVolume = types.NewDecFromIntWithPrec(v.TruncateInt(), int64(t.BaseDecimals))
+			baseVolume = cmath.LegacyNewDecFromIntWithPrec(v.TruncateInt(), int64(t.BaseDecimals))
 		}
 
-		var targetVolume types.Dec
+		var targetVolume cmath.LegacyDec
 		if v, err := pkg.NewDecFromStrWithTruncate(t.TargetVolume); err != nil {
 			return nil, errors.Wrap(err, "tickerService.tickers")
 		} else {
-			targetVolume = types.NewDecFromIntWithPrec(v.TruncateInt(), int64(t.TargetDecimals))
+			targetVolume = cmath.LegacyNewDecFromIntWithPrec(v.TruncateInt(), int64(t.TargetDecimals))
 		}
 
 		tickers[i].BaseVolume = baseVolume.String()
 		tickers[i].TargetVolume = targetVolume.String()
 
-		targetDecimal := types.NewDec(10).Power(uint64(t.TargetDecimals))
+		targetDecimal := cmath.LegacyNewDec(10).Power(uint64(t.TargetDecimals))
 		if !baseVolume.IsZero() {
-			tickers[i].LastPrice = types.NewDecFromIntWithPrec(targetVolume.Quo(baseVolume).Mul(targetDecimal).RoundInt(), int64(t.TargetDecimals)).String()
+			tickers[i].LastPrice = cmath.LegacyNewDecFromIntWithPrec(targetVolume.Quo(baseVolume).Mul(targetDecimal).RoundInt(), int64(t.TargetDecimals)).String()
 		}
 	}
 

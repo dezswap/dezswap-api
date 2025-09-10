@@ -1,13 +1,18 @@
 package repo
 
 import (
+	"context"
 	"github.com/dezswap/dezswap-api/indexer"
 	"github.com/dezswap/dezswap-api/pkg"
 	"github.com/dezswap/dezswap-api/pkg/dezswap"
 	"github.com/pkg/errors"
+	"time"
 )
 
+const queryTimeout = 5 * time.Second
+
 type nodeRepoImpl struct {
+	pkg.EthClient
 	pkg.GrpcClient
 	nodeMapper
 	pkg.NetworkMetadata
@@ -16,13 +21,22 @@ type nodeRepoImpl struct {
 
 var _ indexer.NodeRepo = &nodeRepoImpl{}
 
-func NewNodeRepo(grpcEndpoint string, useTls bool, chainId string, networkMetadata pkg.NetworkMetadata) (indexer.NodeRepo, error) {
+func NewNodeRepo(grpcEndpoint, ethRpcEndpoint string, useTls bool, chainId string, networkMetadata pkg.NetworkMetadata) (indexer.NodeRepo, error) {
 	grpcClient, err := pkg.NewGrpcClient(grpcEndpoint, useTls)
 	if err != nil {
 		return nil, err
 	}
 
+	var ethClient pkg.EthClient
+	if ethRpcEndpoint != "" {
+		ethClient, err = pkg.NewEthClient(ethRpcEndpoint)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	return &nodeRepoImpl{
+		ethClient,
 		grpcClient,
 		&nodeMapperImpl{},
 		networkMetadata,
@@ -62,8 +76,10 @@ func (r *nodeRepoImpl) TokenFromNode(addr string) (*indexer.Token, error) {
 		token, err = r.ibcFromNode(addr)
 	} else if r.IsCw20(addr) {
 		token, err = r.cw20FromNode(addr)
+	} else if r.IsErc20(addr) {
+		token, err = r.erc20FromNode(addr)
 	} else {
-		// currently, query denom is supported (no metadata)
+		// currently, query denom is not supported (no metadata)
 		token, err = r.denomFromNode(addr)
 	}
 
@@ -96,7 +112,9 @@ func (r *nodeRepoImpl) ibcFromNode(addr string) (*indexer.Token, error) {
 }
 
 func (r *nodeRepoImpl) cw20FromNode(addr string) (*indexer.Token, error) {
-	res, err := r.QueryContract(addr, dezswap.QUERY_TOKEN, r.LatestHeightIndicator)
+	trimmedAddr := r.TrimDenomPrefix(addr) // in case of xcw20: address
+
+	res, err := r.QueryContract(trimmedAddr, dezswap.QUERY_TOKEN, r.LatestHeightIndicator)
 	if err != nil {
 		return nil, errors.Wrap(err, "nodeRepoImpl.cw20FromNode")
 	}
@@ -108,4 +126,27 @@ func (r *nodeRepoImpl) cw20FromNode(addr string) (*indexer.Token, error) {
 		return nil, errors.Wrap(err, "nodeRepoImpl.cw20FromNode")
 	}
 	return token, nil
+}
+
+func (r *nodeRepoImpl) erc20FromNode(addr string) (*indexer.Token, error) {
+	if r.EthClient == nil {
+		return nil, errors.Errorf("New ETH address %s found but no rpc client supported on indexer.", addr)
+	}
+
+	trimmedAddr := r.TrimDenomPrefix(addr)
+	ctx, cancel := context.WithTimeout(context.Background(), queryTimeout)
+	defer cancel()
+
+	erc20Meta, err := r.QueryErc20Info(ctx, trimmedAddr)
+	if err != nil {
+		return nil, errors.Wrap(err, "nodeRepoImpl.erc20FromNode")
+	}
+
+	return &indexer.Token{
+		Address:  addr,
+		ChainId:  r.chainId,
+		Symbol:   erc20Meta.Symbol,
+		Name:     erc20Meta.Name,
+		Decimals: erc20Meta.Decimals,
+	}, nil
 }

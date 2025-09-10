@@ -2,13 +2,13 @@ package parser
 
 // source models from parser and aggregator
 import (
-	"github.com/dezswap/cosmwasm-etl/parser"
+	"github.com/dezswap/cosmwasm-etl/parser/dex"
 	"github.com/dezswap/cosmwasm-etl/pkg/db/schemas"
 )
 
 type Meta map[string]interface{}
 
-type TxType parser.TxType
+type TxType dex.TxType
 
 type Pair struct {
 	ID string `json:"id" gorm:"primarykey"`
