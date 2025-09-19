@@ -13,7 +13,29 @@ CREATE UNIQUE INDEX pair_chain_id_contract_key ON pair (chain_id, contract);
 CREATE UNIQUE INDEX pair_chain_id_asset0_asset1_key ON pair (chain_id, asset0, asset1);
 CREATE UNIQUE INDEX pair_chain_id_lp_key ON pair (chain_id, lp);
 
-CREATE TABLE  pair_stats_30m (
+
+CREATE TABLE tokens (
+    id         BIGSERIAL                    PRIMARY KEY,
+    created_at TIMESTAMP WITH TIME ZONE,
+    updated_at TIMESTAMP WITH TIME ZONE,
+    deleted_at TIMESTAMP WITH TIME ZONE,
+    chain_id   TEXT                         NOT NULL,
+    address    TEXT                         NOT NULL,
+    protocol   TEXT,
+    symbol     TEXT,
+    name       TEXT,
+    decimals   SMALLINT,
+    icon       TEXT,
+    verified   BOOLEAN                      DEFAULT FALSE NOT NULL
+);
+
+CREATE INDEX idx_tokens_address ON tokens (address);
+CREATE INDEX idx_tokens_chain_id ON tokens (chain_id);
+CREATE UNIQUE INDEX idx_tokens_chain_id_address_key ON tokens (chain_id, address);
+CREATE INDEX idx_tokens_deleted_at ON tokens (deleted_at);
+
+
+CREATE TABLE pair_stats_30m (
     id                   BIGSERIAL                                                NOT NULL PRIMARY KEY,
     year_utc             SMALLINT                                                 NOT NULL,
     month_utc            SMALLINT                                                 NOT NULL,

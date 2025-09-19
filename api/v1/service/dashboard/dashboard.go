@@ -366,7 +366,7 @@ func (d *dashboard) Recent() (Recent, error) {
 // TODO(): try to use gorm to implement this and RecentOf when the bug is fixed
 // /	   currently subquery seems to be broken in gorm. result from the raw query and gorm is different
 // Recent implements Dashboard.
-func (d *dashboard) RecentOf(addr Addr) (Recent, error) {
+func (d *dashboard) RecentOf(pairContractAddr Addr) (Recent, error) {
 	current, mins := time.Now().Truncate(time.Hour), time.Now().Minute()
 	if mins >= 30 {
 		current = current.Add(time.Minute * -30)
@@ -434,7 +434,7 @@ func (d *dashboard) RecentOf(addr Addr) (Recent, error) {
 			tvl, prev_tvl, volume, prev_volume, volume7d, prev_volume7d
 	`, tvl(current), tvl(dayAgo), volume(dayAgo, current), volume(twoDaysAgo, dayAgo), volume(sevenDaysAgo, current), volume(eightDaysAgo, dayAgo), d.chainId, dezswap.SWAP_FEE, dezswap.SWAP_FEE)
 	recent := Recent{}
-	if err := d.DB.Raw(query, addr, addr, addr, addr, addr, addr, addr).Scan(&recent).Error; err != nil {
+	if err := d.DB.Raw(query, pairContractAddr, pairContractAddr, pairContractAddr, pairContractAddr, pairContractAddr, pairContractAddr, pairContractAddr).Scan(&recent).Error; err != nil {
 		return recent, errors.Wrap(err, "dashboard.RecentOf")
 	}
 	return recent, nil
@@ -705,7 +705,7 @@ func (d *dashboard) Token(addr Addr) (Token, error) {
 
 func (d *dashboard) TokenVolumes(addr Addr, itv Duration) (TokenChart, error) {
 	query := `
-select cast(extract(epoch from make_date(year_utc, month_utc, 1)::timestamp + INTERVAL '1 month - 1 day') as varchar) as timestamp, -- last day of month
+select cast(extract(epoch from make_date(year_utc, month_utc, 1)::timestamp + INTERVAL '1 month - 1 day') as BIGINT) as timestamp, -- last day of month
        coalesce(sum(volume), 0) as value
 from (
     select year_utc, month_utc,
@@ -723,7 +723,7 @@ order by year_utc, month_utc
 	switch itv {
 	case Month:
 		query = `
-select cast(extract(epoch from make_date(year_utc, month_utc, day_utc)::timestamp) as varchar) as timestamp, coalesce(sum(volume), 0) as value
+select cast(extract(epoch from make_date(year_utc, month_utc, day_utc)::timestamp) as BIGINT) as timestamp, coalesce(sum(volume), 0) as value
 from (
     select year_utc, month_utc, day_utc,
            case when p.asset0 = t.address then sum(ps.volume0_in_price) else sum(ps.volume1_in_price) end as volume
@@ -740,7 +740,7 @@ order by year_utc, month_utc, day_utc
 `
 	case Quarter:
 		query = `
-select cast(extract(epoch from eow) as varchar) as timestamp, coalesce(sum(volume), 0)  as value
+select cast(extract(epoch from eow) as BIGINT) as timestamp, coalesce(sum(volume), 0)  as value
 from (
     select date_trunc('week', to_timestamp(timestamp) at time zone 'UTC') + interval '6 days' as eow, -- last day of week
            case when p.asset0 = t.address then sum(ps.volume0_in_price) else sum(ps.volume1_in_price) end as volume
@@ -757,7 +757,7 @@ order by eow
 `
 	case Year:
 		query = `
-select cast(extract(epoch from eow2) as varchar) as timestamp,
+select cast(extract(epoch from eow2) as BIGINT) as timestamp,
 		coalesce(sum(volume), 0) as value
 from (
     select eow2, case when p.asset0 = t.address then sum(ps.volume0_in_price) else sum(ps.volume1_in_price) end as volume
@@ -787,7 +787,7 @@ order by eow2
 
 func (d *dashboard) TokenTvls(addr Addr, itv Duration) (TokenChart, error) {
 	query := `
-select cast(extract(epoch from make_date(year_utc, month_utc, 1)::timestamp + INTERVAL '1 month - 1 day') as varchar) as timestamp, -- last day of month
+select cast(extract(epoch from make_date(year_utc, month_utc, 1)::timestamp + INTERVAL '1 month - 1 day') as BIGINT) as timestamp, -- last day of month
        sum(tvl) as value
 from (select distinct pair_id, year_utc, month_utc,
            case when p.asset0 = t.address then
@@ -806,7 +806,7 @@ order by year_utc, month_utc
 	switch itv {
 	case Month:
 		query = `
-select cast(extract(epoch from make_date(year_utc, month_utc, day_utc)::timestamp) as varchar) as timestamp, sum(tvl) as value
+select cast(extract(epoch from make_date(year_utc, month_utc, day_utc)::timestamp) as BIGINT) as timestamp, sum(tvl) as value
 from (select distinct pair_id, year_utc, month_utc, day_utc,
            case when p.asset0 = t.address then
                first_value(ps.liquidity0_in_price) over (partition by pair_id, year_utc, month_utc, day_utc order by timestamp desc)
@@ -824,7 +824,7 @@ order by year_utc, month_utc, day_utc
 `
 	case Quarter:
 		query = `
-select cast(extract(epoch from eow) as varchar) as timestamp, sum(tvl) as value
+select cast(extract(epoch from eow) as BIGINT) as timestamp, sum(tvl) as value
 from (select distinct pair_id, eow,
            case when p.asset0 = t.address then
                first_value(ps.liquidity0_in_price) over (partition by pair_id, eow order by timestamp desc)
@@ -844,7 +844,7 @@ order by eow
 `
 	case Year:
 		query = `
-select cast(extract(epoch from eow2) as varchar) as timestamp, sum(tvl) as value
+select cast(extract(epoch from eow2) as BIGINT) as timestamp, sum(tvl) as value
 from (select distinct on (pair_id, eow2)
            pair_id, eow2,
            case when p.asset0 = t.address then
@@ -878,7 +878,7 @@ order by eow2
 
 func (d *dashboard) TokenPrices(addr Addr, itv Duration) (TokenChart, error) {
 	query := `
-select distinct cast(extract(epoch from make_date(year_utc, month_utc, 1)::timestamp + INTERVAL '1 month - 1 day') as varchar) as timestamp, -- last day of month
+select distinct cast(extract(epoch from make_date(year_utc, month_utc, 1)::timestamp + INTERVAL '1 month - 1 day') as BIGINT) as timestamp, -- last day of month
                 first_value(price) over (partition by year_utc, month_utc order by height desc) as value
 from (select p.height,
              cast(extract(year from to_timestamp(pt.timestamp) at time zone 'UTC') as int) year_utc,
@@ -892,7 +892,7 @@ from (select p.height,
 	switch itv {
 	case Month:
 		query = `
-select distinct cast(extract(epoch from make_date(year_utc, month_utc, day_utc)::timestamp) as varchar) as timestamp,
+select distinct cast(extract(epoch from make_date(year_utc, month_utc, day_utc)::timestamp) as BIGINT) as timestamp,
                 first_value(price) over (partition by year_utc, month_utc, day_utc order by height desc) as value
 from (select p.height,
              cast(extract(year from to_timestamp(pt.timestamp) at time zone 'UTC') as int) year_utc,
@@ -907,7 +907,7 @@ from (select p.height,
 `
 	case Quarter:
 		query = `
-select distinct cast(extract(epoch from week) as varchar) as timestamp,
+select distinct cast(extract(epoch from week) as BIGINT) as timestamp,
                 first_value(price) over (partition by year_utc, week order by height desc) as value
 from (select p.height,
              cast(extract(year from to_timestamp(pt.timestamp) at time zone 'UTC') as int) year_utc,
@@ -921,7 +921,7 @@ from (select p.height,
 `
 	case Year:
 		query = `
-select distinct cast(extract(epoch from eow2) as varchar) as timestamp,
+select distinct cast(extract(epoch from eow2) as BIGINT) as timestamp,
                 first_value(price) over (partition by eow2 order by height desc) as value
 from (select p.height, eow2, p.price
       from price p
