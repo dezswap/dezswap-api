@@ -78,6 +78,11 @@ jobs:
       - name: checkout
         uses: actions/checkout@v5
 
+      - name: Setup Golang with cache
+        uses: magnetikonline/action-golang-cache@v5
+        with:
+          go-version-file: go.mod
+      
       - name: Generate bindings
         run: |
           go install github.com/ethereum/go-ethereum/cmd/abigen@v1.14.12
