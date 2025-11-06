@@ -20,7 +20,8 @@ main
 config*.yml
 !config.example.yml
 
-# vscode
+# IDE
 .vscode
+.idea
 
 db/data
