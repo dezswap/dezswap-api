@@ -14,6 +14,7 @@ type RdbConfig struct {
 	Database string
 	Username string
 	Password string
+	SSLMode  string
 }
 
 func (lhs *RdbConfig) Override(rhs RdbConfig) {
@@ -32,6 +33,9 @@ func (lhs *RdbConfig) Override(rhs RdbConfig) {
 	if rhs.Password != "" {
 		lhs.Password = rhs.Password
 	}
+	if rhs.SSLMode != "" {
+		lhs.SSLMode = rhs.SSLMode
+	}
 }
 
 func rdbConfig(v *viper.Viper) RdbConfig {
@@ -42,6 +46,7 @@ func rdbConfig(v *viper.Viper) RdbConfig {
 			Database: "dezswap_api",
 			Username: "app",
 			Password: "appPW",
+			SSLMode:  "disable",
 		}
 	}
 	return RdbConfig{
@@ -50,6 +55,7 @@ func rdbConfig(v *viper.Viper) RdbConfig {
 		Database: v.GetString("database"),
 		Username: v.GetString("username"),
 		Password: v.GetString("password"),
+		SSLMode:  v.GetString("sslmode"),
 	}
 }
 
@@ -63,5 +69,6 @@ func rdbConfigFromEnv(v *viper.Viper, prefix string) RdbConfig {
 		Database: v.GetString(strings.ToUpper(fmt.Sprintf("%s_%s", prefix, "database"))),
 		Username: v.GetString(strings.ToUpper(fmt.Sprintf("%s_%s", prefix, "username"))),
 		Password: v.GetString(strings.ToUpper(fmt.Sprintf("%s_%s", prefix, "password"))),
+		SSLMode:  v.GetString(strings.ToUpper(fmt.Sprintf("%s_%s", prefix, "sslmode"))),
 	}
 }
