@@ -245,7 +245,7 @@ func (d *dashboard) Pools(tokens ...Addr) (Pools, error) {
 			coalesce(t.tvl,0) as tvl,
 			coalesce(v1.volume,0) as volume,
 			coalesce(v1.volume * %f,0) as fee,
-			coalesce(v7.volume/t.tvl * %f,0) as apr
+			coalesce(v7.volume/NULLIF(t.tvl, 0) * %f,0) as apr
 		FROM
 			tvls AS t
 			LEFT JOIN volume1d AS v1 ON v1.pair_id = t.pair_id
