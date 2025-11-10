@@ -10,6 +10,7 @@ type IndexerConfig struct {
 	SrcEvmRpcEndpoint string
 	SrcDb             RdbConfig
 	Db                RdbConfig
+	FactoryAddress    string
 }
 
 func indexerConfig(v *viper.Viper) IndexerConfig {
@@ -37,11 +38,18 @@ func indexerConfig(v *viper.Viper) IndexerConfig {
 	envDbC := rdbConfigFromEnv(v, "INDEXER_DB")
 	dbC.Override(envDbC)
 
+	factoryAddress := v.GetString("indexer.factory_address")
+	envFactoryAddress := v.GetString("INDEXER_FACTORY_ADDRESS")
+	if envFactoryAddress != "" {
+		factoryAddress = envFactoryAddress
+	}
+
 	return IndexerConfig{
 		ChainId:           chainId,
 		SrcNode:           nodeC,
 		SrcEvmRpcEndpoint: srcEvmRpcEndpoint,
 		SrcDb:             srcDbC,
 		Db:                dbC,
+		FactoryAddress:    factoryAddress,
 	}
 }

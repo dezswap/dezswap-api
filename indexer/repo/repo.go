@@ -13,5 +13,9 @@ type repoImpl struct {
 var _ indexer.Repo = &repoImpl{}
 
 func NewRepo(nodeRepo indexer.NodeRepo, dbRepo indexer.DbRepo, assetRepo indexer.AssetRepo) indexer.Repo {
-	return &repoImpl{assetRepo.(*assetRepoImpl), dbRepo.(*dbRepoImpl), nodeRepo.(*nodeRepoImpl)}
+	var ar *assetRepoImpl
+	if assetRepo != nil {
+		ar = assetRepo.(*assetRepoImpl)
+	}
+	return &repoImpl{ar, dbRepo.(*dbRepoImpl), nodeRepo.(*nodeRepoImpl)}
 }
