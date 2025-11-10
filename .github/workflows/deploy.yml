@@ -1,0 +1,72 @@
+name: Deploy
+
+on:
+  workflow_call:
+    inputs:
+      app_type:
+        required: true
+        type: string
+      image_tags:
+        required: true
+        type: string
+    secrets:
+      AWS_REGION:
+        required: true
+      AWS_ROLE_ARN:
+        required: true
+      AWS_ROLE_SESSION_NAME:
+        required: true
+      ECR_REPOSITORY:
+        required: true
+      ECS_CLUSTER:
+        required: true
+
+jobs:
+  deploy_to_ecs:
+    name: Deploy image
+    runs-on: ubuntu-latest
+    environment: production
+    strategy:
+      matrix:
+        service: [ dimension, cube, fetchhub, dorado ]
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          role-session-name: ${{ secrets.AWS_ROLE_SESSION_NAME }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Parse Image Tags
+        id: parse-tags
+        run: |
+          printf '${{ inputs.image-tags }}' > image_tags.json
+          IMAGE_TAG=$(jq -r '.["'${{ matrix.service }}'"]' image_tags.json)
+          echo "image-tag=$IMAGE_TAG" >> $GITHUB_OUTPUT
+
+      - name: Download Task Definition
+        id: download-task-definition
+        working-directory: .
+        run: |
+          TASK_DEFINITION=${{ matrix.service }}-dezswap-${{ inputs.app_type }}
+          aws ecs describe-task-definition --task-definition $TASK_DEFINITION | jq '.taskDefinition' > $TASK_DEFINITION.json
+
+      - name: Fill in the new image ID in the Amazon ECS task definition
+        id: task-def
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: ./${{ matrix.service }}-dezswap-${{ inputs.app_type }}.json
+          container-name: ${{ matrix.service }}-dezswap-${{ inputs.app_type }}
+          image: ${{ steps.login-ecr.outputs.registry }}/${{ secrets.ECR_REPOSITORY}}:${{ steps.parse-tags.outputs.image-tag }}
+
+      - name: Deploy Amazon ECS task definition
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
+        with:
+          task-definition: ${{ steps.task-def.outputs.task-definition }}
+          service: ${{ matrix.service }}-dezswap-${{ inputs.app_type }}
+          cluster: ${{ secrets.ECS_CLUSTER }}
+          wait-for-service-stability: true
