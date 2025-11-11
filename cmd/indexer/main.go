@@ -11,7 +11,6 @@ import (
 
 	"github.com/dezswap/dezswap-api/indexer/repo"
 	"github.com/dezswap/dezswap-api/pkg"
-	"github.com/dezswap/dezswap-api/pkg/dezswap"
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/dezswap/dezswap-api/configs"
@@ -116,20 +115,10 @@ func initApp(config configs.IndexerConfig, networkMetadata pkg.NetworkMetadata) 
 		panic(err)
 	}
 
-	var assetRepo indexer.AssetRepo
-	if config.FactoryAddress != "" {
-		predefined := ""
-		if networkMetadata.IsMainnet(config.ChainId) {
-			predefined = dezswap.MAINNET_FACTORY
-		} else if networkMetadata.IsTestnet(config.ChainId) {
-			predefined = dezswap.TESTNET_FACTORY
-		}
-		if predefined != "" && config.FactoryAddress == predefined {
-			var err error
-			assetRepo, err = repo.NewAssetRepo(networkMetadata, config.ChainId)
-			if err != nil {
-				panic(err)
-			}
+	assetRepo, err := repo.NewAssetRepo(networkMetadata, config.ChainId, config.FactoryAddress)
+	if err != nil {
+		if err != pkg.ErrUnregisteredFactoryAddress {
+			panic(err)
 		}
 	}
 

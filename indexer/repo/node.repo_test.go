@@ -2,13 +2,14 @@ package repo
 
 import (
 	"encoding/json"
+	"strings"
+	"testing"
+
 	"github.com/dezswap/dezswap-api/indexer"
 	"github.com/dezswap/dezswap-api/pkg"
 	"github.com/dezswap/dezswap-api/pkg/dezswap"
 	"github.com/dezswap/dezswap-api/pkg/types"
 	"github.com/stretchr/testify/mock"
-	"strings"
-	"testing"
 
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
@@ -38,6 +39,8 @@ func (s *nodeRepoSuite) SetupSuite() {
 		map[types.TokenType]string{types.TokenTypeCW20: "xcw20:", types.TokenTypeERC20: "xerc20:"},
 		5,
 		0,
+		"",
+		"",
 	)
 	s.r = nodeRepoImpl{s.ethClient, s.client, &nodeMapperImpl{}, s.networkMetadata, s.chainId}
 }
