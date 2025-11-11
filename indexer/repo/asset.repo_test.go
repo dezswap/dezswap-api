@@ -134,6 +134,7 @@ func Test_NewAssetRepo(t *testing.T) {
 		unsupportedMetadata := pkg.NewNetworkMetadata("unsupported", "mainprefix", "testprefix", "uns1", map[types.TokenType]string{}, 5, 0, "mainfactory", "testfactory")
 		repo, err := NewAssetRepo(unsupportedMetadata, "testprefix", "testfactory")
 		assert.Error(t, err)
+		assert.Equal(t, pkg.ErrUnsupportedNetwork, err)
 		assert.Nil(t, repo)
 	})
 }

@@ -43,7 +43,7 @@ func NewAssetRepo(networkMetadata pkg.NetworkMetadata, chainId, factoryAddress s
 			return nil, err
 		}
 	default:
-		return nil, errors.New("unsupported network")
+		return nil, pkg.ErrUnsupportedNetwork
 	}
 
 	return &assetRepoImpl{client, &assetMapperImpl{}, networkMetadata}, nil

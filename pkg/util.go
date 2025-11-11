@@ -10,6 +10,7 @@ import (
 )
 
 var (
+	ErrUnsupportedNetwork         = errors.New("unsupported network")
 	ErrUnregisteredFactoryAddress = errors.New("unregistered factory address")
 )
 
@@ -62,7 +63,7 @@ func (i NetworkMetadata) GetFactoryAddress(chainId string) (string, error) {
 		return i.factoryAddresses[i.testnetPrefix], nil
 	}
 
-	return "", errors.New("unsupported network")
+	return "", ErrUnsupportedNetwork
 }
 
 func (i NetworkMetadata) IsCw20(addr string) bool {
@@ -110,7 +111,7 @@ func GetNetworkMetadata(chainId string) (NetworkMetadata, error) {
 		}
 	}
 
-	return NetworkMetadata{}, errors.New("unsupported network")
+	return NetworkMetadata{}, ErrUnsupportedNetwork
 }
 
 func NewDecFromStrWithTruncate(input string) (math.LegacyDec, error) {
