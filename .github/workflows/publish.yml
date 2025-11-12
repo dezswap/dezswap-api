@@ -1,0 +1,237 @@
+name: Publish API/Indexer
+
+on:
+    workflow_call:
+      inputs:
+        app_type:
+          required: true
+          type: string
+        path_exclude_prefix:
+          required: true
+          type: string
+      secrets:
+        DIMENSION_CONFIG:
+          required: true
+        CUBE_CONFIG:
+          required: true
+        FETCHHUB_CONFIG:
+          required: true
+        DORADO_CONFIG:
+          required: true
+        # AWS
+        AWS_REGION:
+          required: true
+        AWS_ROLE_ARN:
+          required: true
+        AWS_ROLE_SESSION_NAME:
+          required: true
+        ECR_REPOSITORY:
+          required: true
+        # GCP
+        GCP_GAR_REPOSITORY:
+          required: true
+        GCP_REGION:
+          required: true
+        GCP_WORKLOAD_IDENTITY_PROVIDER:
+          required: true
+        GCP_SERVICE_ACCOUNT_EMAIL:
+          required: true
+      outputs:
+        image-tags:
+            description: "The image tags with their networks as keys"
+            value: ${{ jobs.build.outputs.image-tags }}
+
+jobs:
+  check_paths:
+    runs-on: ubuntu-latest
+    outputs:
+      run_next_job: ${{ steps.check_paths.outputs.run_next_job }}
+      tag: ${{ steps.check_branch.outputs.tag }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Check if tag commit is on main branch
+        id: check_branch
+        run: |
+          branches_containing_tag=$(git branch -r --contains ${{ github.ref }} --format "%(refname:lstrip=3)")
+          echo "Branches containing tag: $branches_containing_tag"
+
+          if echo "$branches_containing_tag" | grep -Eq "^(origin/)?main$"; then
+            # get version from tag
+            GIT_TAG=$(echo "${{ github.ref }}" | sed 's|refs/tags/v||')
+            echo "tag=$GIT_TAG" >> $GITHUB_OUTPUT
+            echo "run_next_job=true" >> $GITHUB_OUTPUT
+          else
+            echo "The tag commit is NOT on main branch. Exiting."
+            echo "run_next_job=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Check changed file paths
+        if: ${{ steps.check_branch.outputs.run_next_job == 'true' }}
+        id: check_paths
+        run: |
+          CHANGED_FILES=$(git diff HEAD~1 --name-only)
+          # files except target service related
+          MATCHING_FILES=$(echo "$CHANGED_FILES" | grep -v '^${{ inputs.path_exclude_prefix }}/')
+
+          if [[ -z "$MATCHING_FILES" ]]; then
+            echo "no matching file"
+            echo "run_next_job=false" >> $GITHUB_OUTPUT
+          else
+            echo "matching file $MATCHING_FILES"
+            echo "run_next_job=true" >> $GITHUB_OUTPUT
+          fi
+
+  build:
+    name: Build images
+    needs: check_paths
+    if: ${{ needs.check_paths.outputs.run_next_job == 'true' }}
+    runs-on: ubuntu-latest
+    outputs:
+      image-tags: ${{ steps.build-final-images.outputs.image-tags }}
+      tag: ${{ needs.check_paths.outputs.tag }}
+    steps:
+      - name: checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Golang with cache
+        uses: magnetikonline/action-golang-cache@v5
+        with:
+          go-version-file: go.mod
+      
+      - name: Generate bindings
+        run: |
+          go install github.com/ethereum/go-ethereum/cmd/abigen@v1.14.12
+          echo "$(go env GOPATH)/bin" >> $GITHUB_PATH
+          make generate
+
+      - name: Test, build and package base image
+        id: build-base-image
+        working-directory: .
+        env:
+          IMAGE_TAG: ${{ needs.check_paths.outputs.tag }}
+        run: |
+          # Build and package base image
+          touch config.yml
+          tag=${tag:-$IMAGE_TAG}
+          docker build --build-arg APP_TYPE=${{ inputs.app_type }} --build-arg APP_VERSION=$tag -t dezswap-${{ inputs.app_type }}:latest -t dezswap-${{ inputs.app_type }}:$IMAGE_TAG .
+          docker save -o ${{ runner.temp }}/dezswap-${{ inputs.app_type }}-latest.tar dezswap-${{ inputs.app_type }}:latest
+          docker save -o ${{ runner.temp }}/dezswap-${{ inputs.app_type }}-$IMAGE_TAG.tar dezswap-${{ inputs.app_type }}:$IMAGE_TAG
+
+          # Create Dockerfile for network-specific images
+          echo "FROM dezswap-${{ inputs.app_type }}:$IMAGE_TAG
+          COPY config.yml /app/config.yml" > Dockerfile.final
+
+      - name: Build and package network-specific images
+        id: build-final-images
+        working-directory: .
+        env:
+          DIMENSION_CONFIG: ${{ secrets.DIMENSION_CONFIG }}
+          CUBE_CONFIG: ${{ secrets.CUBE_CONFIG }}
+          FETCHHUB_CONFIG: ${{ secrets.FETCHHUB_CONFIG }}
+          DORADO_CONFIG: ${{ secrets.DORADO_CONFIG }}
+          IMAGE_TAG: ${{ needs.check_paths.outputs.tag }}
+        run: |
+          # Build network-specific images
+          configs=("$DIMENSION_CONFIG" "$CUBE_CONFIG" "$FETCHHUB_CONFIG" "$DORADO_CONFIG")
+          networks=("dimension" "cube" "fetchhub" "dorado")
+          image_tags=()
+          
+          for i in "${!configs[@]}"; do
+            echo "${configs[i]}" > config.yml
+            FINAL_IMAGE_TAG=${networks[i]}-${{ inputs.app_type }}-$IMAGE_TAG
+            docker build -t dezswap-${{ inputs.app_type }}:$FINAL_IMAGE_TAG -f Dockerfile.final .
+            image_tags+=("\"${networks[i]}\": \"$FINAL_IMAGE_TAG\"")
+            docker save -o ${{ runner.temp }}/dezswap-${{ inputs.app_type }}-$FINAL_IMAGE_TAG.tar dezswap-${{ inputs.app_type }}:$FINAL_IMAGE_TAG
+          done
+
+          # Create JSON string of all image tags
+          image_tags_string=$(IFS=, ; echo "${image_tags[*]}")
+          echo "{ ${image_tags_string} }" > image_tags.json
+          echo "image-tags=$(cat image_tags.json)" >> $GITHUB_OUTPUT
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: docker-images
+          path: ${{ runner.temp }}/dezswap-${{ inputs.app_type }}-*.tar
+
+  push_to_ecr:
+    name: Push images to ECR
+    needs: build
+    environment: production
+    runs-on: ubuntu-latest
+    outputs:
+      image-tags: ${{ needs.build.outputs.image-tags }}
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          role-session-name: ${{ secrets.AWS_ROLE_SESSION_NAME }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: docker-images
+          path: ${{ runner.temp }}
+
+      - name: Load, tag and push image to ECR
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY }}
+        run: |
+          # Load all saved Docker images
+          for tar in ${{ runner.temp }}/dezswap-*.tar; do
+            docker load -i "$tar"
+          done
+
+          # Retag and push each loaded image
+          for image in $(docker images --format "{{.Repository}}:{{.Tag}}" | grep ^dezswap-${{ inputs.app_type }}:); do
+            tag=$(echo $image | cut -d ':' -f 2)
+            docker tag $image $ECR_REGISTRY/$ECR_REPOSITORY:$tag
+            docker push $ECR_REGISTRY/$ECR_REPOSITORY:$tag
+          done
+
+  push_to_gar:
+    name: Push images to Google Artifact Registry
+    needs: build
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Authenticate to GCP
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT_EMAIL }}
+
+      - name: Setup gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Authenticate to Repo
+        run: |
+          gcloud auth configure-docker ${{ secrets.GCP_REGION }}-docker.pkg.dev --quiet
+
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: docker-images
+          path: ${{ runner.temp }}
+
+      - name: Load, tag and push image to GAR
+        env:
+          IMAGE_TAG: ${{ needs.build.outputs.tag }}
+          GCP_GAR_REPOSITORY: ${{ secrets.GCP_GAR_REPOSITORY }}
+        run: |
+          docker load -i ${{ runner.temp }}/dezswap-${{ inputs.app_type }}-latest.tar
+          docker tag dezswap-${{ inputs.app_type }}:latest $GCP_GAR_REPOSITORY/dezswap-${{ inputs.app_type }}:$IMAGE_TAG
+          docker push $GCP_GAR_REPOSITORY/dezswap-${{ inputs.app_type }}:$IMAGE_TAG
