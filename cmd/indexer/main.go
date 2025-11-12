@@ -2,14 +2,15 @@ package main
 
 import (
 	"fmt"
-	"github.com/dezswap/dezswap-api/indexer/repo"
-	"github.com/dezswap/dezswap-api/pkg"
 	"math"
 	"os"
 	"reflect"
 	"runtime"
 	"runtime/debug"
 	"time"
+
+	"github.com/dezswap/dezswap-api/indexer/repo"
+	"github.com/dezswap/dezswap-api/pkg"
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/dezswap/dezswap-api/configs"
@@ -68,11 +69,24 @@ func main() {
 		panic(err)
 	}
 
-	app := initApp(c.Indexer, networkMetadata)
+	app, hasAssetRepo := initApp(c.Indexer, networkMetadata)
 	jobs := []*repeatableJob{
 		{each: app.UpdateTokens, errorHandler: nil, delay: time.Duration(networkMetadata.BlockSecond) * time.Second, errCount: 0, tolerance: 3, exponential: true},
-		{each: app.UpdateVerifiedTokens, errorHandler: nil, delay: time.Duration(networkMetadata.BlockSecond) * time.Second, errCount: 0, tolerance: 3, exponential: true},
 		{each: app.UpdateLatestPools, errorHandler: nil, delay: time.Duration(networkMetadata.BlockSecond) * time.Second, errCount: 0, tolerance: 3, exponential: true},
+	}
+	// indexer.UpdateVerifiedTokens can run only when assetRepo exists
+	if hasAssetRepo {
+		jobs = append(
+			jobs,
+			&repeatableJob{
+				each:         app.UpdateVerifiedTokens,
+				errorHandler: nil,
+				delay:        time.Duration(networkMetadata.BlockSecond) * time.Second,
+				errCount:     0,
+				tolerance:    3,
+				exponential:  true,
+			},
+		)
 	}
 
 	logger.Info("Starting indexer...")
@@ -90,7 +104,7 @@ func main() {
 	s.StartBlocking()
 }
 
-func initApp(config configs.IndexerConfig, networkMetadata pkg.NetworkMetadata) indexer.Indexer {
+func initApp(config configs.IndexerConfig, networkMetadata pkg.NetworkMetadata) (indexer.Indexer, bool) {
 	grpcEndpoint := fmt.Sprintf("%s:%s", config.SrcNode.Host, config.SrcNode.Port)
 	nodeRepo, err := repo.NewNodeRepo(grpcEndpoint, config.SrcEvmRpcEndpoint, config.SrcNode.UseTls, config.ChainId, networkMetadata)
 	if err != nil {
@@ -101,14 +115,17 @@ func initApp(config configs.IndexerConfig, networkMetadata pkg.NetworkMetadata) 
 		panic(err)
 	}
 
-	assetRepo, err := repo.NewAssetRepo(networkMetadata, config.ChainId)
+	assetRepo, err := repo.NewAssetRepo(networkMetadata, config.ChainId, config.FactoryAddress)
 	if err != nil {
-		panic(err)
+		if err != pkg.ErrUnregisteredFactoryAddress {
+			panic(err)
+		}
 	}
 
 	indexerRepo := repo.NewRepo(nodeRepo, dbRepo, assetRepo)
 
-	return indexer.NewDexIndexer(networkMetadata, indexerRepo, config.ChainId)
+	return indexer.NewDexIndexer(networkMetadata, indexerRepo, config.ChainId), assetRepo != nil
+
 }
 
 func setLogger(c configs.Config) logging.Logger {

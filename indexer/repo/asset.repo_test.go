@@ -1,14 +1,15 @@
 package repo
 
 import (
+	"strings"
+	"testing"
+
 	"github.com/dezswap/dezswap-api/indexer"
 	"github.com/dezswap/dezswap-api/pkg"
 	"github.com/dezswap/dezswap-api/pkg/types"
 	xpla_mock "github.com/dezswap/dezswap-api/pkg/xpla/mock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
-	"strings"
-	"testing"
 )
 
 type assetRepoSuite struct {
@@ -28,6 +29,8 @@ func (s *assetRepoSuite) SetupSuite() {
 		map[types.TokenType]string{types.TokenTypeCW20: "xcw20:", types.TokenTypeERC20: "xerc20:"},
 		5,
 		0,
+		"",
+		"",
 	)
 	s.r = assetRepoImpl{s.client, &assetMapperImpl{}, s.networkMetadata}
 }
@@ -99,6 +102,41 @@ func (s *assetRepoSuite) Test_VerifiedTokens() {
 
 func Test_AssetRepo(t *testing.T) {
 	suite.Run(t, new(assetRepoSuite))
+}
+
+func Test_NewAssetRepo(t *testing.T) {
+	networkMetadata := pkg.NewNetworkMetadata(
+		pkg.NetworkNameXplaChain,
+		"dimension",
+		"cube",
+		"xpla1",
+		map[types.TokenType]string{types.TokenTypeCW20: "xcw20:", types.TokenTypeERC20: "xerc20:"},
+		5,
+		0,
+		"xpla1abcd",
+		"xpla1efgh",
+	)
+
+	t.Run("success with valid factory address", func(t *testing.T) {
+		repo, err := NewAssetRepo(networkMetadata, "cube_47-5", "xpla1efgh")
+		assert.NoError(t, err)
+		assert.NotNil(t, repo)
+	})
+
+	t.Run("error with unregistered factory address", func(t *testing.T) {
+		repo, err := NewAssetRepo(networkMetadata, "cube_47-5", "invalid_factory_address")
+		assert.Error(t, err)
+		assert.Equal(t, pkg.ErrUnregisteredFactoryAddress, err)
+		assert.Nil(t, repo)
+	})
+
+	t.Run("error with unsupported network", func(t *testing.T) {
+		unsupportedMetadata := pkg.NewNetworkMetadata("unsupported", "mainprefix", "testprefix", "uns1", map[types.TokenType]string{}, 5, 0, "mainfactory", "testfactory")
+		repo, err := NewAssetRepo(unsupportedMetadata, "testprefix", "testfactory")
+		assert.Error(t, err)
+		assert.Equal(t, pkg.ErrUnsupportedNetwork, err)
+		assert.Nil(t, repo)
+	})
 }
 
 func strPtr(s string) *string { return &s }

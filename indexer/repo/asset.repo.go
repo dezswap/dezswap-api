@@ -1,13 +1,14 @@
 package repo
 
 import (
+	"strings"
+
 	"github.com/dezswap/dezswap-api/indexer"
 	"github.com/dezswap/dezswap-api/pkg"
 	"github.com/dezswap/dezswap-api/pkg/chainregistry"
 	"github.com/dezswap/dezswap-api/pkg/types"
 	"github.com/dezswap/dezswap-api/pkg/xpla"
 	"github.com/pkg/errors"
-	"strings"
 )
 
 const EthHexPrefix = "0x"
@@ -20,8 +21,17 @@ type assetRepoImpl struct {
 
 var _ indexer.AssetRepo = &assetRepoImpl{}
 
-func NewAssetRepo(networkMetadata pkg.NetworkMetadata, chainId string) (indexer.AssetRepo, error) {
+func NewAssetRepo(networkMetadata pkg.NetworkMetadata, chainId, factoryAddress string) (indexer.AssetRepo, error) {
 	var client pkg.Client
+
+	registeredFactoryAddress, err := networkMetadata.GetFactoryAddress(chainId)
+	if err != nil {
+		return nil, err
+	}
+
+	if registeredFactoryAddress != factoryAddress {
+		return nil, pkg.ErrUnregisteredFactoryAddress
+	}
 
 	switch networkMetadata.NetworkName {
 	case pkg.NetworkNameXplaChain:
@@ -33,7 +43,7 @@ func NewAssetRepo(networkMetadata pkg.NetworkMetadata, chainId string) (indexer.
 			return nil, err
 		}
 	default:
-		return nil, errors.New("unsupported network")
+		return nil, pkg.ErrUnsupportedNetwork
 	}
 
 	return &assetRepoImpl{client, &assetMapperImpl{}, networkMetadata}, nil

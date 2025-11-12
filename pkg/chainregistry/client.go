@@ -2,11 +2,12 @@ package chainregistry
 
 import (
 	"fmt"
+	"net/http"
+	"strings"
+
 	"github.com/dezswap/dezswap-api/pkg"
 	"github.com/dezswap/dezswap-api/pkg/types"
 	"github.com/pkg/errors"
-	"net/http"
-	"strings"
 )
 
 const mainnetAssetlistEndpointFormat = "https://raw.githubusercontent.com/cosmos/chain-registry/refs/heads/master/%s/assetlist.json"
@@ -35,7 +36,7 @@ func NewClient(chainId string) (pkg.Client, error) {
 		}
 	}
 
-	return nil, errors.New("unsupported network")
+	return nil, pkg.ErrUnsupportedNetwork
 }
 
 // VerifiedCw20s implements Client

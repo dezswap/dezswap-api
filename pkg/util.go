@@ -1,11 +1,17 @@
 package pkg
 
 import (
-	"cosmossdk.io/math"
 	"fmt"
+	"strings"
+
+	"cosmossdk.io/math"
 	"github.com/dezswap/dezswap-api/pkg/types"
 	"github.com/pkg/errors"
-	"strings"
+)
+
+var (
+	ErrUnsupportedNetwork         = errors.New("unsupported network")
+	ErrUnregisteredFactoryAddress = errors.New("unregistered factory address")
 )
 
 type NetworkMetadata struct {
@@ -16,10 +22,12 @@ type NetworkMetadata struct {
 	tokenPrefixes         map[types.TokenType]string
 	BlockSecond           uint8
 	LatestHeightIndicator uint64
+	factoryAddresses      map[string]string
 }
 
 func NewNetworkMetadata(
-	networkName NetworkName, mainnetPrefix string, testnetPrefix string, addrPrefix string, tokenPrefixes map[types.TokenType]string, blockSecond uint8, latestHeightIndicator uint64) NetworkMetadata {
+	networkName NetworkName, mainnetPrefix string, testnetPrefix string, addrPrefix string, tokenPrefixes map[types.TokenType]string, blockSecond uint8, latestHeightIndicator uint64,
+	mainnetFactoryAddress, testnetFactoryAddress string) NetworkMetadata {
 	return NetworkMetadata{
 		networkName,
 		mainnetPrefix,
@@ -28,6 +36,10 @@ func NewNetworkMetadata(
 		tokenPrefixes,
 		blockSecond,
 		latestHeightIndicator,
+		map[string]string{
+			mainnetPrefix: mainnetFactoryAddress,
+			testnetPrefix: testnetFactoryAddress,
+		},
 	}
 }
 
@@ -41,6 +53,17 @@ func (i NetworkMetadata) IsTestnet(chainId string) bool {
 
 func (i NetworkMetadata) IsMainnetOrTestnet(chainId string) bool {
 	return i.IsMainnet(chainId) || i.IsTestnet(chainId)
+}
+
+func (i NetworkMetadata) GetFactoryAddress(chainId string) (string, error) {
+	if i.IsMainnet(chainId) {
+		return i.factoryAddresses[i.mainnetPrefix], nil
+	}
+	if i.IsTestnet(chainId) {
+		return i.factoryAddresses[i.testnetPrefix], nil
+	}
+
+	return "", ErrUnsupportedNetwork
 }
 
 func (i NetworkMetadata) IsCw20(addr string) bool {
@@ -88,7 +111,7 @@ func GetNetworkMetadata(chainId string) (NetworkMetadata, error) {
 		}
 	}
 
-	return NetworkMetadata{}, errors.New("unsupported network")
+	return NetworkMetadata{}, ErrUnsupportedNetwork
 }
 
 func NewDecFromStrWithTruncate(input string) (math.LegacyDec, error) {
