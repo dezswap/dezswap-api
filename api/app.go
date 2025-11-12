@@ -2,12 +2,13 @@ package api
 
 import (
 	"fmt"
-	"github.com/dezswap/dezswap-api/api/docs"
-	v1 "github.com/dezswap/dezswap-api/api/v1"
-	"github.com/dezswap/dezswap-api/pkg"
 	"net/http"
 	"regexp"
 	"time"
+
+	"github.com/dezswap/dezswap-api/api/docs"
+	v1 "github.com/dezswap/dezswap-api/api/v1"
+	"github.com/dezswap/dezswap-api/pkg"
 
 	gin_cache "github.com/chenyahui/gin-cache"
 	"gorm.io/gorm"
@@ -95,7 +96,7 @@ func (app *app) setMiddlewares(cache cache.Cache) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
 	}))
 
-	allowedOrigins := []string{`\.dezswap\.io$`, `dezswap\.netlify\.app$`, `^https?:\/\/localhost(:\d+)?$`}
+	allowedOrigins := app.config.Server.CorsAllowedOrigins
 	conf := cors.DefaultConfig()
 	conf.AllowOriginFunc = func(origin string) bool {
 		for _, o := range allowedOrigins {
