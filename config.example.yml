@@ -35,6 +35,10 @@ api:
     mod: release # test, debug, release
     version:
     chain_id:
+    cors_allowed_origins:
+      - '\.dezswap\.io$'
+      - 'dezswap\.netlify\.app$'
+      - '^https?:\/\/localhost(:\d+)?$'
   db:
     host: localhost
     port: 5432

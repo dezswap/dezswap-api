@@ -35,12 +35,13 @@ func apiServerConfig(v *viper.Viper) ApiServerConfig {
 	}
 
 	return ApiServerConfig{
-		Name:    v.GetString("name"),
-		Host:    v.GetString("host"),
-		Port:    v.GetString("port"),
-		Swagger: v.GetBool("swagger"),
-		Mode:    v.GetString("mode"),
-		ChainId: v.GetString("chain_id"),
+		Name:               v.GetString("name"),
+		Host:               v.GetString("host"),
+		Port:               v.GetString("port"),
+		Swagger:            v.GetBool("swagger"),
+		Mode:               v.GetString("mode"),
+		ChainId:            v.GetString("chain_id"),
+		CorsAllowedOrigins: v.GetStringSlice("cors_allowed_origins"),
 	}
 }
 
@@ -49,12 +50,13 @@ func apiServerConfigFromEnv(v *viper.Viper, prefix string) ApiServerConfig {
 		return ApiServerConfig{}
 	}
 	return ApiServerConfig{
-		Name:    v.GetString(strings.ToUpper(fmt.Sprintf("%s_%s", prefix, "name"))),
-		Host:    v.GetString(strings.ToUpper(fmt.Sprintf("%s_%s", prefix, "host"))),
-		Port:    v.GetString(strings.ToUpper(fmt.Sprintf("%s_%s", prefix, "port"))),
-		Swagger: v.GetBool(strings.ToUpper(fmt.Sprintf("%s_%s", prefix, "swagger"))),
-		Mode:    v.GetString(strings.ToUpper(fmt.Sprintf("%s_%s", prefix, "mode"))),
-		ChainId: v.GetString(strings.ToUpper(fmt.Sprintf("%s_%s", prefix, "chain_id"))),
+		Name:               v.GetString(strings.ToUpper(fmt.Sprintf("%s_%s", prefix, "name"))),
+		Host:               v.GetString(strings.ToUpper(fmt.Sprintf("%s_%s", prefix, "host"))),
+		Port:               v.GetString(strings.ToUpper(fmt.Sprintf("%s_%s", prefix, "port"))),
+		Swagger:            v.GetBool(strings.ToUpper(fmt.Sprintf("%s_%s", prefix, "swagger"))),
+		Mode:               v.GetString(strings.ToUpper(fmt.Sprintf("%s_%s", prefix, "mode"))),
+		ChainId:            v.GetString(strings.ToUpper(fmt.Sprintf("%s_%s", prefix, "chain_id"))),
+		CorsAllowedOrigins: splitAndTrim(v.GetString(strings.ToUpper(fmt.Sprintf("%s_%s", prefix, "cors_allowed_origins")))),
 	}
 }
 
@@ -66,12 +68,13 @@ type ApiConfig struct {
 
 // ApiServerConfig is config struct for app
 type ApiServerConfig struct {
-	Name    string
-	Host    string
-	Port    string
-	Swagger bool
-	Mode    string
-	ChainId string
+	Name               string
+	Host               string
+	Port               string
+	Swagger            bool
+	Mode               string
+	ChainId            string
+	CorsAllowedOrigins []string
 }
 
 func (lhs *ApiServerConfig) Override(rhs ApiServerConfig) {
@@ -93,4 +96,25 @@ func (lhs *ApiServerConfig) Override(rhs ApiServerConfig) {
 	if rhs.ChainId != "" {
 		lhs.ChainId = rhs.ChainId
 	}
+	if len(rhs.CorsAllowedOrigins) > 0 {
+		lhs.CorsAllowedOrigins = rhs.CorsAllowedOrigins
+	}
+}
+
+func splitAndTrim(value string) []string {
+	if value == "" {
+		return nil
+	}
+	items := strings.Split(value, ",")
+	result := make([]string, 0, len(items))
+	for _, item := range items {
+		item = strings.TrimSpace(item)
+		if item != "" {
+			result = append(result, item)
+		}
+	}
+	if len(result) == 0 {
+		return nil
+	}
+	return result
 }
