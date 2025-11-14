@@ -197,7 +197,7 @@ func (d *dashboard) AprsOf(pool Addr, duration Duration) ([]Apr, error) {
 // Pools implements Dashboard.
 func (d *dashboard) Pools(tokens ...Addr) (Pools, error) {
 	current, mins := time.Now().Truncate(time.Hour), time.Now().Minute()
-	if mins >= 30 {
+	if mins < 30 {
 		current = current.Add(time.Minute * -30)
 	}
 	dayAgo, sevenDaysAgo := current.Add(time.Hour*-24), current.Add(time.Hour*-24*7)
@@ -298,7 +298,7 @@ func (d *dashboard) PoolDetail(addr Addr) (PoolDetail, error) {
 // Recent implements Dashboard.
 func (d *dashboard) Recent() (Recent, error) {
 	current, mins := time.Now().Truncate(time.Hour), time.Now().Minute()
-	if mins >= 30 {
+	if mins < 30 {
 		current = current.Add(time.Minute * -30)
 	}
 	dayAgo, twoDaysAgo := current.Add(time.Hour*-24), current.Add(time.Hour*-24*2)
@@ -370,7 +370,7 @@ func (d *dashboard) Recent() (Recent, error) {
 // Recent implements Dashboard.
 func (d *dashboard) RecentOf(pairContractAddr Addr) (Recent, error) {
 	current, mins := time.Now().Truncate(time.Hour), time.Now().Minute()
-	if mins >= 30 {
+	if mins < 30 {
 		current = current.Add(time.Minute * -30)
 	}
 	dayAgo, twoDaysAgo := current.Add(time.Hour*-24), current.Add(time.Hour*-48)
