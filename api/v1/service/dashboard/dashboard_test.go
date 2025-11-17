@@ -2,15 +2,25 @@ package dashboard
 
 import (
 	"fmt"
+	"strconv"
+	"testing"
+	"time"
+
 	"github.com/dezswap/dezswap-api/configs"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
-	"strconv"
-	"testing"
-	"time"
 )
+
+type pool struct {
+	Address string
+	Symbols string
+	Tvl     string
+	Volume  string
+	Fee     string
+	Apr     string
+}
 
 var (
 	testChainID           = "testchain-1"
@@ -51,7 +61,7 @@ INSERT INTO pair (chain_id, contract, asset0, asset1, lp) VALUES (?, ?, 'axpla',
 	require.NoError(t, row.Err())
 	require.NoError(t, row.Scan(&pairID))
 
-	tsData = time.Now()
+	tsData = time.Now().Truncate(time.Hour).Add(-30 * time.Minute)
 	require.NoError(t, db.Exec(`
 INSERT INTO pair_stats_30m (
     year_utc, month_utc, day_utc, hour_utc, minute_utc,
@@ -201,4 +211,69 @@ func TestTestTokenTvls(t *testing.T) {
 		_, err = strconv.ParseInt(chart[0].Timestamp, 10, 64)
 		require.NoError(t, err)
 	})
+}
+
+func TestPools_NewPairAppearsWithoutStats(t *testing.T) {
+	db := SetupDB(t)
+	defer CleanupDB(t, db)
+
+	d := &dashboard{DB: db, chainId: testChainID}
+
+	pools, err := d.Pools()
+	require.NoError(t, err)
+	require.NotNil(t, pools)
+
+	addrs := make([]string, 0)
+	for _, p := range pools {
+		addrs = append(addrs, string(p.Address))
+	}
+
+	assert.Contains(t, addrs, testPairContractAddr1)
+	assert.Contains(t, addrs, testPairContractAddr2)
+}
+
+func TestPools_PairWithoutStats_HasZeroValues(t *testing.T) {
+	db := SetupDB(t)
+	defer CleanupDB(t, db)
+
+	d := &dashboard{DB: db, chainId: testChainID}
+
+	pools, err := d.Pools()
+	require.NoError(t, err)
+	require.NotNil(t, pools)
+
+	var p1 pool
+	for i := range pools {
+		if pools[i].Address == testPairContractAddr1 {
+			p1 = pools[i]
+		}
+	}
+	require.NotEmpty(t, p1)
+
+	assert.Equal(t, "0", p1.Tvl)
+	assert.Equal(t, "0", p1.Volume)
+	assert.Equal(t, "0", p1.Fee)
+	assert.Equal(t, "0", p1.Apr)
+}
+
+func TestPools_PairWithStats_HasCorrectValues(t *testing.T) {
+	db := SetupDB(t)
+	defer CleanupDB(t, db)
+
+	d := &dashboard{DB: db, chainId: testChainID}
+
+	pools, err := d.Pools()
+	require.NoError(t, err)
+	require.NotNil(t, pools)
+
+	var p2 pool
+	for i := range pools {
+		if pools[i].Address == testPairContractAddr2 {
+			p2 = pools[i]
+		}
+	}
+	require.NotEmpty(t, p2)
+
+	assert.Equal(t, "3333.33", p2.Tvl)   // liquidity0_in_price + liquidity1_in_price
+	assert.Equal(t, "123.45", p2.Volume) // volume0_in_price
 }

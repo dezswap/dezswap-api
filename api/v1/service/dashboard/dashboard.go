@@ -197,7 +197,7 @@ func (d *dashboard) AprsOf(pool Addr, duration Duration) ([]Apr, error) {
 // Pools implements Dashboard.
 func (d *dashboard) Pools(tokens ...Addr) (Pools, error) {
 	current, mins := time.Now().Truncate(time.Hour), time.Now().Minute()
-	if mins >= 30 {
+	if mins < 30 {
 		current = current.Add(time.Minute * -30)
 	}
 	dayAgo, sevenDaysAgo := current.Add(time.Hour*-24), current.Add(time.Hour*-24*7)
@@ -247,21 +247,23 @@ func (d *dashboard) Pools(tokens ...Addr) (Pools, error) {
 			coalesce(v1.volume * %f,0) as fee,
 			coalesce(v7.volume/NULLIF(t.tvl, 0) * %f,0) as apr
 		FROM
-			tvls AS t
-			LEFT JOIN volume1d AS v1 ON v1.pair_id = t.pair_id
-			LEFT JOIN volume7d AS v7 ON v7.pair_id = t.pair_id
-            LEFT JOIN pair AS p ON t.pair_id = p.id
+			pair AS p
+			LEFT JOIN tvls AS t ON t.pair_id = p.id
+			LEFT JOIN volume1d AS v1 ON v1.pair_id = p.id
+			LEFT JOIN volume7d AS v7 ON v7.pair_id = p.id
             LEFT JOIN tokens AS t0 ON p.chain_id = t0.chain_id AND p.asset0 = t0.address
             LEFT JOIN tokens AS t1 ON p.chain_id = t1.chain_id AND p.asset1 = t1.address
+		WHERE
+			p.chain_id = '%s'
 		`,
-		tvl(current), volume(dayAgo, current), volume(sevenDaysAgo, current), dezswap.SWAP_FEE, dezswap.SWAP_FEE,
+		tvl(current), volume(dayAgo, current), volume(sevenDaysAgo, current), dezswap.SWAP_FEE, dezswap.SWAP_FEE, d.chainId,
 	)
 
 	orderBy := `ORDER BY p.contract`
 	pools := Pools{}
 	var tx *gorm.DB
 	if len(tokens) > 0 {
-		tokensCond := " WHERE p.asset0 in ? OR p.asset1 in ?"
+		tokensCond := " AND (p.asset0 in ? OR p.asset1 in ?)"
 		tx = d.Raw(query+tokensCond+orderBy, tokens, tokens)
 	} else {
 		tx = d.Raw(query + orderBy)
@@ -296,7 +298,7 @@ func (d *dashboard) PoolDetail(addr Addr) (PoolDetail, error) {
 // Recent implements Dashboard.
 func (d *dashboard) Recent() (Recent, error) {
 	current, mins := time.Now().Truncate(time.Hour), time.Now().Minute()
-	if mins >= 30 {
+	if mins < 30 {
 		current = current.Add(time.Minute * -30)
 	}
 	dayAgo, twoDaysAgo := current.Add(time.Hour*-24), current.Add(time.Hour*-24*2)
@@ -368,7 +370,7 @@ func (d *dashboard) Recent() (Recent, error) {
 // Recent implements Dashboard.
 func (d *dashboard) RecentOf(pairContractAddr Addr) (Recent, error) {
 	current, mins := time.Now().Truncate(time.Hour), time.Now().Minute()
-	if mins >= 30 {
+	if mins < 30 {
 		current = current.Add(time.Minute * -30)
 	}
 	dayAgo, twoDaysAgo := current.Add(time.Hour*-24), current.Add(time.Hour*-48)
