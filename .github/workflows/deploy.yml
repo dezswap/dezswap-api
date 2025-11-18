@@ -6,7 +6,7 @@ on:
       app_type:
         required: true
         type: string
-      image_tags:
+      image_tag:
         required: true
         type: string
     secrets:
@@ -41,13 +41,6 @@ jobs:
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Parse Image Tags
-        id: parse-tags
-        run: |
-          printf '${{ inputs.image-tags }}' > image_tags.json
-          IMAGE_TAG=$(jq -r '.["'${{ matrix.service }}'"]' image_tags.json)
-          echo "image-tag=$IMAGE_TAG" >> $GITHUB_OUTPUT
-
       - name: Download Task Definition
         id: download-task-definition
         working-directory: .
@@ -61,7 +54,7 @@ jobs:
         with:
           task-definition: ./${{ matrix.service }}-dezswap-${{ inputs.app_type }}.json
           container-name: ${{ matrix.service }}-dezswap-${{ inputs.app_type }}
-          image: ${{ steps.login-ecr.outputs.registry }}/${{ secrets.ECR_REPOSITORY}}:${{ steps.parse-tags.outputs.image-tag }}
+          image: ${{ steps.login-ecr.outputs.registry }}/${{ secrets.ECR_REPOSITORY}}:${{ inputs.image_tag }}
 
       - name: Deploy Amazon ECS task definition
         uses: aws-actions/amazon-ecs-deploy-task-definition@v2

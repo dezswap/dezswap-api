@@ -16,10 +16,6 @@ jobs:
       app_type: api
       path_exclude_prefix: indexer
     secrets:
-      DIMENSION_CONFIG: ${{ secrets.DIMENSION_CONFIG }}
-      CUBE_CONFIG: ${{ secrets.CUBE_CONFIG }}
-      FETCHHUB_CONFIG: ${{ secrets.FETCHHUB_CONFIG }}
-      DORADO_CONFIG: ${{ secrets.DORADO_CONFIG }}
       # AWS
       AWS_REGION: ${{ secrets.AWS_REGION }}
       AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
@@ -36,7 +32,7 @@ jobs:
     needs: publish
     with:
       app_type: api
-      image_tags: ${{ needs.publish.outputs.image-tags }}
+      image_tag: ${{ needs.publish.outputs.image_tag }}
     secrets:
       AWS_REGION: ${{ secrets.AWS_REGION }}
       AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}

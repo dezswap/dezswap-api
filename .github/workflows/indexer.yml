@@ -16,15 +16,11 @@ jobs:
       app_type: indexer
       path_exclude_prefix: api
     secrets:
-      DIMENSION_CONFIG: ${{ secrets.DIMENSION_CONFIG }}
-      CUBE_CONFIG: ${{ secrets.CUBE_CONFIG }}
-      FETCHHUB_CONFIG: ${{ secrets.FETCHHUB_CONFIG }}
-      DORADO_CONFIG: ${{ secrets.DORADO_CONFIG }}
       # AWS
       AWS_REGION: ${{ secrets.AWS_REGION }}
       AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
       AWS_ROLE_SESSION_NAME: dezswap-api-indexer-build
-      ECR_REPOSITORY: dezswap-api
+      ECR_REPOSITORY: dezswap-indexer
       # GCP
       GCP_GAR_REPOSITORY: ${{ vars.GCP_GAR_REPOSITORY }}
       GCP_REGION: ${{ vars.GCP_REGION }}
@@ -35,11 +31,12 @@ jobs:
     uses: ./.github/workflows/deploy.yml
     needs: publish
     with:
+      # use api-indexer for compatability with existing services
       app_type: api-indexer
-      image_tags: ${{ needs.publish.outputs.image-tags }}
+      image_tag: ${{ needs.publish.outputs.image_tag }}
     secrets:
       AWS_REGION: ${{ secrets.AWS_REGION }}
       AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
       AWS_ROLE_SESSION_NAME: dezswap-api-indexer-deploy
-      ECR_REPOSITORY: dezswap-api
+      ECR_REPOSITORY: dezswap-indexer
       ECS_CLUSTER: dezswap-api
