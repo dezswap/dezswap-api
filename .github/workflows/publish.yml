@@ -32,6 +32,8 @@ on:
         image_tag:
             description: "The published image tag"
             value: ${{ jobs.build.outputs.tag }}
+        ecr_push_ok:
+            value: ${{ jobs.push_to_ecr.outputs.ecr_push_ok }}
 
 jobs:
   check_paths:
@@ -123,6 +125,8 @@ jobs:
     needs: build
     environment: production
     runs-on: ubuntu-latest
+    outputs:
+      ecr_push_ok: ${{ steps.push-result.outputs.ecr_push_ok }}
     steps:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -150,6 +154,11 @@ jobs:
           docker load -i ${{ runner.temp }}/dezswap-${{ inputs.app_type }}.tar
           docker tag dezswap-${{ inputs.app_type }}:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+      
+      - name: Set output success
+        id: push-result
+        run: |
+          echo "ecr_push_ok=true" >> $GITHUB_OUTPUT
 
   push_to_gar:
     name: Push images to Google Artifact Registry

@@ -28,6 +28,7 @@ jobs:
       GCP_SERVICE_ACCOUNT_EMAIL: ${{ secrets.GCP_SERVICE_ACCOUNT_EMAIL }}
 
   deploy:
+    if: ${{ needs.publish.outputs.ecr_push_ok == 'true' }}
     uses: ./.github/workflows/deploy.yml
     needs: publish
     with:
