@@ -4,9 +4,10 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"strconv"
+
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
-	"strconv"
 
 	cosmwasm_types "github.com/CosmWasm/wasmd/x/wasm/types"
 	"github.com/cosmos/cosmos-sdk/client/grpc/cmtservice"
@@ -53,6 +54,11 @@ func (c *grpcClient) SyncedHeight() (uint64, error) {
 	if err != nil {
 		fmt.Printf("failed to get latest block height: %v\n", err)
 		return 0, err
+	}
+
+	if res.SdkBlock == nil {
+		//nolint:staticcheck // need to read deprecated Block field for legacy chains
+		return uint64(res.Block.Header.Height), nil
 	}
 
 	return uint64(res.SdkBlock.Header.Height), nil
