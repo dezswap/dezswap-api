@@ -10,14 +10,6 @@ on:
           required: true
           type: string
       secrets:
-        DIMENSION_CONFIG:
-          required: true
-        CUBE_CONFIG:
-          required: true
-        FETCHHUB_CONFIG:
-          required: true
-        DORADO_CONFIG:
-          required: true
         # AWS
         AWS_REGION:
           required: true
@@ -37,9 +29,11 @@ on:
         GCP_SERVICE_ACCOUNT_EMAIL:
           required: true
       outputs:
-        image-tags:
-            description: "The image tags with their networks as keys"
-            value: ${{ jobs.build.outputs.image-tags }}
+        image_tag:
+            description: "The published image tag"
+            value: ${{ jobs.build.outputs.tag }}
+        ecr_push_ok:
+            value: ${{ jobs.push_to_ecr.outputs.ecr_push_ok }}
 
 jobs:
   check_paths:
@@ -92,8 +86,7 @@ jobs:
     if: ${{ needs.check_paths.outputs.run_next_job == 'true' }}
     runs-on: ubuntu-latest
     outputs:
-      image-tags: ${{ steps.build-final-images.outputs.image-tags }}
-      tag: ${{ needs.check_paths.outputs.tag }}
+      tag: ${{ steps.build-base-image.outputs.tag }}
     steps:
       - name: checkout
         uses: actions/checkout@v5
@@ -117,48 +110,15 @@ jobs:
         run: |
           # Build and package base image
           touch config.yml
-          tag=${tag:-$IMAGE_TAG}
-          docker build --build-arg APP_TYPE=${{ inputs.app_type }} --build-arg APP_VERSION=$tag -t dezswap-${{ inputs.app_type }}:latest -t dezswap-${{ inputs.app_type }}:$IMAGE_TAG .
-          docker save -o ${{ runner.temp }}/dezswap-${{ inputs.app_type }}-latest.tar dezswap-${{ inputs.app_type }}:latest
-          docker save -o ${{ runner.temp }}/dezswap-${{ inputs.app_type }}-$IMAGE_TAG.tar dezswap-${{ inputs.app_type }}:$IMAGE_TAG
-
-          # Create Dockerfile for network-specific images
-          echo "FROM dezswap-${{ inputs.app_type }}:$IMAGE_TAG
-          COPY config.yml /app/config.yml" > Dockerfile.final
-
-      - name: Build and package network-specific images
-        id: build-final-images
-        working-directory: .
-        env:
-          DIMENSION_CONFIG: ${{ secrets.DIMENSION_CONFIG }}
-          CUBE_CONFIG: ${{ secrets.CUBE_CONFIG }}
-          FETCHHUB_CONFIG: ${{ secrets.FETCHHUB_CONFIG }}
-          DORADO_CONFIG: ${{ secrets.DORADO_CONFIG }}
-          IMAGE_TAG: ${{ needs.check_paths.outputs.tag }}
-        run: |
-          # Build network-specific images
-          configs=("$DIMENSION_CONFIG" "$CUBE_CONFIG" "$FETCHHUB_CONFIG" "$DORADO_CONFIG")
-          networks=("dimension" "cube" "fetchhub" "dorado")
-          image_tags=()
-          
-          for i in "${!configs[@]}"; do
-            echo "${configs[i]}" > config.yml
-            FINAL_IMAGE_TAG=${networks[i]}-${{ inputs.app_type }}-$IMAGE_TAG
-            docker build -t dezswap-${{ inputs.app_type }}:$FINAL_IMAGE_TAG -f Dockerfile.final .
-            image_tags+=("\"${networks[i]}\": \"$FINAL_IMAGE_TAG\"")
-            docker save -o ${{ runner.temp }}/dezswap-${{ inputs.app_type }}-$FINAL_IMAGE_TAG.tar dezswap-${{ inputs.app_type }}:$FINAL_IMAGE_TAG
-          done
-
-          # Create JSON string of all image tags
-          image_tags_string=$(IFS=, ; echo "${image_tags[*]}")
-          echo "{ ${image_tags_string} }" > image_tags.json
-          echo "image-tags=$(cat image_tags.json)" >> $GITHUB_OUTPUT
+          docker build --build-arg APP_TYPE=${{ inputs.app_type }} --build-arg APP_VERSION=$IMAGE_TAG -t dezswap-${{ inputs.app_type }}:$IMAGE_TAG .
+          docker save -o ${{ runner.temp }}/dezswap-${{ inputs.app_type }}.tar dezswap-${{ inputs.app_type }}:$IMAGE_TAG
+          echo "tag=$IMAGE_TAG" >> $GITHUB_OUTPUT
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: docker-images
-          path: ${{ runner.temp }}/dezswap-${{ inputs.app_type }}-*.tar
+          path: ${{ runner.temp }}/dezswap-${{ inputs.app_type }}.tar
 
   push_to_ecr:
     name: Push images to ECR
@@ -166,7 +126,7 @@ jobs:
     environment: production
     runs-on: ubuntu-latest
     outputs:
-      image-tags: ${{ needs.build.outputs.image-tags }}
+      ecr_push_ok: ${{ steps.push-result.outputs.ecr_push_ok }}
     steps:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -187,20 +147,18 @@ jobs:
 
       - name: Load, tag and push image to ECR
         env:
+          IMAGE_TAG: ${{ needs.build.outputs.tag }}
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY }}
         run: |
-          # Load all saved Docker images
-          for tar in ${{ runner.temp }}/dezswap-*.tar; do
-            docker load -i "$tar"
-          done
-
-          # Retag and push each loaded image
-          for image in $(docker images --format "{{.Repository}}:{{.Tag}}" | grep ^dezswap-${{ inputs.app_type }}:); do
-            tag=$(echo $image | cut -d ':' -f 2)
-            docker tag $image $ECR_REGISTRY/$ECR_REPOSITORY:$tag
-            docker push $ECR_REGISTRY/$ECR_REPOSITORY:$tag
-          done
+          docker load -i ${{ runner.temp }}/dezswap-${{ inputs.app_type }}.tar
+          docker tag dezswap-${{ inputs.app_type }}:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+      
+      - name: Set output success
+        id: push-result
+        run: |
+          echo "ecr_push_ok=true" >> $GITHUB_OUTPUT
 
   push_to_gar:
     name: Push images to Google Artifact Registry
@@ -232,6 +190,6 @@ jobs:
           IMAGE_TAG: ${{ needs.build.outputs.tag }}
           GCP_GAR_REPOSITORY: ${{ secrets.GCP_GAR_REPOSITORY }}
         run: |
-          docker load -i ${{ runner.temp }}/dezswap-${{ inputs.app_type }}-latest.tar
-          docker tag dezswap-${{ inputs.app_type }}:latest $GCP_GAR_REPOSITORY/dezswap-${{ inputs.app_type }}:$IMAGE_TAG
+          docker load -i ${{ runner.temp }}/dezswap-${{ inputs.app_type }}.tar
+          docker tag dezswap-${{ inputs.app_type }}:$IMAGE_TAG $GCP_GAR_REPOSITORY/dezswap-${{ inputs.app_type }}:$IMAGE_TAG
           docker push $GCP_GAR_REPOSITORY/dezswap-${{ inputs.app_type }}:$IMAGE_TAG
