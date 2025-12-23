@@ -1,9 +1,10 @@
 package service
 
 import (
+	"time"
+
 	"cosmossdk.io/math"
 	"github.com/dezswap/dezswap-api/pkg"
-	"time"
 
 	"github.com/dezswap/dezswap-api/pkg/db"
 	"github.com/pkg/errors"
@@ -94,9 +95,11 @@ func (s *statService) GetAll() ([]PairStats, error) {
 		if err != nil {
 			return nil, errors.Wrap(err, "statService.GetAll")
 		}
-		err = s.sumRecentPairStatsSince(stats30m[len(stats30m)-1].Timestamp+1, pairStatMap)
-		if err != nil {
-			return nil, errors.Wrap(err, "statService.GetAll")
+		if len(stats30m) > 0 {
+			err = s.sumRecentPairStatsSince(stats30m[len(stats30m)-1].Timestamp+1, pairStatMap)
+			if err != nil {
+				return nil, errors.Wrap(err, "statService.GetAll")
+			}
 		}
 	}
 
