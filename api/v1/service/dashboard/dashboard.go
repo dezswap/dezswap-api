@@ -634,23 +634,23 @@ pair_tvl_24h_before AS (
 )
 SELECT
     address,
-    COALESCE(volume_24h, 0) AS volume,
-    COALESCE((volume_24h - volume_24h_before) / GREATEST(volume_24h_before, 1), 0) AS volume_change,
-    COALESCE(volume_7d + volume_24h, 0) AS volume_week,
-    COALESCE((volume_7d + volume_24h - volume_7d_before) / GREATEST(volume_7d_before, 1), 0) AS volume_week_change,
-    COALESCE(tvl, 0) AS tvl,
-    COALESCE((tvl - tvl_24h_before) / GREATEST(tvl_24h_before, 0), 1) AS tvl_change,
-    COALESCE(commission, 0) AS commission
+    volume_24h AS volume,
+    (volume_24h - volume_24h_before) / GREATEST(volume_24h_before, 1) AS volume_change,
+    volume_7d AS volume_week,
+    (volume_7d + volume_24h - volume_7d_before) / GREATEST(volume_7d_before, 1) AS volume_week_change,
+    tvl AS tvl,
+    (tvl - tvl_24h_before) / GREATEST(tvl_24h_before, 1) AS tvl_change,
+    commission AS commission
 FROM (
 	SELECT
         t.address,
-        SUM(CASE WHEN p.asset0 = t.address THEN r.vol0_24h ELSE r.vol1_24h END) AS volume_24h,
-        SUM(CASE WHEN p.asset0 = t.address THEN r.vol0_prev ELSE r.vol1_prev END) AS volume_24h_before,
-        SUM(CASE WHEN p.asset0 = t.address THEN r14.vol0_7d ELSE r14.vol1_7d END) AS volume_7d,
-        SUM(CASE WHEN p.asset0 = t.address THEN r14.vol0_prev ELSE r14.vol1_prev END) AS volume_7d_before,
-        SUM(CASE WHEN p.asset0 = t.address THEN r.com0_24h ELSE r.com1_24h END) AS commission,
-        SUM(CASE WHEN p.asset0 = t.address THEN l.liquidity0_in_price ELSE l.liquidity1_in_price END) AS tvl,
-        SUM(CASE WHEN p.asset0 = t.address THEN lb.liquidity0_in_price ELSE lb.liquidity1_in_price END) AS tvl_24h_before
+        COALESCE(SUM(CASE WHEN p.asset0 = t.address THEN r.vol0_24h ELSE r.vol1_24h END), 0) AS volume_24h,
+        COALESCE(SUM(CASE WHEN p.asset0 = t.address THEN r.vol0_prev ELSE r.vol1_prev END), 0) AS volume_24h_before,
+        COALESCE(SUM(CASE WHEN p.asset0 = t.address THEN r14.vol0_7d ELSE r14.vol1_7d END), 0) AS volume_7d,
+        COALESCE(SUM(CASE WHEN p.asset0 = t.address THEN r14.vol0_prev ELSE r14.vol1_prev END), 0) AS volume_7d_before,
+        COALESCE(SUM(CASE WHEN p.asset0 = t.address THEN r.com0_24h ELSE r.com1_24h END), 0) AS commission,
+        COALESCE(SUM(CASE WHEN p.asset0 = t.address THEN l.liquidity0_in_price ELSE l.liquidity1_in_price END), 0) AS tvl,
+        COALESCE(SUM(CASE WHEN p.asset0 = t.address THEN lb.liquidity0_in_price ELSE lb.liquidity1_in_price END), 0) AS tvl_24h_before
     FROM tokens t
 		LEFT JOIN pair p
 			ON p.chain_id = t.chain_id
