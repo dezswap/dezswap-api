@@ -67,3 +67,41 @@ CREATE TABLE pair_stats_30m (
 
 CREATE INDEX pair_stats_30m_chain_id_timestamp_uidx ON pair_stats_30m (chain_id, timestamp);
 CREATE INDEX pair_stats_30m_pair_id_timestamp_uidx ON pair_stats_30m (pair_id, timestamp);
+
+CREATE TABLE price (
+    id              BIGSERIAL NOT NULL PRIMARY KEY,
+    height          BIGINT NOT NULL,
+    chain_id        TEXT NOT NULL,
+    token_id        BIGINT NOT NULL,
+    price           NUMERIC NOT NULL,
+    price_token_id  BIGINT NOT NULL,
+    route_id        BIGINT NOT NULL,
+    tx_id           BIGINT NULL,
+    created_at      DOUBLE PRECISION DEFAULT date_part('epoch'::text, NOW()) NOT NULL,
+    modified_at     DOUBLE PRECISION DEFAULT date_part('epoch'::text, NOW()) NOT NULL
+);
+
+-- simplified
+CREATE TABLE parsed_tx (
+    id          BIGSERIAL NOT NULL PRIMARY KEY,
+    chain_id    CHARACTER varying NOT NULL,
+    height      BIGINT NOT NULL,
+    timestamp   DOUBLE PRECISION NOT NULL,
+    created_at  DOUBLE PRECISION NOT NULL DEFAULT date_part('epoch'::text, now()),
+    meta        JSON NULL
+);
+
+-- simplified
+CREATE TABLE pair_stats_recent (
+    id                   BIGSERIAL NOT NULL PRIMARY KEY,
+    pair_id              BIGSERIAL NOT NULL,
+    chain_id             CHARACTER VARYING NOT NULL,
+    volume0_in_price     NUMERIC NOT NULL,
+    volume1_in_price     NUMERIC NOT NULL,
+    commission0_in_price NUMERIC NOT NULL,
+    commission1_in_price NUMERIC NOT NULL,
+    height               BIGINT NOT NULL,
+    timestamp            DOUBLE PRECISION NOT NULL,
+    created_at           DOUBLE PRECISION NOT NULL DEFAULT date_part('epoch'::text, now()),
+    modified_at          DOUBLE PRECISION NOT NULL DEFAULT date_part('epoch'::text, now())
+);

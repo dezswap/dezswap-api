@@ -23,12 +23,15 @@ type pool struct {
 }
 
 var (
-	testChainID           = "testchain-1"
-	testPairContractAddr1 = "test1abcd"
+	testChainID = "testchain-1"
 
+	testPairID            string
+	testPairContractAddr1 = "test1abcd"
 	testPairContractAddr2 = "test1efgh"
-	testTokenAddr         = "xerc20:ABCD"
-	tsData                = time.Time{}
+
+	testTokenID1  string
+	testTokenID2  string
+	testTokenAddr = "xerc20:ABCD"
 )
 
 func SetupDB(t *testing.T) *gorm.DB {
@@ -42,54 +45,96 @@ func SetupDB(t *testing.T) *gorm.DB {
 	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
 	require.NoError(t, err)
 
-	require.NoError(t, db.Exec(`
-INSERT INTO tokens (chain_id, address, name, symbol, decimals) VALUES (?, ?, 'Abcd', 'ABCD', 18)
-`, testChainID, testTokenAddr).Error)
+	row := db.Raw(`
+INSERT INTO tokens (chain_id, address, name, symbol, decimals) VALUES (?, ?, 'Abcd', 'ABCD', 18) RETURNING id
+`, testChainID, testTokenAddr).Row()
+	require.NoError(t, row.Err())
+	require.NoError(t, row.Scan(&testTokenID1))
 
-	require.NoError(t, db.Exec(`
-INSERT INTO tokens (chain_id, address, name, symbol, decimals, verified) VALUES (?, 'axpla', 'XPLA', 'XPLA', 18, true)
-`, testChainID).Error)
+	row = db.Raw(`
+INSERT INTO tokens (chain_id, address, name, symbol, decimals, verified) VALUES (?, 'axpla', 'XPLA', 'XPLA', 18, true) RETURNING id
+`, testChainID).Row()
+	require.NoError(t, row.Err())
+	require.NoError(t, row.Scan(&testTokenID2))
 
 	require.NoError(t, db.Exec(`
 INSERT INTO pair (chain_id, contract, asset0, asset1, lp) VALUES (?, ?, 'xpla1asset0', 'xpla1asset1', 'xpla1lp1')
 `, testChainID, testPairContractAddr1).Error)
 
-	var pairID int64
-	row := db.Raw(`
+	row = db.Raw(`
 INSERT INTO pair (chain_id, contract, asset0, asset1, lp) VALUES (?, ?, 'axpla', ?, 'xpla1lp2') RETURNING id
 `, testChainID, testPairContractAddr2, testTokenAddr).Row()
 	require.NoError(t, row.Err())
-	require.NoError(t, row.Scan(&pairID))
-
-	tsData = time.Now().Truncate(time.Hour).Add(-30 * time.Minute)
-	require.NoError(t, db.Exec(`
-INSERT INTO pair_stats_30m (
-    year_utc, month_utc, day_utc, hour_utc, minute_utc,
-    pair_id, chain_id,
-    volume0, volume1, volume0_in_price, volume1_in_price,
-    last_swap_price,
-    liquidity0, liquidity1, liquidity0_in_price, liquidity1_in_price,
-    commission0, commission1, commission0_in_price, commission1_in_price,
-    price_token,
-    tx_cnt, provider_cnt,
-    timestamp,
-    created_at, modified_at
-)
-VALUES (
-    ?, ?,?, ?, ?,
-    ?, ?,
-    100, 200, 123.45, 678.90,
-    1.23,
-    1000, 2000, 1111.11, 2222.22,
-    10, 20, 12.34, 56.78,
-    'ibc/ABCD',
-    5, 2,
-    ?,
-    ?, ?
-)
-`, tsData.Year(), tsData.Month(), tsData.Day(), tsData.Hour(), tsData.Minute(), pairID, testChainID, tsData.Unix(), tsData.Unix(), tsData.Unix()).Error)
+	require.NoError(t, row.Scan(&testPairID))
 
 	return db
+}
+
+func generateStats(t *testing.T, db *gorm.DB, ts time.Time) {
+	t.Helper()
+
+	diff := time.Since(ts)
+	if diff.Microseconds() > 0 && diff.Microseconds() < (48*time.Hour).Microseconds() {
+		require.NoError(t, db.Exec(`
+INSERT INTO pair_stats_recent(
+	pair_id, chain_id, volume0_in_price, volume1_in_price, commission0_in_price, commission1_in_price, height, timestamp)
+VALUES(
+	?, ?, 123.45, 678.90, 12.34, 56.78, 1, ?)
+`, testPairID, testChainID, ts.Unix()).Error)
+	}
+
+	require.NoError(t, db.Exec(`
+	INSERT INTO pair_stats_30m (
+	    year_utc, month_utc, day_utc, hour_utc, minute_utc,
+	    pair_id, chain_id,
+	    volume0, volume1, volume0_in_price, volume1_in_price,
+	    last_swap_price,
+	    liquidity0, liquidity1, liquidity0_in_price, liquidity1_in_price,
+	    commission0, commission1, commission0_in_price, commission1_in_price,
+	    price_token,
+	    tx_cnt, provider_cnt,
+	    timestamp,
+	    created_at, modified_at
+	)
+	VALUES (
+	    ?, ?, ?, ?, ?,
+	    ?, ?,
+	    100, 200, 123.45, 678.90,
+	    1.23,
+	    1000, 2000, 1111.11, 2222.22,
+	    10, 20, 12.34, 56.78,
+	    'ibc/ABCD',
+	    5, 2,
+	    ?,
+	    ?, ?
+	)
+	`, ts.Year(), ts.Month(), ts.Day(), ts.Hour(), ts.Minute(),
+		testPairID, testChainID,
+		ts.Unix(),
+		ts.Unix(), ts.Unix()).Error)
+}
+
+func generateTokenPrice(t *testing.T, db *gorm.DB) {
+	t.Helper()
+
+	require.NoError(t, db.Exec(`
+INSERT INTO price(height, chain_id, token_id, price, price_token_id, route_id)
+VALUES(?, ?, ?, ?, ?, ?)
+`, 1, testChainID, testTokenID1, 10, testTokenID1, 1).Error)
+
+	require.NoError(t, db.Exec(`
+INSERT INTO price(height, chain_id, token_id, price, price_token_id, route_id)
+VALUES(?, ?, ?, ?, ?, ?)
+`, 1, testChainID, testTokenID2, 10, testTokenID1, 1).Error)
+}
+
+func generateParsedTx(t *testing.T, db *gorm.DB) {
+	t.Helper()
+
+	require.NoError(t, db.Exec(`
+INSERT INTO parsed_tx(chain_id, height, timestamp)
+VALUES(?, ?, EXTRACT(EPOCH FROM NOW() - INTERVAL '1 day'))
+`, testChainID, 1).Error)
 }
 
 func CleanupDB(t *testing.T, db *gorm.DB) {
@@ -123,9 +168,29 @@ func TestRecentOf_NoDivisionByZero_WithPrevZeros(t *testing.T) {
 	assert.Equal(t, float32(0), recent.AprChangeRate)
 }
 
+func TestTokens_NoTransaction48h(t *testing.T) {
+	db := SetupDB(t)
+	defer CleanupDB(t, db)
+	generateParsedTx(t, db)
+	generateTokenPrice(t, db)
+	generateStats(t, db, time.Now().Truncate(time.Hour).Add(-48*time.Hour))
+
+	d := &dashboard{DB: db, chainId: testChainID}
+	tokens, err := d.Tokens()
+	require.NoError(t, err)
+
+	assert.NotEmpty(t, tokens)
+	for _, token := range tokens {
+		tvl, err := strconv.ParseFloat(token.Tvl, 64)
+		assert.NoError(t, err)
+		assert.Greater(t, tvl, float64(0))
+	}
+}
+
 func TestTestTokenVolumes(t *testing.T) {
 	db := SetupDB(t)
 	defer CleanupDB(t, db)
+	generateStats(t, db, time.Now().Truncate(time.Hour).Add(-30*time.Minute))
 
 	d := &dashboard{DB: db, chainId: testChainID}
 	addr := Addr(testTokenAddr)
@@ -171,6 +236,7 @@ func TestTestTokenVolumes(t *testing.T) {
 func TestTestTokenTvls(t *testing.T) {
 	db := SetupDB(t)
 	defer CleanupDB(t, db)
+	generateStats(t, db, time.Now().Truncate(time.Hour).Add(-30*time.Minute))
 
 	d := &dashboard{DB: db, chainId: testChainID}
 	addr := Addr(testTokenAddr)
@@ -259,9 +325,9 @@ func TestPools_PairWithoutStats_HasZeroValues(t *testing.T) {
 func TestPools_PairWithStats_HasCorrectValues(t *testing.T) {
 	db := SetupDB(t)
 	defer CleanupDB(t, db)
+	generateStats(t, db, time.Now().Truncate(time.Hour).Add(-30*time.Minute))
 
 	d := &dashboard{DB: db, chainId: testChainID}
-
 	pools, err := d.Pools()
 	require.NoError(t, err)
 	require.NotNil(t, pools)
