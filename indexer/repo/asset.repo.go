@@ -62,9 +62,9 @@ func (r *assetRepoImpl) VerifiedTokens(chainId string) ([]indexer.Token, error) 
 	}
 	var tokens []indexer.Token
 	if isMainnet {
-		tokens = r.TokenResToTokens(&cw20s.Mainnet, chainId)
+		tokens = r.TokenResToTokens(cw20s.Mainnet, chainId)
 	} else {
-		tokens = r.TokenResToTokens(&cw20s.Testnet, chainId)
+		tokens = r.TokenResToTokens(cw20s.Testnet, chainId)
 	}
 
 	ibcs, err := r.VerifiedIbcs()
@@ -73,9 +73,9 @@ func (r *assetRepoImpl) VerifiedTokens(chainId string) ([]indexer.Token, error) 
 	}
 
 	if isMainnet {
-		tokens = append(tokens, r.IbcsResToTokens(&ibcs.Mainnet, chainId)...)
+		tokens = append(tokens, r.IbcsResToTokens(ibcs.Mainnet, chainId)...)
 	} else {
-		tokens = append(tokens, r.IbcsResToTokens(&ibcs.Testnet, chainId)...)
+		tokens = append(tokens, r.IbcsResToTokens(ibcs.Testnet, chainId)...)
 	}
 
 	erc20s, err := r.VerifiedErc20s()
@@ -83,7 +83,7 @@ func (r *assetRepoImpl) VerifiedTokens(chainId string) ([]indexer.Token, error) 
 		return nil, errors.Wrap(err, "assetRepo.VerifiedTokens")
 	}
 
-	var networkTokens *types.TokenResMap
+	var networkTokens types.TokenResMap
 	if isMainnet {
 		networkTokens = r.convertErc20Addr(erc20s.Mainnet)
 	} else {
@@ -94,7 +94,7 @@ func (r *assetRepoImpl) VerifiedTokens(chainId string) ([]indexer.Token, error) 
 	return tokens, nil
 }
 
-func (r *assetRepoImpl) convertErc20Addr(tokens types.TokenResMap) *types.TokenResMap {
+func (r *assetRepoImpl) convertErc20Addr(tokens types.TokenResMap) types.TokenResMap {
 	convertedTokens := make(types.TokenResMap)
 
 	for k, v := range tokens {
@@ -103,5 +103,5 @@ func (r *assetRepoImpl) convertErc20Addr(tokens types.TokenResMap) *types.TokenR
 		convertedTokens[k] = v
 	}
 
-	return &convertedTokens
+	return convertedTokens
 }
