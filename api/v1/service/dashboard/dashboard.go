@@ -569,59 +569,97 @@ where t.chain_id = ?
 
 func (d *dashboard) tokenDetails(addr ...Addr) (Tokens, error) {
 	query := `
-with s as (
-    select distinct pair_id,
-           sum(volume0_in_price) filter (where timestamp_before = 0) over w sum_vol0,
-           sum(volume1_in_price) filter (where timestamp_before = 0) over w sum_vol1,
-           sum(volume0_in_price) filter (where timestamp_before > 0) over w sum_vol0_before,
-           sum(volume1_in_price) filter (where timestamp_before > 0) over w sum_vol1_before,
-           sum(commission0_in_price) filter (where timestamp_before = 0) over w sum_com0,
-           sum(commission1_in_price) filter (where timestamp_before = 0) over w sum_com1,
-           first_value(liquidity0_in_price) over w_lp lp0,
-           first_value(liquidity1_in_price) over w_lp lp1,
-           first_value(liquidity0_in_price) over w_lp_before lp0_before,
-           first_value(liquidity1_in_price) over w_lp_before lp1_before
-    from (
-        select *, case when timestamp < extract(epoch from now() - interval '1 day') then timestamp else 0 end as timestamp_before
-        from pair_stats_recent where chain_id = ?) t
-    window w as (partition by pair_id),
-           w_lp as (partition by pair_id order by timestamp desc),
-           w_lp_before as (partition by pair_id order by timestamp_before desc)),
-    s_7d as (
-    select distinct pair_id,
-           sum(volume0_in_price) filter (where timestamp >= extract(epoch from now() - interval '7 day')) over w sum_vol0,
-           sum(volume1_in_price) filter (where timestamp >= extract(epoch from now() - interval '7 day')) over w sum_vol1,
-           sum(volume0_in_price) filter (where timestamp < extract(epoch from now() - interval '7 day')) over w sum_vol0_before,
-           sum(volume1_in_price) filter (where timestamp < extract(epoch from now() - interval '7 day')) over w sum_vol1_before,
-           first_value(liquidity0_in_price) over w_lp lp0,
-           first_value(liquidity1_in_price) over w_lp lp1
-    from pair_stats_30m
-    where timestamp >= extract(epoch from now() - interval '14 day')
-      and timestamp < extract(epoch from now() - interval '1 day')
-      and chain_id = ?
-    window w as (partition by pair_id),
-           w_lp as (partition by pair_id))
-select address,
-       coalesce(sum(volume_24h),0) as volume,
-       coalesce((sum(volume_24h)-sum(volume_24h_before))/greatest(sum(volume_24h_before),1),0) as volume_change,
-       coalesce(sum(volume_7d)+sum(volume_24h),0) as volume_week,
-       coalesce((sum(volume_7d)+sum(volume_24h)-sum(volume_7d_before))/greatest(sum(volume_7d_before),1),0) as volume_week_change,
-       coalesce(sum(tvl),0) as tvl,
-       coalesce((sum(tvl)-sum(tvl_24h_before))/greatest(sum(tvl_24h_before),1),0) as tvl_change,
-       coalesce(sum(commission),0) as commission
-from (
-    select t.address,
-           case when p.asset0 = t.address then sum(s.sum_vol0) else sum(s.sum_vol1) end as volume_24h,
-           case when p.asset0 = t.address then sum(s.sum_vol0_before) else sum(s.sum_vol1_before) end as volume_24h_before,
-           case when p.asset0 = t.address then sum(s_7d.sum_vol0) else sum(s_7d.sum_vol1) end as volume_7d,
-           case when p.asset0 = t.address then sum(s_7d.sum_vol0_before) else sum(s_7d.sum_vol1_before) end as volume_7d_before,
-           case when p.asset0 = t.address then sum(s.lp0) else sum(s.lp1) end as tvl,
-           case when p.asset0 = t.address then sum(s.lp0_before) else sum(s.lp1_before) end as tvl_24h_before,
-           case when p.asset0 = t.address then sum(s.sum_com0) else sum(s.sum_com1) end as commission
-    from s
-        join pair p on p.id = s.pair_id
-        join s_7d  on p.id = s_7d.pair_id
-        left join tokens t on p.chain_id = t.chain_id and (p.asset0 = t.address or p.asset1 = t.address)
+WITH
+recent_48h AS (
+    SELECT
+        ps.pair_id,
+        SUM(CASE
+            WHEN ps.timestamp >= extract(epoch from now() - interval '1 day')
+            THEN ps.volume0_in_price ELSE 0 END) AS vol0_24h,
+        SUM(CASE
+            WHEN ps.timestamp >= extract(epoch from now() - interval '1 day')
+            THEN ps.volume1_in_price ELSE 0 END) AS vol1_24h,
+        SUM(CASE
+            WHEN ps.timestamp < extract(epoch from now() - interval '1 day')
+            THEN ps.volume0_in_price ELSE 0 END) AS vol0_prev,
+        SUM(CASE
+            WHEN ps.timestamp < extract(epoch from now() - interval '1 day')
+            THEN ps.volume1_in_price ELSE 0 END) AS vol1_prev,
+        SUM(CASE
+            WHEN ps.timestamp >= extract(epoch from now() - interval '1 day')
+            THEN ps.commission0_in_price ELSE 0 END) AS com0_24h,
+        SUM(CASE
+            WHEN ps.timestamp >= extract(epoch from now() - interval '1 day')
+            THEN ps.commission1_in_price ELSE 0 END) AS com1_24h
+    FROM pair_stats_recent ps
+    GROUP BY ps.pair_id
+),
+recent_14d AS (
+    SELECT
+        ps.pair_id,
+        SUM(CASE
+            WHEN ps.timestamp >= extract(epoch from now() - interval '7 day')
+            THEN ps.volume0_in_price ELSE 0 END) AS vol0_7d,
+        SUM(CASE
+            WHEN ps.timestamp >= extract(epoch from now() - interval '7 day')
+            THEN ps.volume1_in_price ELSE 0 END) AS vol1_7d,
+        SUM(CASE
+            WHEN ps.timestamp < extract(epoch from now() - interval '7 day')
+             AND ps.timestamp >= extract(epoch from now() - interval '14 day')
+            THEN ps.volume0_in_price ELSE 0 END) AS vol0_prev,
+        SUM(CASE
+            WHEN ps.timestamp < extract(epoch from now() - interval '7 day')
+             AND ps.timestamp >= extract(epoch from now() - interval '14 day')
+            THEN ps.volume1_in_price ELSE 0 END) AS vol1_prev
+    FROM pair_stats_30m ps
+    WHERE ps.timestamp >= extract(epoch from now() - interval '14 day')
+    GROUP BY ps.pair_id
+),
+latest_pair_tvl AS (
+    SELECT DISTINCT ON (ps.pair_id)
+        ps.pair_id,
+        ps.liquidity0_in_price,
+        ps.liquidity1_in_price
+    FROM pair_stats_30m ps
+    ORDER BY ps.pair_id, ps.timestamp DESC
+),
+pair_tvl_24h_before AS (
+    SELECT DISTINCT ON (ps.pair_id)
+        ps.pair_id,
+        ps.liquidity0_in_price,
+        ps.liquidity1_in_price
+    FROM pair_stats_30m ps
+    WHERE ps.timestamp < extract(epoch from now() - interval '1 day')
+    ORDER BY ps.pair_id, ps.timestamp DESC
+)
+SELECT
+    address,
+    volume_24h AS volume,
+    (volume_24h - volume_24h_before) / GREATEST(volume_24h_before, 1) AS volume_change,
+    volume_7d AS volume_week,
+    (volume_7d + volume_24h - volume_7d_before) / GREATEST(volume_7d_before, 1) AS volume_week_change,
+    tvl AS tvl,
+    (tvl - tvl_24h_before) / GREATEST(tvl_24h_before, 1) AS tvl_change,
+    commission AS commission
+FROM (
+	SELECT
+        t.address,
+        COALESCE(SUM(CASE WHEN p.asset0 = t.address THEN r.vol0_24h ELSE r.vol1_24h END), 0) AS volume_24h,
+        COALESCE(SUM(CASE WHEN p.asset0 = t.address THEN r.vol0_prev ELSE r.vol1_prev END), 0) AS volume_24h_before,
+        COALESCE(SUM(CASE WHEN p.asset0 = t.address THEN r14.vol0_7d ELSE r14.vol1_7d END), 0) AS volume_7d,
+        COALESCE(SUM(CASE WHEN p.asset0 = t.address THEN r14.vol0_prev ELSE r14.vol1_prev END), 0) AS volume_7d_before,
+        COALESCE(SUM(CASE WHEN p.asset0 = t.address THEN r.com0_24h ELSE r.com1_24h END), 0) AS commission,
+        COALESCE(SUM(CASE WHEN p.asset0 = t.address THEN l.liquidity0_in_price ELSE l.liquidity1_in_price END), 0) AS tvl,
+        COALESCE(SUM(CASE WHEN p.asset0 = t.address THEN lb.liquidity0_in_price ELSE lb.liquidity1_in_price END), 0) AS tvl_24h_before
+    FROM tokens t
+		LEFT JOIN pair p
+			ON p.chain_id = t.chain_id
+		AND (p.asset0 = t.address OR p.asset1 = t.address)
+		LEFT JOIN recent_48h r ON r.pair_id = p.id
+		LEFT JOIN recent_14d r14 ON r14.pair_id = p.id
+		LEFT JOIN latest_pair_tvl l ON l.pair_id = p.id
+		LEFT JOIN pair_tvl_24h_before lb ON lb.pair_id = p.id
+    WHERE t.chain_id = ?
 `
 	type tokenStat struct {
 		Address          Addr
@@ -636,11 +674,11 @@ from (
 	var stats []tokenStat
 	var tx *gorm.DB
 	if len(addr) > 0 {
-		query += ` where t.address = ? group by t.address, p.asset0) t group by address`
-		tx = d.Raw(query, d.chainId, d.chainId, addr)
+		query += ` AND t.address = ?  GROUP BY t.address) t`
+		tx = d.Raw(query, d.chainId, addr)
 	} else {
-		query += ` group by t.address, p.asset0) t group by address`
-		tx = d.Raw(query, d.chainId, d.chainId)
+		query += ` GROUP BY t.address) t`
+		tx = d.Raw(query, d.chainId)
 	}
 
 	if err := tx.Find(&stats).Error; err != nil {
