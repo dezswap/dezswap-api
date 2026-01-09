@@ -37,9 +37,12 @@ func (s *assetRepoSuite) SetupSuite() {
 
 func (s *assetRepoSuite) Test_VerifiedTokens() {
 	tcs := []struct {
-		chainID  string
-		expected []indexer.Token
-		err      error
+		chainID              string
+		expected             []indexer.Token
+		verifiedCw20sResult  *types.TokensRes
+		verifiedIbcsResult   *types.IbcsRes
+		verifiedErc20sResult *types.TokensRes
+		err                  error
 	}{
 		{
 			chainID: "cube_47-5",
@@ -55,20 +58,13 @@ func (s *assetRepoSuite) Test_VerifiedTokens() {
 					Verified: true,
 				},
 			},
-			err: nil,
-		},
-	}
-
-	for _, tc := range tcs {
-		// prepare mock response
-		{
-			s.client.(*xpla_mock.ClientMock).On("VerifiedCw20s").Return(&types.TokensRes{
+			verifiedCw20sResult: &types.TokensRes{
 				Mainnet: types.TokenResMap{}, Testnet: types.TokenResMap{},
-			}, tc.err).Once()
-			s.client.(*xpla_mock.ClientMock).On("VerifiedIbcs").Return(&types.IbcsRes{
+			},
+			verifiedIbcsResult: &types.IbcsRes{
 				Mainnet: types.IbcResMap{}, Testnet: types.IbcResMap{},
-			}, tc.err).Once()
-			s.client.(*xpla_mock.ClientMock).On("VerifiedErc20s").Return(&types.TokensRes{
+			},
+			verifiedErc20sResult: &types.TokensRes{
 				Mainnet: types.TokenResMap{
 					"0x26D086423f64d339481f379F8988004B4fcaB093": types.TokenRes{
 						Protocol: strPtr("XPLA"),
@@ -88,7 +84,25 @@ func (s *assetRepoSuite) Test_VerifiedTokens() {
 						Decimals: u8Ptr(18),
 					},
 				},
-			}, tc.err).Once()
+			},
+			err: nil,
+		},
+		{
+			chainID:              "cube_47-5",
+			expected:             []indexer.Token{},
+			verifiedCw20sResult:  &types.TokensRes{},
+			verifiedIbcsResult:   &types.IbcsRes{},
+			verifiedErc20sResult: &types.TokensRes{},
+			err:                  nil,
+		},
+	}
+
+	for _, tc := range tcs {
+		// prepare mock response
+		{
+			s.client.(*xpla_mock.ClientMock).On("VerifiedCw20s").Return(tc.verifiedCw20sResult, tc.err).Once()
+			s.client.(*xpla_mock.ClientMock).On("VerifiedIbcs").Return(tc.verifiedIbcsResult, tc.err).Once()
+			s.client.(*xpla_mock.ClientMock).On("VerifiedErc20s").Return(tc.verifiedErc20sResult, tc.err).Once()
 		}
 
 		actual, err := s.r.VerifiedTokens(tc.chainID)

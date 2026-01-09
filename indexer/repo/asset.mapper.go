@@ -9,8 +9,8 @@ import (
 )
 
 type assetMapper interface {
-	TokenResToTokens(res *types.TokenResMap, chainId string) []indexer.Token
-	IbcsResToTokens(es *types.IbcResMap, chainId string) []indexer.Token
+	TokenResToTokens(res types.TokenResMap, chainId string) []indexer.Token
+	IbcsResToTokens(es types.IbcResMap, chainId string) []indexer.Token
 }
 
 type assetMapperImpl struct{}
@@ -18,9 +18,9 @@ type assetMapperImpl struct{}
 var _ assetMapper = &assetMapperImpl{}
 
 // TokenResToTokens implements assetMapper
-func (*assetMapperImpl) TokenResToTokens(res *types.TokenResMap, chainId string) []indexer.Token {
-	tokens := make([]indexer.Token, 0, len(*res))
-	for k, v := range *res {
+func (*assetMapperImpl) TokenResToTokens(res types.TokenResMap, chainId string) []indexer.Token {
+	tokens := make([]indexer.Token, 0, len(res))
+	for k, v := range res {
 		token := indexer.Token{
 			Address:  k,
 			ChainId:  chainId,
@@ -47,9 +47,9 @@ func (*assetMapperImpl) TokenResToTokens(res *types.TokenResMap, chainId string)
 }
 
 // IbcsResToTokens implements assetMapper
-func (*assetMapperImpl) IbcsResToTokens(res *types.IbcResMap, chainId string) []indexer.Token {
-	tokens := make([]indexer.Token, 0, len(*res))
-	for k, v := range *res {
+func (*assetMapperImpl) IbcsResToTokens(res types.IbcResMap, chainId string) []indexer.Token {
+	tokens := make([]indexer.Token, 0, len(res))
+	for k, v := range res {
 		token := indexer.Token{
 			Address:  fmt.Sprintf("ibc/%s", k),
 			ChainId:  chainId,
