@@ -14,7 +14,6 @@ jobs:
     uses: ./.github/workflows/publish.yml
     with:
       app_type: api
-      path_exclude_prefix: indexer
     secrets:
       # AWS
       AWS_REGION: ${{ secrets.AWS_REGION }}
