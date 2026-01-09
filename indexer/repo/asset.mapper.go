@@ -2,6 +2,7 @@ package repo
 
 import (
 	"fmt"
+
 	"github.com/dezswap/dezswap-api/indexer"
 	"github.com/dezswap/dezswap-api/pkg"
 	"github.com/dezswap/dezswap-api/pkg/types"
@@ -18,7 +19,7 @@ var _ assetMapper = &assetMapperImpl{}
 
 // TokenResToTokens implements assetMapper
 func (*assetMapperImpl) TokenResToTokens(res *types.TokenResMap, chainId string) []indexer.Token {
-	tokens := []indexer.Token{}
+	tokens := make([]indexer.Token, 0, len(*res))
 	for k, v := range *res {
 		token := indexer.Token{
 			Address:  k,
@@ -47,7 +48,7 @@ func (*assetMapperImpl) TokenResToTokens(res *types.TokenResMap, chainId string)
 
 // IbcsResToTokens implements assetMapper
 func (*assetMapperImpl) IbcsResToTokens(res *types.IbcResMap, chainId string) []indexer.Token {
-	tokens := []indexer.Token{}
+	tokens := make([]indexer.Token, 0, len(*res))
 	for k, v := range *res {
 		token := indexer.Token{
 			Address:  fmt.Sprintf("ibc/%s", k),
