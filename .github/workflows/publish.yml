@@ -6,9 +6,6 @@ on:
         app_type:
           required: true
           type: string
-        path_exclude_prefix:
-          required: true
-          type: string
       secrets:
         # AWS
         AWS_REGION:
@@ -62,22 +59,6 @@ jobs:
           else
             echo "The tag commit is NOT on main branch. Exiting."
             echo "run_next_job=false" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Check changed file paths
-        if: ${{ steps.check_branch.outputs.run_next_job == 'true' }}
-        id: check_paths
-        run: |
-          CHANGED_FILES=$(git diff HEAD~1 --name-only)
-          # files except target service related
-          MATCHING_FILES=$(echo "$CHANGED_FILES" | grep -v '^${{ inputs.path_exclude_prefix }}/')
-
-          if [[ -z "$MATCHING_FILES" ]]; then
-            echo "no matching file"
-            echo "run_next_job=false" >> $GITHUB_OUTPUT
-          else
-            echo "matching file $MATCHING_FILES"
-            echo "run_next_job=true" >> $GITHUB_OUTPUT
           fi
 
   build:
