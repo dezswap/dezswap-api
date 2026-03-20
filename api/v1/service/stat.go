@@ -234,7 +234,7 @@ func (s *statService) sumPairStat(stat db.PairStat, sumStatMap map[string][count
 }
 
 func (s *statService) mapToSlice(pairStatMap map[string][countOfStatType]math.LegacyDec) PairStats {
-	var pairStats PairStats
+	pairStats := make(PairStats, 0, len(pairStatMap))
 	for k, v := range pairStatMap {
 		pairStats = append(
 			pairStats,
