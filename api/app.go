@@ -120,6 +120,7 @@ func (app *app) setMiddlewares(cache cache.Cache) {
 		))
 	}
 	app.engine.UseRawPath = true
+	app.engine.UnescapePathValues = true
 }
 
 func (app *app) configureReporter(dsn, env string, tags map[string]string) error {
