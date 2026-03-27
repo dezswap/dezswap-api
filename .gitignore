@@ -25,3 +25,6 @@ config*.yml
 .idea
 
 db/data
+
+# OS
+.DS_Store
