@@ -132,14 +132,15 @@ func generateParsedTx(t *testing.T, db *gorm.DB) {
 	t.Helper()
 
 	require.NoError(t, db.Exec(`
-INSERT INTO parsed_tx(chain_id, height, timestamp)
-VALUES(?, ?, EXTRACT(EPOCH FROM NOW() - INTERVAL '1 day'))
+INSERT INTO parsed_tx(chain_id, height, timestamp, hash, sender, type, contract, asset0_amount, asset1_amount, lp_amount)
+VALUES(?, ?, EXTRACT(EPOCH FROM NOW() - INTERVAL '1 day'), 'dummy_hash', 'dummy_sender', 'swap', 'dummy_contract', 0, 0, 0)
 `, testChainID, 1).Error)
 }
 
 func CleanupDB(t *testing.T, db *gorm.DB) {
 	t.Helper()
 
+	require.NoError(t, db.Exec(`DELETE FROM parsed_tx WHERE chain_id = ?`, testChainID).Error)
 	require.NoError(t, db.Exec(`DELETE FROM pair_stats_30m WHERE pair_id IN (SELECT id FROM pair WHERE chain_id = ?)`, testChainID).Error)
 	require.NoError(t, db.Exec(`DELETE FROM pair WHERE chain_id = ?`, testChainID).Error)
 	require.NoError(t, db.Exec(`DELETE FROM tokens WHERE chain_id = ?`, testChainID).Error)
@@ -342,4 +343,96 @@ func TestPools_PairWithStats_HasCorrectValues(t *testing.T) {
 
 	assert.Equal(t, "3333.33", p2.Tvl)   // liquidity0_in_price + liquidity1_in_price
 	assert.Equal(t, "123.45", p2.Volume) // volume0_in_price
+}
+
+func generateParsedTxWithType(t *testing.T, db *gorm.DB, ts int64, txType, hash, contract, asset0, asset0Amount, asset1, asset1Amount string) {
+	t.Helper()
+	require.NoError(t, db.Exec(`
+INSERT INTO parsed_tx(chain_id, height, timestamp, hash, sender, type, contract, asset0, asset0_amount, asset1, asset1_amount, lp_amount)
+VALUES(?, 1, ?, ?, 'test_sender', ?, ?, ?, ?, ?, ?, 0)
+`, testChainID, ts, hash, txType, contract, asset0, asset0Amount, asset1, asset1Amount).Error)
+}
+
+// TestTxs_SwapWithTransfer_TransferHidden verifies that when a hash contains both swap and transfer rows,
+// only the swap row appears with its original amounts (transfer row is excluded).
+func TestTxs_SwapWithTransfer_TransferHidden(t *testing.T) {
+	db := SetupDB(t)
+	defer CleanupDB(t, db)
+
+	hash := "transfer_test_hash_001"
+	ts := time.Now().Unix()
+	generateParsedTxWithType(t, db, ts, "swap", hash, testPairContractAddr2, "axpla", "1000", testTokenAddr, "2000")
+	generateParsedTxWithType(t, db, ts, "transfer", hash, testPairContractAddr2, "axpla", "3000", testTokenAddr, "4000")
+
+	d := &dashboard{DB: db, chainId: testChainID}
+	txs, err := d.Txs(TX_TYPE_ALL)
+	require.NoError(t, err)
+	require.Len(t, txs, 1, "only the swap row should appear; transfer row should be hidden")
+
+	assert.Equal(t, "swap", txs[0].Action)
+	assert.Equal(t, hash, txs[0].Hash)
+	assert.Equal(t, "1000", txs[0].Asset0Amount)
+	assert.Equal(t, "2000", txs[0].Asset1Amount)
+}
+
+// TestTxs_TransferOnly_ExcludedRegardlessOfAssets verifies that transfer-only hashes are excluded
+// from TX_TYPE_ALL results even when asset pairs differ.
+func TestTxs_TransferOnly_ExcludedRegardlessOfAssets(t *testing.T) {
+	db := SetupDB(t)
+	defer CleanupDB(t, db)
+
+	hash := "transfer_test_hash_003"
+	ts := time.Now().Unix()
+	// same hash/contract but asset0 and asset1 are swapped between the two rows
+	generateParsedTxWithType(t, db, ts, "transfer", hash, testPairContractAddr2, "axpla", "1000", testTokenAddr, "2000")
+	generateParsedTxWithType(t, db, ts, "transfer", hash, testPairContractAddr2, testTokenAddr, "3000", "axpla", "4000")
+
+	d := &dashboard{DB: db, chainId: testChainID}
+	txs, err := d.Txs(TX_TYPE_ALL)
+	require.NoError(t, err)
+	assert.Empty(t, txs, "transfer-only hashes should be excluded from TX_TYPE_ALL results")
+}
+
+// TestTxs_TimestampDescOrder verifies that Txs returns results ordered by timestamp descending.
+func TestTxs_TimestampDescOrder(t *testing.T) {
+	db := SetupDB(t)
+	defer CleanupDB(t, db)
+
+	now := time.Now().Unix()
+	generateParsedTxWithType(t, db, now-200, "swap", "hash_old", testPairContractAddr2, "axpla", "100", testTokenAddr, "200")
+	generateParsedTxWithType(t, db, now-100, "swap", "hash_mid", testPairContractAddr2, "axpla", "300", testTokenAddr, "400")
+	generateParsedTxWithType(t, db, now, "swap", "hash_new", testPairContractAddr2, "axpla", "500", testTokenAddr, "600")
+
+	d := &dashboard{DB: db, chainId: testChainID}
+	txs, err := d.Txs(TX_TYPE_ALL)
+	require.NoError(t, err)
+	require.Len(t, txs, 3)
+
+	assert.Equal(t, "hash_new", txs[0].Hash)
+	assert.Equal(t, "hash_mid", txs[1].Hash)
+	assert.Equal(t, "hash_old", txs[2].Hash)
+	assert.True(t, !txs[0].Timestamp.Before(txs[1].Timestamp), "first tx should not be before second")
+	assert.True(t, !txs[1].Timestamp.Before(txs[2].Timestamp), "second tx should not be before third")
+}
+
+// TestTxsOfToken_TimestampDescOrder verifies that TxsOfToken returns results ordered by timestamp descending.
+func TestTxsOfToken_TimestampDescOrder(t *testing.T) {
+	db := SetupDB(t)
+	defer CleanupDB(t, db)
+
+	now := time.Now().Unix()
+	generateParsedTxWithType(t, db, now-200, "swap", "token_hash_old", testPairContractAddr2, "axpla", "100", testTokenAddr, "200")
+	generateParsedTxWithType(t, db, now-100, "swap", "token_hash_mid", testPairContractAddr2, "axpla", "300", testTokenAddr, "400")
+	generateParsedTxWithType(t, db, now, "swap", "token_hash_new", testPairContractAddr2, "axpla", "500", testTokenAddr, "600")
+
+	d := &dashboard{DB: db, chainId: testChainID}
+	txs, err := d.TxsOfToken(TX_TYPE_ALL, Addr(testTokenAddr))
+	require.NoError(t, err)
+	require.Len(t, txs, 3)
+
+	assert.Equal(t, "token_hash_new", txs[0].Hash)
+	assert.Equal(t, "token_hash_mid", txs[1].Hash)
+	assert.Equal(t, "token_hash_old", txs[2].Hash)
+	assert.True(t, !txs[0].Timestamp.Before(txs[1].Timestamp), "first tx should not be before second")
+	assert.True(t, !txs[1].Timestamp.Before(txs[2].Timestamp), "second tx should not be before third")
 }
