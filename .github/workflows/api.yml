@@ -1,4 +1,4 @@
-name: Deploy Dezswap API
+name: Publish Dezswap API
 
 on:
   push:
@@ -25,17 +25,3 @@ jobs:
       GCP_REGION: ${{ vars.GCP_REGION }}
       GCP_WORKLOAD_IDENTITY_PROVIDER: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
       GCP_SERVICE_ACCOUNT_EMAIL: ${{ secrets.GCP_SERVICE_ACCOUNT_EMAIL }}
-  
-  deploy:
-    if: ${{ needs.publish.outputs.ecr_push_ok == 'true' }}
-    uses: ./.github/workflows/deploy.yml
-    needs: publish
-    with:
-      app_type: api
-      image_tag: ${{ needs.publish.outputs.image_tag }}
-    secrets:
-      AWS_REGION: ${{ secrets.AWS_REGION }}
-      AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
-      AWS_ROLE_SESSION_NAME: dezswap-api-deploy
-      ECR_REPOSITORY: dezswap-api
-      ECS_CLUSTER: dezswap-api
