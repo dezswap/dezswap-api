@@ -81,14 +81,28 @@ CREATE TABLE price (
     modified_at     DOUBLE PRECISION DEFAULT date_part('epoch'::text, NOW()) NOT NULL
 );
 
--- simplified
+CREATE TYPE tx_type AS ENUM ('swap', 'provide', 'initial_provide', 'withdraw', 'create_pair', 'transfer');
+
 CREATE TABLE parsed_tx (
-    id          BIGSERIAL NOT NULL PRIMARY KEY,
-    chain_id    CHARACTER varying NOT NULL,
-    height      BIGINT NOT NULL,
-    timestamp   DOUBLE PRECISION NOT NULL,
-    created_at  DOUBLE PRECISION NOT NULL DEFAULT date_part('epoch'::text, now()),
-    meta        JSON NULL
+    id                  BIGSERIAL NOT NULL PRIMARY KEY,
+    chain_id            VARCHAR NOT NULL,
+    height              BIGINT NOT NULL,
+    timestamp           DOUBLE PRECISION NOT NULL,
+    hash                VARCHAR NOT NULL,
+    type                tx_type NOT NULL,
+    sender              VARCHAR NOT NULL,
+    contract            VARCHAR NOT NULL,
+    asset0              VARCHAR NULL,
+    asset0_amount       NUMERIC(40, 0) NOT NULL,
+    asset1              VARCHAR NULL,
+    asset1_amount       NUMERIC(40, 0) NOT NULL,
+    lp                  VARCHAR NULL,
+    lp_amount           NUMERIC(40, 0) NOT NULL,
+    commission_amount   NUMERIC(40, 0) NULL,
+    commission0_amount  NUMERIC(40, 0) NULL,
+    commission1_amount  NUMERIC(40, 0) NULL,
+    created_at          DOUBLE PRECISION NOT NULL DEFAULT date_part('epoch'::text, now()),
+    meta                JSON NULL
 );
 
 -- simplified

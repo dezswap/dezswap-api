@@ -1,10 +1,11 @@
 package dashboard
 
 import (
-	"github.com/dezswap/dezswap-api/api/v1/controller"
-	dashboard2 "github.com/dezswap/dezswap-api/api/v1/service/dashboard"
 	"net/http"
 	"strings"
+
+	"github.com/dezswap/dezswap-api/api/v1/controller"
+	dashboard2 "github.com/dezswap/dezswap-api/api/v1/service/dashboard"
 
 	"github.com/dezswap/dezswap-api/pkg/httputil"
 	"github.com/dezswap/dezswap-api/pkg/logging"

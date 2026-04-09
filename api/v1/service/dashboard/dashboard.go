@@ -1108,7 +1108,7 @@ func (d *dashboard) TvlsOf(addr Addr, duration Duration) ([]Tvl, error) {
 // Txs implements Dashboard.
 func (d *dashboard) Txs(txType TxType, addr ...Addr) (Txs, error) {
 	m := parser.ParsedTx{}
-	subQuery := d.DB.Model(&m).Select("*").Where("chain_id = ?", d.chainId).Order("timestamp DESC").Limit(100)
+	subQuery := d.DB.Model(&m).Where("chain_id = ? AND type != 'transfer'", d.chainId).Order("timestamp DESC").Limit(100)
 	if txType != TX_TYPE_ALL {
 		subQuery = subQuery.Where("type = ?", string(txType))
 	}
@@ -1123,12 +1123,12 @@ func (d *dashboard) Txs(txType TxType, addr ...Addr) (Txs, error) {
 		pt.sender AS sender,
 		pt.asset0 AS asset0,
 		t0.symbol AS asset0_symbol,
-		pt.asset0_amount AS asset0_amount,
+		pt.asset0_amount::text AS asset0_amount,
 		pt.asset1 AS asset1,
 		t1.symbol AS asset1_symbol,
-		pt.asset1_amount AS asset1_amount,
+		pt.asset1_amount::text AS asset1_amount,
 		COALESCE(
-			ABS(CASE WHEN pt.type = 'swap' OR pt.type = 'transfer' THEN
+			ABS(CASE WHEN pt.type = 'swap' THEN
 					CASE WHEN pr0.price IS NOT NULL
 						THEN pr0.price * pt.asset0_amount / POWER(10, t0.decimals)
 						ELSE pr1.price * pt.asset1_amount / POWER(10, t1.decimals)
@@ -1140,7 +1140,7 @@ func (d *dashboard) Txs(txType TxType, addr ...Addr) (Txs, error) {
 					END
 			END), 0)::text AS total_value,
 		TO_TIMESTAMP(pt."timestamp") AT TIME ZONE 'UTC' as timestamp`,
-	).Table("(?) as pt", subQuery).Joins(`
+	).Table("(?) AS pt", subQuery).Joins(`
 		JOIN tokens AS t0 ON pt.asset0 = t0.address AND pt.chain_id = t0.chain_id
 		JOIN tokens AS t1 ON pt.asset1 = t1.address AND pt.chain_id = t1.chain_id
 		LEFT JOIN LATERAL (select price from price p join (SELECT max(tx_id) tx_id FROM price WHERE token_id = t0.id AND tx_id <= pt.id) t on p.tx_id = t.tx_id where p.token_id = t0.id) pr0 ON TRUE
@@ -1158,8 +1158,7 @@ func (d *dashboard) Txs(txType TxType, addr ...Addr) (Txs, error) {
 // TxsOfToken implements Dashboard.
 func (d *dashboard) TxsOfToken(txType TxType, tokenAddrs ...Addr) (Txs, error) {
 	m := parser.ParsedTx{}
-	subQuery := d.DB.Model(&m).Select("*").Where("chain_id = ?", d.chainId).Order("timestamp DESC").Limit(100)
-
+	subQuery := d.DB.Model(&m).Where("chain_id = ? AND type != 'transfer'", d.chainId).Order("timestamp DESC").Limit(100)
 	if txType != TX_TYPE_ALL {
 		subQuery = subQuery.Where("type = ?", string(txType))
 	}
@@ -1174,12 +1173,12 @@ func (d *dashboard) TxsOfToken(txType TxType, tokenAddrs ...Addr) (Txs, error) {
 		pt.sender AS sender,
 		pt.asset0 AS asset0,
 		t0.symbol AS asset0_symbol,
-		pt.asset0_amount AS asset0_amount,
+		pt.asset0_amount::text AS asset0_amount,
 		pt.asset1 AS asset1,
 		t1.symbol AS asset1_symbol,
-		pt.asset1_amount AS asset1_amount,
+		pt.asset1_amount::text AS asset1_amount,
 		COALESCE(
-			ABS(CASE WHEN pt.type = 'swap' OR pt.type = 'transfer' THEN
+			ABS(CASE WHEN pt.type = 'swap' THEN
 					CASE WHEN pr0.price IS NOT NULL
 						THEN pr0.price * pt.asset0_amount / POWER(10, t0.decimals)
 						ELSE pr1.price * pt.asset1_amount / POWER(10, t1.decimals)
@@ -1191,7 +1190,7 @@ func (d *dashboard) TxsOfToken(txType TxType, tokenAddrs ...Addr) (Txs, error) {
 					END
 			END), 0)::text AS total_value,
 		TO_TIMESTAMP(pt."timestamp") AT TIME ZONE 'UTC' as timestamp`,
-	).Table("(?) as pt", subQuery).Joins(`
+	).Table("(?) AS pt", subQuery).Joins(`
 		JOIN tokens AS t0 ON pt.asset0 = t0.address AND pt.chain_id = t0.chain_id
 		JOIN tokens AS t1 ON pt.asset1 = t1.address AND pt.chain_id = t1.chain_id
 		LEFT JOIN LATERAL (select price from price p join (SELECT max(tx_id) tx_id FROM price WHERE token_id = t0.id AND tx_id <= pt.id) t on p.tx_id = t.tx_id where p.token_id = t0.id) pr0 ON TRUE
@@ -1201,7 +1200,7 @@ func (d *dashboard) TxsOfToken(txType TxType, tokenAddrs ...Addr) (Txs, error) {
 
 	txs := Txs{}
 	if err := query.Scan(&txs).Error; err != nil {
-		return nil, errors.Wrap(err, "dashboard.Txs")
+		return nil, errors.Wrap(err, "dashboard.TxsOfToken")
 	}
 	return txs, nil
 }
