@@ -53,6 +53,10 @@ watch:
 test:
 	go test -short ./...
 
+.PHONY: test-race
+test-race:
+	go test -race -count=1 -short ./...
+
 # Run all benchmarks
 .PHONY: bench
 bench:

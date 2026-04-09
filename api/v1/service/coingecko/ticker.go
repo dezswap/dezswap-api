@@ -13,6 +13,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -31,11 +32,12 @@ const (
 type tickerService struct {
 	chainId string
 	*gorm.DB
+	mu           sync.RWMutex
 	cachedPrices [][priceInfoLength]float64
 }
 
 func NewTickerService(chainId string, db *gorm.DB) service.Getter[Ticker] {
-	return &tickerService{chainId, db, [][priceInfoLength]float64{}}
+	return &tickerService{chainId: chainId, DB: db}
 }
 
 // Get implements Getter
@@ -338,14 +340,20 @@ func (s *tickerService) cachePriceInUsd(priceCoinId string) error {
 		return err
 	}
 
+	s.mu.Lock()
 	s.cachedPrices = decoded.Prices
+	s.mu.Unlock()
 
 	return nil
 }
 
 func (s *tickerService) price(targetTimestamp float64, force bool) float64 {
+	s.mu.RLock()
+	prices := s.cachedPrices
+	s.mu.RUnlock()
+
 	price := float64(0)
-	for _, p := range s.cachedPrices {
+	for _, p := range prices {
 		if p[priceTimestamp] > math.Trunc(targetTimestamp)*1_000 {
 			return price
 		}
