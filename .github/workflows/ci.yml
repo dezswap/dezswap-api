@@ -51,7 +51,7 @@ jobs:
         TEST_CONFIG: ${{ secrets.TEST_CONFIG }}
       run: |
         echo "$TEST_CONFIG" > config.yml
-        make test
+        make test-race
 
     - name: Build all
       run: make build-all

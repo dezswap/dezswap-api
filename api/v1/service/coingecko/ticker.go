@@ -13,7 +13,10 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
+
+	"golang.org/x/sync/singleflight"
 )
 
 const priceTokenId = "axlusdc"
@@ -29,13 +32,17 @@ const (
 )
 
 type tickerService struct {
-	chainId string
+	chainId    string
 	*gorm.DB
+	mu           sync.RWMutex
 	cachedPrices [][priceInfoLength]float64
+	sfGroup      singleflight.Group
+	httpClient   *http.Client
+	endpoint     string
 }
 
 func NewTickerService(chainId string, db *gorm.DB) service.Getter[Ticker] {
-	return &tickerService{chainId, db, [][priceInfoLength]float64{}}
+	return &tickerService{chainId: chainId, DB: db, endpoint: coinGeckoEndpoint}
 }
 
 // Get implements Getter
@@ -68,8 +75,9 @@ func (s *tickerService) Get(key string) (*Ticker, error) {
 	}
 
 	if p := s.price(ticker.Timestamp, false); p == 0 {
-		err := s.cachePriceInUsd(priceTokenId)
-		if err != nil {
+		if _, err, _ = s.sfGroup.Do(priceTokenId, func() (any, error) {
+			return nil, s.cachePriceInUsd(priceTokenId)
+		}); err != nil {
 			return nil, err
 		}
 	}
@@ -171,8 +179,9 @@ func (s *tickerService) GetAll() ([]Ticker, error) {
 	}
 
 	if p := s.price(latestTs, false); p == 0 {
-		err := s.cachePriceInUsd(priceTokenId)
-		if err != nil {
+		if _, err, _ = s.sfGroup.Do(priceTokenId, func() (any, error) {
+			return nil, s.cachePriceInUsd(priceTokenId)
+		}); err != nil {
 			return nil, err
 		}
 	}
@@ -299,7 +308,7 @@ func (s *tickerService) cachePriceInUsd(priceCoinId string) error {
 	timeoutCtx, cancel := context.WithTimeout(context.Background(), queryTimeout)
 	defer cancel()
 
-	endpoint, err := url.Parse(coinGeckoEndpoint + priceCoinId + "/market_chart")
+	endpoint, err := url.Parse(s.endpoint + priceCoinId + "/market_chart")
 	if err != nil {
 		return err
 	}
@@ -314,7 +323,10 @@ func (s *tickerService) cachePriceInUsd(priceCoinId string) error {
 		return err
 	}
 
-	client := http.Client{}
+	client := s.httpClient
+	if client == nil {
+		client = http.DefaultClient
+	}
 	response, err := client.Do(request)
 	if err != nil {
 		return err
@@ -338,14 +350,20 @@ func (s *tickerService) cachePriceInUsd(priceCoinId string) error {
 		return err
 	}
 
+	s.mu.Lock()
 	s.cachedPrices = decoded.Prices
+	s.mu.Unlock()
 
 	return nil
 }
 
 func (s *tickerService) price(targetTimestamp float64, force bool) float64 {
+	s.mu.RLock()
+	prices := s.cachedPrices
+	s.mu.RUnlock()
+
 	price := float64(0)
-	for _, p := range s.cachedPrices {
+	for _, p := range prices {
 		if p[priceTimestamp] > math.Trunc(targetTimestamp)*1_000 {
 			return price
 		}
