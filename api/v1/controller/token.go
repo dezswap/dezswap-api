@@ -70,6 +70,7 @@ func (c *tokenController) Token(ctx *gin.Context) {
 	}
 
 	address = strings.TrimPrefix(address, "/")
+	address = httputil.DecodeAddressParam(address)
 	token, err := c.Get(address)
 	if err != nil {
 		c.logger.Warn(err)

@@ -96,7 +96,7 @@ func (c *dashboardController) ChartByToken(ctx *gin.Context) {
 		duration = dashboard2.All
 	}
 
-	addr := dashboard2.Addr(ctx.Param("address"))
+	addr := dashboard2.Addr(httputil.DecodeAddressParam(ctx.Param("address")))
 	if len(addr) == 0 {
 		httputil.NewError(ctx, http.StatusBadRequest, errors.New("must provide token address"))
 		return
@@ -371,6 +371,7 @@ func (c *dashboardController) Token(ctx *gin.Context) {
 		httputil.NewError(ctx, http.StatusBadRequest, errors.New("invalid address address"))
 		return
 	}
+	address = httputil.DecodeAddressParam(address)
 
 	token, err := c.Dashboard.Token(dashboard2.Addr(address))
 	if err != nil {
