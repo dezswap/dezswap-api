@@ -7,7 +7,7 @@
 #   docker run --rm -it --env-file=path/to/.env --name dezswap-api-app dezswap/dezswap-api-service
 
 ### BUILD
-FROM golang:1.23-alpine AS build
+FROM golang:1.25-alpine AS build
 ARG APP_TYPE=indexer
 ARG LIBWASMVM_VERSION=v2.2.4
 ARG APP_VERSION=dev
