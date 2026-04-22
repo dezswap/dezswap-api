@@ -2,12 +2,7 @@ package coingecko
 
 import (
 	"context"
-	cmath "cosmossdk.io/math"
 	"encoding/json"
-	"github.com/dezswap/dezswap-api/api/v1/service"
-	"github.com/dezswap/dezswap-api/pkg"
-	"github.com/pkg/errors"
-	"gorm.io/gorm"
 	"math"
 	"net/http"
 	"net/url"
@@ -15,6 +10,12 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	cmath "cosmossdk.io/math"
+	"github.com/dezswap/dezswap-api/api/v1/service"
+	"github.com/dezswap/dezswap-api/pkg"
+	"github.com/pkg/errors"
+	"gorm.io/gorm"
 
 	"golang.org/x/sync/singleflight"
 )
@@ -32,7 +33,7 @@ const (
 )
 
 type tickerService struct {
-	chainId    string
+	chainId string
 	*gorm.DB
 	mu           sync.RWMutex
 	cachedPrices [][priceInfoLength]float64
@@ -61,7 +62,7 @@ func (s *tickerService) Get(key string) (*Ticker, error) {
 	if len(tickers) > 0 {
 		ticker = &tickers[len(tickers)-1]
 		if ticker.LastPrice == "" {
-			price, err := s.lastSwapPrice(ticker.PoolId)
+			price, err := s.lastSwapPriceFromInactive(ticker.PoolId)
 			if err != nil {
 				return nil, errors.Wrap(err, "tickerService.Get")
 			}
@@ -91,9 +92,10 @@ func (s *tickerService) Get(key string) (*Ticker, error) {
 	return ticker, nil
 }
 
-func (s *tickerService) lastSwapPrice(poolId string) (string, error) {
-	cond := "p.contract = '" + poolId + "'"
-	inactiveTickers, err := s.inactivePools(cond)
+// lastSwapPriceFromInactive returns the most recent swap price
+// for a pool that has no activity in the recent window.
+func (s *tickerService) lastSwapPriceFromInactive(poolId string) (string, error) {
+	inactiveTickers, err := s.inactivePool(poolId)
 	if err != nil {
 		return "", err
 	}
@@ -154,11 +156,7 @@ func (s *tickerService) GetAll() ([]Ticker, error) {
 		}
 	}
 
-	var cond string
-	if len(activePoolIds) > 0 {
-		cond = "p.contract not in ('" + strings.Join(activePoolIds, "','") + "')"
-	}
-	inactiveTickers, err := s.inactivePools(cond)
+	inactiveTickers, err := s.inactivePools(activePoolIds)
 	if err != nil {
 		return nil, errors.Wrap(err, "tickerService.GetAll")
 	}
@@ -259,8 +257,22 @@ where ps.chain_id = ?
 	return tickers, nil
 }
 
-func (s *tickerService) inactivePools(cond string) ([]Ticker, error) {
-	query := `
+// inactivePool returns ticker data for a single inactive pool by contract address.
+func (s *tickerService) inactivePool(contractId string) ([]Ticker, error) {
+	return s.queryInactivePools(" and p.contract = ?", contractId)
+}
+
+// inactivePools returns ticker data for all inactive pools, excluding the given pool IDs.
+func (s *tickerService) inactivePools(excludePoolIds []string) ([]Ticker, error) {
+	if len(excludePoolIds) > 0 {
+		return s.queryInactivePools(" and p.contract not in ?", excludePoolIds)
+	}
+	return s.queryInactivePools("", nil)
+}
+
+// queryInactivePools runs the pair_stats_30m base query with an optional extra condition and arg.
+func (s *tickerService) queryInactivePools(cond string, arg any) ([]Ticker, error) {
+	const query = `
 select p.asset0 base_currency,
        p.asset1 target_currency,
        '0' base_volume,
@@ -269,25 +281,26 @@ select p.asset0 base_currency,
        t0.decimals base_decimals,
        t1.decimals target_decimals,
        liquidity0_in_price base_liquidity_in_price,
-       p.contract pool_id, 
+       p.contract pool_id,
        extract(epoch from now()) * 1000 as timestamp
 from pair_stats_30m ps
 	join (select pair_id, max(timestamp) latest_timestamp
 		from pair_stats_30m
-		group by pair_id) t on ps.pair_id = t.pair_id and ps.timestamp = t.latest_timestamp 
+		group by pair_id) t on ps.pair_id = t.pair_id and ps.timestamp = t.latest_timestamp
 	join pair p on ps.pair_id = p.id
 	join tokens t0 on p.chain_id = t0.chain_id and p.asset0 = t0.address
 	join tokens t1 on p.chain_id = t1.chain_id and p.asset1 = t1.address
 where p.chain_id = ?
 `
-
-	if cond != "" {
-		query += " and " + cond
-	}
-
 	var tickers []Ticker
-	if tx := s.Raw(query, s.chainId).Find(&tickers); tx.Error != nil {
-		return nil, errors.Wrap(tx.Error, "TickerService.inactivePools")
+	var tx *gorm.DB
+	if cond != "" {
+		tx = s.Raw(query+cond, s.chainId, arg).Find(&tickers)
+	} else {
+		tx = s.Raw(query, s.chainId).Find(&tickers)
+	}
+	if tx.Error != nil {
+		return nil, errors.Wrap(tx.Error, "TickerService.queryInactivePools")
 	}
 
 	return tickers, nil
