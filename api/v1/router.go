@@ -22,7 +22,7 @@ import (
 )
 
 // RegisterRoutes sets up v1 API endpoints
-func RegisterRoutes(rg *gin.RouterGroup, chainId string, version string, networkMetadata pkg.NetworkMetadata, db *gorm.DB, cache cache.Cache, logger logging.Logger) {
+func RegisterRoutes(rg *gin.RouterGroup, chainId string, coinGeckoApiKey string, version string, networkMetadata pkg.NetworkMetadata, db *gorm.DB, cache cache.Cache, logger logging.Logger) {
 	statusService := service.NewStatusService(db, cache)
 	pairService := service.NewPairService(chainId, db)
 	poolService := service.NewPoolService(chainId, db)
@@ -38,7 +38,7 @@ func RegisterRoutes(rg *gin.RouterGroup, chainId string, version string, network
 	// CoinGecko endpoint
 	r := rg.Group("/coingecko")
 	coinGeckoPairService := cgs.NewPairService(chainId, db)
-	coinGeckoTickerService := cgs.NewTickerService(chainId, db)
+	coinGeckoTickerService := cgs.NewTickerService(chainId, db, coinGeckoApiKey)
 
 	coingecko.InitPairController(coinGeckoPairService, r, logger)
 	coingecko.InitTickerController(coinGeckoTickerService, r, logger)
