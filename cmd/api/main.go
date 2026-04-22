@@ -7,6 +7,8 @@ import (
 	"io"
 	"log"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	cache_redis "github.com/dezswap/dezswap-api/pkg/cache/redis"
@@ -23,22 +25,24 @@ import (
 )
 
 func main() {
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
 	c := configs.New()
 	c.Log.ChainId = c.Api.Server.ChainId
-	cache := cacheStore(c.Api.Cache)
+	cache := cacheStore(ctx, c.Api.Cache)
 	db := dbCon(c.Api.DB)
 	api.RunServer(c, cache, db)
 }
 
 func dbCon(c configs.RdbConfig) *gorm.DB {
-
-    dbDsn := fmt.Sprintf(
-        "host=%s port=%s user=%s password=%s dbname=%s",
-        c.Host, c.Port, c.Username, c.Password, c.Database,
-    )
-    if c.SSLMode != "" {
-        dbDsn = fmt.Sprintf("%s sslmode=%s", dbDsn, c.SSLMode)
-    }
+	dbDsn := fmt.Sprintf(
+		"host=%s port=%s user=%s password=%s dbname=%s",
+		c.Host, c.Port, c.Username, c.Password, c.Database,
+	)
+	if c.SSLMode != "" {
+		dbDsn = fmt.Sprintf("%s sslmode=%s", dbDsn, c.SSLMode)
+	}
 	writer := io.MultiWriter(os.Stdout)
 	db, err := gorm.Open(postgres.Open(dbDsn), &gorm.Config{
 		NowFunc: func() time.Time {
@@ -60,7 +64,7 @@ func dbCon(c configs.RdbConfig) *gorm.DB {
 	return db
 }
 
-func cacheStore(c configs.CacheConfig) cache.Cache {
+func cacheStore(ctx context.Context, c configs.CacheConfig) cache.Cache {
 	if c.RedisConfig.Host != "" {
 		option := redis.Options{
 			Addr:     fmt.Sprintf("%s:%s", c.RedisConfig.Host, c.RedisConfig.Port),
@@ -77,13 +81,15 @@ func cacheStore(c configs.CacheConfig) cache.Cache {
 		}
 
 		client := redis.NewClient(&option)
-		if err := client.Ping(context.Background()).Err(); err != nil {
+		pingCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		defer cancel()
+		if err := client.Ping(pingCtx).Err(); err != nil {
 			panic(err)
 		}
 		return cache_redis.New(cache.NewByteCodec(), client)
 	}
 	if c.MemoryCache {
-		return memory.NewMemoryCache(cache.NewByteCodec())
+		return memory.NewMemoryCache(ctx, cache.NewByteCodec())
 	}
 
 	return nil
