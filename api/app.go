@@ -56,7 +56,7 @@ func RunServer(c configs.Config, cache cache.Cache, db *gorm.DB) {
 	app.setMiddlewares(cache)
 
 	v1Router := app.engine.Group(ApiVersion)
-	v1.RegisterRoutes(v1Router, serverConfig.ChainId, AppVersion, app.NetworkMetadata, db, cache, app.logger)
+	v1.RegisterRoutes(v1Router, serverConfig.ChainId, serverConfig.CoinGeckoApiKey, AppVersion, app.NetworkMetadata, db, cache, app.logger)
 
 	if c.Sentry.DSN != "" {
 		if err := app.configureReporter(c.Sentry.DSN, serverConfig.ChainId, map[string]string{

@@ -23,6 +23,7 @@ import (
 const priceTokenId = "axlusdc"
 const coinGeckoEndpoint = "https://api.coingecko.com/api/v3/coins/"
 const queryTimeout = 10 * time.Second
+const priceCacheTTL = 24 * time.Hour
 
 type priceInfo int
 
@@ -37,13 +38,20 @@ type tickerService struct {
 	*gorm.DB
 	mu           sync.RWMutex
 	cachedPrices [][priceInfoLength]float64
+	cacheExpiry  time.Time
 	sfGroup      singleflight.Group
 	httpClient   *http.Client
 	endpoint     string
+	apiKey       string
 }
 
-func NewTickerService(chainId string, db *gorm.DB) service.Getter[Ticker] {
-	return &tickerService{chainId: chainId, DB: db, endpoint: coinGeckoEndpoint}
+func NewTickerService(chainId string, db *gorm.DB, apiKey string) service.Getter[Ticker] {
+	s := &tickerService{chainId: chainId, DB: db, endpoint: coinGeckoEndpoint, apiKey: apiKey}
+	if apiKey == "" {
+		s.cachedPrices = [][priceInfoLength]float64{{0, 1.0}, {math.MaxFloat64, 1.0}}
+		s.cacheExpiry = time.Date(9999, 1, 1, 0, 0, 0, 0, time.UTC)
+	}
+	return s
 }
 
 // Get implements Getter
@@ -316,11 +324,21 @@ func (s *tickerService) liquidityInUsd(ticker Ticker) (string, error) {
 	return strconv.FormatFloat(baseLiquidityInPrice*priceTokenInUsd, 'f', -1, 64), nil
 }
 
-// TODO: fixed endpoint and arguments
+// cachePriceInUsd fetches the 24-hour price history of priceCoinId from the
+// CoinGecko market_chart endpoint and stores it in cachedPrices. It is a
+// no-op if the cache has not yet expired.
 func (s *tickerService) cachePriceInUsd(priceCoinId string) error {
+	s.mu.RLock()
+	expiry := s.cacheExpiry
+	s.mu.RUnlock()
+	if time.Now().Before(expiry) {
+		return nil // still within TTL
+	}
+
 	timeoutCtx, cancel := context.WithTimeout(context.Background(), queryTimeout)
 	defer cancel()
 
+	// TODO: fixed endpoint and arguments
 	endpoint, err := url.Parse(s.endpoint + priceCoinId + "/market_chart")
 	if err != nil {
 		return err
@@ -335,6 +353,7 @@ func (s *tickerService) cachePriceInUsd(priceCoinId string) error {
 	if err != nil {
 		return err
 	}
+	request.Header.Set("x-cg-demo-api-key", s.apiKey)
 
 	client := s.httpClient
 	if client == nil {
@@ -365,11 +384,15 @@ func (s *tickerService) cachePriceInUsd(priceCoinId string) error {
 
 	s.mu.Lock()
 	s.cachedPrices = decoded.Prices
+	s.cacheExpiry = time.Now().Add(priceCacheTTL)
 	s.mu.Unlock()
 
 	return nil
 }
 
+// price returns the USD price of the price token at the given timestamp.
+// force=true returns the last seen price while force=false returns 0
+// (signalling the caller to trigger a cache refresh).
 func (s *tickerService) price(targetTimestamp float64, force bool) float64 {
 	s.mu.RLock()
 	prices := s.cachedPrices
@@ -377,6 +400,8 @@ func (s *tickerService) price(targetTimestamp float64, force bool) float64 {
 
 	price := float64(0)
 	for _, p := range prices {
+		// cachedPrices timestamps are in milliseconds (e.g. 1711843200000);
+		// targetTimestamp is Unix seconds, so multiply by 1_000 to match.
 		if p[priceTimestamp] > math.Trunc(targetTimestamp)*1_000 {
 			return price
 		}
