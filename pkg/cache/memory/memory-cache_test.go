@@ -1,6 +1,7 @@
 package memory
 
 import (
+	"context"
 	"fmt"
 	"sync"
 	"testing"
@@ -29,27 +30,25 @@ func Test_cache(t *testing.T) {
 	tcs := []testCase{
 		// find key
 		{setUpItem{"test", "value", cache.CacheLifeTimeNeverExpired}, 0, "garbageValue", "value"},
-		{setUpItem{"test", "value", cache.CacheLifeTimeNeverExpired}, time.Second, "garbageValue", "value"},
-		{setUpItem{"test", "value", time.Second * 2}, time.Second, "garbageValue", "value"},
-		{setUpItem{"test", "value", time.Second}, time.Second * 2, "", ""},
-		{setUpItem{"test", "value", time.Second}, time.Second * 2, "", ""},
+		{setUpItem{"test", "value", cache.CacheLifeTimeNeverExpired}, time.Millisecond * 50, "garbageValue", "value"},
+		{setUpItem{"test", "value", time.Millisecond * 100}, time.Millisecond * 50, "garbageValue", "value"},
+		{setUpItem{"test", "value", time.Millisecond * 50}, time.Millisecond * 150, "", ""},
+		{setUpItem{"test", "value", time.Millisecond * 50}, time.Millisecond * 150, "", ""},
 	}
 
-	assert := assert.New(t)
-
-	tcTester := func(id int, t testCase) {
-		c := NewMemoryCache(cache.NewByteCodec())
-		setUp(t.item, c)
+	tcTester := func(id int, tc testCase) {
+		c := NewMemoryCache(context.Background(), cache.NewByteCodec())
+		setUp(tc.item, c)
 		fmt.Printf("test case %d\n", id)
-		time.Sleep(t.wait)
+		time.Sleep(tc.wait)
 
-		err := c.Get(t.item.key, &t.destination)
-		if t.expected == "" {
-			assert.Error(err)
+		err := c.Get(tc.item.key, &tc.destination)
+		if tc.expected == "" {
+			assert.Error(t, err)
 		} else {
-			assert.NoError(err)
+			assert.NoError(t, err)
 		}
-		assert.Equal(t.expected, t.destination)
+		assert.Equal(t, tc.expected, tc.destination)
 	}
 
 	wg := sync.WaitGroup{}
@@ -62,4 +61,31 @@ func Test_cache(t *testing.T) {
 		}(id, tc)
 	}
 	wg.Wait()
+}
+
+func Test_deleteExpired(t *testing.T) {
+	assert := assert.New(t)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	c := NewMemoryCache(ctx, cache.NewByteCodec()).(*memoryCacheImpl)
+
+	// Set one item that expires soon and one that does not
+	c.Set("expires", "value", time.Millisecond*10)
+	c.Set("permanent", "value", cache.CacheLifeTimeNeverExpired)
+
+	// Wait for the item to expire
+	time.Sleep(time.Millisecond * 20)
+
+	// Manually trigger cleanup
+	c.deleteExpired()
+
+	c.RLock()
+	_, hasExpired := c.store["expires"]
+	_, hasPermanent := c.store["permanent"]
+	c.RUnlock()
+
+	assert.False(hasExpired, "expired key should have been removed")
+	assert.True(hasPermanent, "permanent key should remain")
 }
