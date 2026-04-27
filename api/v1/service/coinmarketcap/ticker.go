@@ -232,12 +232,14 @@ from pair_stats_30m ps
 	join tokens t1 on p.chain_id = t1.chain_id and p.asset1 = t1.address
 where p.chain_id = ?
 `
-	if len(activePoolIds) > 0 {
-		query += " and p.contract not in ('" + strings.Join(activePoolIds, "','") + "')"
-	}
-
 	tickers := []Ticker{}
-	if tx := s.Raw(query, s.chainId).Find(&tickers); tx.Error != nil {
+	var tx *gorm.DB
+	if len(activePoolIds) > 0 {
+		tx = s.Raw(query+" and p.contract not in ?", s.chainId, activePoolIds).Find(&tickers)
+	} else {
+		tx = s.Raw(query, s.chainId).Find(&tickers)
+	}
+	if tx.Error != nil {
 		return nil, errors.Wrap(tx.Error, "TickerService.inactivePools")
 	}
 
