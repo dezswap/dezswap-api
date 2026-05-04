@@ -25,7 +25,7 @@ func TestSingleflightDeduplicatesCoinGeckoRequests(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	s := &tickerService{httpClient: srv.Client(), endpoint: srv.URL + "/"}
+	s := &tickerService{httpClient: srv.Client(), endpoint: srv.URL + "/", apiKey: "test-key"}
 
 	const concurrency = 20
 	var wg sync.WaitGroup
@@ -44,9 +44,9 @@ func TestSingleflightDeduplicatesCoinGeckoRequests(t *testing.T) {
 	assert.Equal(t, 2.0, s.price(3_000_000, true), "prices should be cached after fetch")
 }
 
-// TestSingleflightSecondBatchFetchesAgain verifies that after the in-flight
-// call completes, a subsequent call (new batch) does issue a new HTTP request.
-func TestSingleflightSecondBatchFetchesAgain(t *testing.T) {
+// TestSingleflightSecondBatchHitsTTL verifies that a subsequent sequential call
+// within the TTL window does NOT issue a new HTTP request (cache is still valid).
+func TestSingleflightSecondBatchHitsTTL(t *testing.T) {
 	var callCount atomic.Int32
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -56,19 +56,19 @@ func TestSingleflightSecondBatchFetchesAgain(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	s := &tickerService{httpClient: srv.Client(), endpoint: srv.URL + "/"}
+	s := &tickerService{httpClient: srv.Client(), endpoint: srv.URL + "/", apiKey: "test-key"}
 
-	// first call
+	// first call — populates cache and sets cacheExpiry
 	_, err, _ := s.sfGroup.Do(priceTokenId, func() (any, error) {
 		return nil, s.cachePriceInUsd(priceTokenId)
 	})
 	assert.NoError(t, err)
 
-	// second call — previous Do has already finished, so a new request goes out
+	// second call within TTL — should be a cache hit, no new HTTP request
 	_, err, _ = s.sfGroup.Do(priceTokenId, func() (any, error) {
 		return nil, s.cachePriceInUsd(priceTokenId)
 	})
 	assert.NoError(t, err)
 
-	assert.Equal(t, int32(2), callCount.Load(), "each independent call should fetch once")
+	assert.Equal(t, int32(1), callCount.Load(), "second call within TTL should not re-fetch")
 }

@@ -42,6 +42,7 @@ func apiServerConfig(v *viper.Viper) ApiServerConfig {
 		Mode:               v.GetString("mode"),
 		ChainId:            v.GetString("chain_id"),
 		CorsAllowedOrigins: v.GetStringSlice("cors_allowed_origins"),
+		CoinGeckoApiKey:    v.GetString("coingecko_api_key"),
 	}
 }
 
@@ -57,6 +58,7 @@ func apiServerConfigFromEnv(v *viper.Viper, prefix string) ApiServerConfig {
 		Mode:               v.GetString(strings.ToUpper(fmt.Sprintf("%s_%s", prefix, "mode"))),
 		ChainId:            v.GetString(strings.ToUpper(fmt.Sprintf("%s_%s", prefix, "chain_id"))),
 		CorsAllowedOrigins: splitAndTrim(v.GetString(strings.ToUpper(fmt.Sprintf("%s_%s", prefix, "cors_allowed_origins")))),
+		CoinGeckoApiKey:    v.GetString(strings.ToUpper(fmt.Sprintf("%s_%s", prefix, "coingecko_api_key"))),
 	}
 }
 
@@ -75,6 +77,7 @@ type ApiServerConfig struct {
 	Mode               string
 	ChainId            string
 	CorsAllowedOrigins []string
+	CoinGeckoApiKey    string
 }
 
 func (lhs *ApiServerConfig) Override(rhs ApiServerConfig) {
@@ -98,6 +101,9 @@ func (lhs *ApiServerConfig) Override(rhs ApiServerConfig) {
 	}
 	if len(rhs.CorsAllowedOrigins) > 0 {
 		lhs.CorsAllowedOrigins = rhs.CorsAllowedOrigins
+	}
+	if rhs.CoinGeckoApiKey != "" {
+		lhs.CoinGeckoApiKey = rhs.CoinGeckoApiKey
 	}
 }
 
