@@ -168,6 +168,11 @@ func (s *nodeRepoSuite) Test_cw20FromNode() {
 			mapperErr: nil,
 			expectErr: "token is nil",
 		},
+		{
+			name:      "successful token resolution",
+			mapperErr: nil,
+			expectErr: "",
+		},
 	}
 
 	for _, tc := range tcs {
@@ -176,11 +181,24 @@ func (s *nodeRepoSuite) Test_cw20FromNode() {
 			r := nodeRepoImpl{s.ethClient, s.client, mapperMock, s.networkMetadata, s.chainId}
 
 			s.client.(*xpla_mock.GrpcClientMock).On("QueryContract", addr, dezswap.QUERY_TOKEN, s.networkMetadata.LatestHeightIndicator).Return(dummyRes, nil).Once()
-			mapperMock.On("resToToken", addr, s.chainId, dummyRes).Return((*indexer.Token)(nil), tc.mapperErr).Once()
+			
+			var mockToken *indexer.Token
+			if tc.expectErr == "" {
+				mockToken = &indexer.Token{Symbol: "TEST", Name: "Test Token", Decimals: 6}
+			}
+			mapperMock.On("resToToken", addr, s.chainId, dummyRes).Return(mockToken, tc.mapperErr).Once()
 
-			_, err := r.cw20FromNode(addr)
-			s.Require().Error(err)
-			s.True(strings.Contains(err.Error(), tc.expectErr))
+			token, err := r.cw20FromNode(addr)
+			if tc.expectErr != "" {
+				s.Require().Error(err)
+				s.True(strings.Contains(err.Error(), tc.expectErr))
+			} else {
+				s.Require().NoError(err)
+				s.Require().NotNil(token)
+				s.Equal(addr, token.Address)
+				s.Equal(s.chainId, token.ChainId)
+				s.Equal("TEST", token.Symbol)
+			}
 		})
 	}
 }
