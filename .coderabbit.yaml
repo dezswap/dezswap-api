@@ -1,0 +1,76 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+language: "en"
+early_access: true
+chat: { auto_reply: true }
+
+reviews:
+  request_changes_workflow: true
+  high_level_summary: true
+  poem: false
+  review_status: true
+  collapse_walkthrough: true
+
+  path_filters:
+    - "!**/*.pb.go"
+    - "!**/*.mod"
+    - "!**/*.sum"
+    - "!api/docs/**"
+    - "!pkg/erc20/**"
+
+  path_instructions:
+  - path: "api/**"
+    instructions: |
+      Review the API layer (controllers and services) for separation of concerns, query safety, and spec compliance.
+      - Flag any business logic in controller files; it belongs in the service layer.
+      - Verify every public endpoint has Swagger godoc annotations (@Summary, @Tags, @Success, @Failure, @Router).
+      - Check that all error responses use httputil helpers with appropriate HTTP status codes.
+      - Ensure mapper files (*mapper.go) contain only type conversion — no DB calls, no side effects.
+      - Flag any raw SQL string concatenation in services; enforce GORM methods or parameterized queries to prevent injection.
+      - Verify that chain_id is always included in WHERE clauses to prevent cross-chain data leaks.
+      - For coingecko/: verify ticker_id is formatted as "base_target", numeric fields are strings with no trailing zeros, and liquidity_in_usd equals 2× base-side liquidity.
+      - For coinmarketcap/: flag any response fields borrowed from CoinGecko conventions; the two adapters must remain independent.
+
+  - path: "indexer/**"
+    instructions: |
+      Review all indexer operations for reliability and safety.
+      - Verify all DB writes are idempotent and safe to re-run on retry.
+      - Flag any panic calls; errors must be wrapped with context and returned to the scheduler.
+      - Check that retry and backoff logic is not duplicated here — it belongs in the scheduler.
+
+  - path: "pkg/**"
+    instructions: |
+      Review shared packages for interface stability and query safety.
+      - For db/: flag any modifications to aggregator/ or parser/ table structs — they mirror read-only cosmwasm-etl schemas. Verify all raw SQL is parameterized.
+      - For cache/: ensure new implementations satisfy the Cache interface so Redis and in-memory remain interchangeable. Flag any TTL=0 usage that may be unintentional.
+
+  - path: "configs/**"
+    instructions: |
+      Review config changes for completeness and consistency.
+      - Verify new fields follow the APP_ env-var convention (dots → underscores, e.g. api.db.host → APP_API_DB_HOST).
+      - Flag any new config field missing from config.example.yml.
+
+  - path: "db/migration/**"
+    instructions: |
+      Review all migrations for safety and reversibility.
+      - Verify every migration implements both Up and Down.
+      - Flag DROP or RENAME operations; prefer adding nullable columns instead.
+      - Check that the file name follows the existing timestamp naming convention.
+
+  - path: "**/*_test.go"
+    instructions: |
+      Review all tests for correctness, coverage, and reliability.
+      - Verify integration tests that require a live DB or external service are guarded with testing.Short() so they are skipped in CI with -short.
+      - Check that testify assertions are used (assert/require) rather than manual if+t.Fatal patterns.
+      - Flag tests that share mutable state across subtests without proper isolation — this project has concurrency-sensitive services (singleflight, cache).
+      - Ensure DB layer tests use go-sqlmock and do not depend on a real database.
+      - Flag happy-path-only tests on critical paths (SQL queries, chain ID filtering, cache TTL logic); suggest error and edge-case coverage.
+
+  auto_review:
+    enabled: true
+    ignore_title_keywords:
+      - "WIP"
+      - "DO NOT MERGE"
+    drafts: false
+    auto_incremental_review: true
+    base_branches:
+      - "main"
