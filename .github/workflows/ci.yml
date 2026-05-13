@@ -7,6 +7,9 @@ on:
   pull_request:
     branches: [ "*" ]
 
+permissions:
+  id-token: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -41,6 +44,9 @@ jobs:
 
     - name: Run Golang linter
       uses: golangci/golangci-lint-action@v8
+    
+    - name: Build all
+      run: make build-all
 
     - name: Setup postgres
       run: cd test_supplements && docker compose up -d
@@ -51,7 +57,10 @@ jobs:
         TEST_CONFIG: ${{ secrets.TEST_CONFIG }}
       run: |
         echo "$TEST_CONFIG" > config.yml
-        make test-race
-
-    - name: Build all
-      run: make build-all
+        go test -race -count=1 -short -coverprofile=coverage.out -covermode=atomic ./...
+    
+    - name: Upload to Codecov
+      uses: codecov/codecov-action@v6
+      with:
+        token: ${{ secrets.CODECOV_TOKEN }}
+        files: ./coverage.out
