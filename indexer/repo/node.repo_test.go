@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	ibc_types "github.com/cosmos/ibc-go/v10/modules/apps/transfer/types"
 	"github.com/dezswap/dezswap-api/indexer"
 	"github.com/dezswap/dezswap-api/pkg"
 	"github.com/dezswap/dezswap-api/pkg/dezswap"
@@ -17,6 +18,28 @@ import (
 
 	xpla_mock "github.com/dezswap/dezswap-api/pkg/xpla/mock"
 )
+
+type nodeMapperMock struct {
+	mock.Mock
+}
+
+func (m *nodeMapperMock) resToToken(addr, chainId string, data []byte) (*indexer.Token, error) {
+	args := m.Called(addr, chainId, data)
+	token, _ := args.Get(0).(*indexer.Token)
+	return token, args.Error(1)
+}
+
+func (m *nodeMapperMock) resToPoolInfo(addr, chainId string, height uint64, data []byte) (*indexer.PoolInfo, error) {
+	args := m.Called(addr, chainId, height, data)
+	poolInfo, _ := args.Get(0).(*indexer.PoolInfo)
+	return poolInfo, args.Error(1)
+}
+
+func (m *nodeMapperMock) denomTraceToToken(addr, chainId string, trace *ibc_types.Denom) (*indexer.Token, error) {
+	args := m.Called(addr, chainId, trace)
+	token, _ := args.Get(0).(*indexer.Token)
+	return token, args.Error(1)
+}
 
 type nodeRepoSuite struct {
 	suite.Suite
@@ -123,6 +146,60 @@ func (s *nodeRepoSuite) Test_TokenFromNode() {
 		} else {
 			assert.Equal(s.T(), tc.expected, *actual)
 		}
+	}
+}
+
+func (s *nodeRepoSuite) Test_cw20FromNode() {
+	const addr = "xpla1abc"
+	dummyRes := []byte(`{}`)
+
+	tcs := []struct {
+		name      string
+		mapperErr error
+		expectErr string
+	}{
+		{
+			name:      "resToToken returns error",
+			mapperErr: errors.New("parse error"),
+			expectErr: "parse error",
+		},
+		{
+			name:      "resToToken returns nil token",
+			mapperErr: nil,
+			expectErr: "token is nil",
+		},
+		{
+			name:      "successful token resolution",
+			mapperErr: nil,
+			expectErr: "",
+		},
+	}
+
+	for _, tc := range tcs {
+		s.Run(tc.name, func() {
+			mapperMock := &nodeMapperMock{}
+			r := nodeRepoImpl{s.ethClient, s.client, mapperMock, s.networkMetadata, s.chainId}
+
+			s.client.(*xpla_mock.GrpcClientMock).On("QueryContract", addr, dezswap.QUERY_TOKEN, s.networkMetadata.LatestHeightIndicator).Return(dummyRes, nil).Once()
+			
+			var mockToken *indexer.Token
+			if tc.expectErr == "" {
+				mockToken = &indexer.Token{Symbol: "TEST", Name: "Test Token", Decimals: 6}
+			}
+			mapperMock.On("resToToken", addr, s.chainId, dummyRes).Return(mockToken, tc.mapperErr).Once()
+
+			token, err := r.cw20FromNode(addr)
+			if tc.expectErr != "" {
+				s.Require().Error(err)
+				s.True(strings.Contains(err.Error(), tc.expectErr))
+			} else {
+				s.Require().NoError(err)
+				s.Require().NotNil(token)
+				s.Equal(addr, token.Address)
+				s.Equal(s.chainId, token.ChainId)
+				s.Equal("TEST", token.Symbol)
+			}
+		})
 	}
 }
 

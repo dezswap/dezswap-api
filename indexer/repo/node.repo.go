@@ -2,11 +2,12 @@ package repo
 
 import (
 	"context"
+	"time"
+
 	"github.com/dezswap/dezswap-api/indexer"
 	"github.com/dezswap/dezswap-api/pkg"
 	"github.com/dezswap/dezswap-api/pkg/dezswap"
 	"github.com/pkg/errors"
-	"time"
 )
 
 const queryTimeout = 5 * time.Second
@@ -120,11 +121,14 @@ func (r *nodeRepoImpl) cw20FromNode(addr string) (*indexer.Token, error) {
 	}
 
 	token, err := r.resToToken(addr, r.chainId, res)
-	token.Address = addr
-	token.ChainId = r.chainId
 	if err != nil {
 		return nil, errors.Wrap(err, "nodeRepoImpl.cw20FromNode")
 	}
+	if token == nil {
+		return nil, errors.New("token is nil")
+	}
+	token.Address = addr
+	token.ChainId = r.chainId
 	return token, nil
 }
 
