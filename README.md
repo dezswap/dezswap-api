@@ -1,5 +1,10 @@
 # dezswap-api
 
+[![codecov](https://codecov.io/github/dezswap/dezswap-api/graph/badge.svg?token=K9YH072SSY)](https://codecov.io/github/dezswap/cosmwasm-etl)
+![CI](https://github.com/dezswap/dezswap-api/actions/workflows/ci.yml/badge.svg)
+![Go Report Card](https://goreportcard.com/badge/dezswap/dezswap-api)
+![License](https://img.shields.io/github/license/dezswap/dezswap-api)
+
 Backend API and indexer service for [Dezswap](https://dezswap.io).
 
 ## Overview
