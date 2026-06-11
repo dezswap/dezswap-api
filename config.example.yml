@@ -35,10 +35,19 @@ api:
     mod: release # test, debug, release
     version:
     chain_id:
+    coingecko_api_key: ""  # CoinGecko demo API key (x-cg-demo-api-key header)
     cors_allowed_origins:
       - '\.dezswap\.io$'
       - 'dezswap\.netlify\.app$'
       - '^https?:\/\/localhost(:\d+)?$'
+    mcp:
+      enabled: false
+      path: /mcp
+      base_url: ""
+      allowed_origins: []
+      include_operations: []
+      request_timeout_ms: 10000
+      response_max_bytes: 1048576
   db:
     host: localhost
     port: 5432

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"regexp"
+	"slices"
 	"time"
 
 	"github.com/dezswap/dezswap-api/api/docs"
@@ -26,7 +27,10 @@ import (
 	// swagger embed files
 )
 
-const ApiVersion = "v1"
+const (
+	ApiVersion     = "v1"
+	defaultMCPPath = "/mcp"
+)
 
 var AppVersion = "dev"
 
@@ -105,13 +109,35 @@ func (app *app) setMiddlewares(cache cache.Cache) {
 				return true
 			}
 		}
+		if app.config.MCP.Enabled {
+			if slices.Contains(app.config.MCP.AllowedOrigins, origin) {
+				return true
+			}
+		}
 		return false
 	}
 	conf.AllowMethods = []string{"GET", "OPTIONS"}
+	conf.AllowHeaders = []string{"Origin", "Content-Length", "Content-Type"}
+	if app.config.MCP.Enabled {
+		// Allow MCP Streamable HTTP methods and protocol headers for browser preflight.
+		// See https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#streamable-http
+		conf.AllowMethods = []string{"GET", "POST", "OPTIONS"}
+		conf.AllowHeaders = append(conf.AllowHeaders, "Accept", "MCP-Protocol-Version", "Mcp-Session-Id", "Last-Event-ID")
+		// Expose Mcp-Session-Id so browser MCP clients can continue the session.
+		conf.ExposeHeaders = append(conf.ExposeHeaders, "Mcp-Session-Id")
+	}
 	app.engine.Use(cors.New(conf))
 	if cache != nil {
 		app.engine.Use(gin_cache.Cache(cache, time.Second*time.Duration(app.BlockSecond),
 			gin_cache.WithCacheStrategyByRequest(func(c *gin.Context) (bool, gin_cache.Strategy) {
+				mcpPath := app.config.MCP.Path
+				if mcpPath == "" {
+					mcpPath = defaultMCPPath
+				}
+				// MCP requests share one URL but vary by body and session headers, so skip response caching.
+				if app.config.MCP.Enabled && c.Request.URL.Path == mcpPath {
+					return false, gin_cache.Strategy{}
+				}
 				return true, gin_cache.Strategy{
 					CacheKey: c.Request.Host + c.Request.RequestURI,
 				}
