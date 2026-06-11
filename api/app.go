@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/dezswap/dezswap-api/api/docs"
+	"github.com/dezswap/dezswap-api/api/mcpserver"
 	v1 "github.com/dezswap/dezswap-api/api/v1"
 	"github.com/dezswap/dezswap-api/pkg"
 
@@ -27,10 +28,7 @@ import (
 	// swagger embed files
 )
 
-const (
-	ApiVersion     = "v1"
-	defaultMCPPath = "/mcp"
-)
+const ApiVersion = "v1"
 
 var AppVersion = "dev"
 
@@ -75,6 +73,10 @@ func RunServer(c configs.Config, cache cache.Cache, db *gorm.DB) {
 	if c.Api.Server.Swagger {
 		docs.SwaggerInfo.BasePath = fmt.Sprintf("/%s", ApiVersion)
 		app.engine.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
+	}
+
+	if err := mcpserver.Mount(app.engine, c.Api.MCP); err != nil {
+		panic(err)
 	}
 
 	app.run()
@@ -132,7 +134,7 @@ func (app *app) setMiddlewares(cache cache.Cache) {
 			gin_cache.WithCacheStrategyByRequest(func(c *gin.Context) (bool, gin_cache.Strategy) {
 				mcpPath := app.config.MCP.Path
 				if mcpPath == "" {
-					mcpPath = defaultMCPPath
+					mcpPath = mcpserver.DefaultPath
 				}
 				// MCP requests share one URL but vary by body and session headers, so skip response caching.
 				if app.config.MCP.Enabled && c.Request.URL.Path == mcpPath {
