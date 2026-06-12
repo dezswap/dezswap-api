@@ -32,6 +32,17 @@ var chartCriteriaByDuration = map[Duration]struct {
 
 var _ Dashboard = &dashboard{}
 
+type tokenStat struct {
+	Address          Addr
+	Volume           string
+	VolumeChange     string
+	VolumeWeek       string
+	VolumeWeekChange string
+	Tvl              string
+	TvlChange        string
+	Commission       string
+}
+
 func NewDashboardService(chainId string, db *gorm.DB) Dashboard {
 	return &dashboard{chainId, db}
 }
@@ -211,7 +222,7 @@ func (d *dashboard) Pools(tokens ...Addr) (Pools, error) {
 			WHERE
 				chain_id = '%s'
 			AND
-				TO_TIMESTAMP(timestamp) <= '%s'
+				timestamp <= extract(epoch from '%s'::timestamptz)
 			ORDER BY pair_id, timestamp DESC`,
 			d.chainId, at.UTC().Format(time.DateTime),
 		)
@@ -226,9 +237,9 @@ func (d *dashboard) Pools(tokens ...Addr) (Pools, error) {
 		WHERE
 			ps.chain_id = '%s'
 		AND
-			'%s' < TO_TIMESTAMP(ps."timestamp")
+			ps."timestamp" > extract(epoch from '%s'::timestamptz)
 		AND
-			TO_TIMESTAMP(ps."timestamp") <= '%s'
+			ps."timestamp" <= extract(epoch from '%s'::timestamptz)
 		GROUP BY
 			ps.pair_id
 		ORDER BY ps.pair_id ASC
@@ -318,7 +329,7 @@ func (d *dashboard) Recent() (Recent, error) {
 				WHERE
 					chain_id = '%s'
 				AND
-					TO_TIMESTAMP(timestamp) <= '%s'
+					timestamp <= extract(epoch from '%s'::timestamptz)
 				GROUP BY
 					pair_id) AS latests ON ps.pair_id = latests.pair_id
 			AND ps.timestamp = latests.timestamp`, d.chainId, at.UTC().Format(time.DateTime),
@@ -333,9 +344,9 @@ func (d *dashboard) Recent() (Recent, error) {
 		WHERE
 			chain_id = '%s'
 		AND
-			'%s' < TO_TIMESTAMP("timestamp")
+			"timestamp" > extract(epoch from '%s'::timestamptz)
 		AND
-			TO_TIMESTAMP("timestamp") <= '%s'
+			"timestamp" <= extract(epoch from '%s'::timestamptz)
 		`, d.chainId, from.UTC().Format(time.DateTime), to.UTC().Format(time.DateTime))
 	}
 
@@ -392,7 +403,7 @@ func (d *dashboard) RecentOf(pairContractAddr Addr) (Recent, error) {
 					ps0.chain_id = '%s'
 				AND p.contract = ?
 				AND
-					TO_TIMESTAMP(ps0.timestamp) <= '%s'
+					ps0.timestamp <= extract(epoch from '%s'::timestamptz)
 				GROUP BY
 					ps0.pair_id) AS latests ON ps.pair_id = latests.pair_id
 			AND ps.timestamp = latests.timestamp`, d.chainId, at.UTC().Format(time.DateTime),
@@ -409,9 +420,9 @@ func (d *dashboard) RecentOf(pairContractAddr Addr) (Recent, error) {
 			ps0.chain_id = '%s'
 		AND p.contract = ?
 		AND
-			'%s' < TO_TIMESTAMP(ps0."timestamp")
+			ps0."timestamp" > extract(epoch from '%s'::timestamptz)
 		AND
-			TO_TIMESTAMP(ps0."timestamp") <= '%s'
+			ps0."timestamp" <= extract(epoch from '%s'::timestamptz)
 		`, d.chainId, from.UTC().Format(time.DateTime), to.UTC().Format(time.DateTime))
 	}
 
@@ -568,8 +579,11 @@ where t.chain_id = ?
 }
 
 func (d *dashboard) tokenDetails(addr ...Addr) (Tokens, error) {
-	query := `
+	targetCTEs, args := d.tokenDetailsTargetCTEs(addr...)
+
+	query := fmt.Sprintf(`
 WITH
+%s,
 recent_48h AS (
     SELECT
         ps.pair_id,
@@ -592,6 +606,8 @@ recent_48h AS (
             WHEN ps.timestamp >= extract(epoch from now() - interval '1 day')
             THEN ps.commission1_in_price ELSE 0 END) AS com1_24h
     FROM pair_stats_recent ps
+    JOIN target_pairs p ON p.id = ps.pair_id
+    WHERE ps.chain_id = ?
     GROUP BY ps.pair_id
 ),
 recent_14d AS (
@@ -612,7 +628,9 @@ recent_14d AS (
              AND ps.timestamp >= extract(epoch from now() - interval '14 day')
             THEN ps.volume1_in_price ELSE 0 END) AS vol1_prev
     FROM pair_stats_30m ps
-    WHERE ps.timestamp >= extract(epoch from now() - interval '14 day')
+    JOIN target_pairs p ON p.id = ps.pair_id
+    WHERE ps.chain_id = ?
+      AND ps.timestamp >= extract(epoch from now() - interval '14 day')
     GROUP BY ps.pair_id
 ),
 latest_pair_tvl AS (
@@ -621,6 +639,8 @@ latest_pair_tvl AS (
         ps.liquidity0_in_price,
         ps.liquidity1_in_price
     FROM pair_stats_30m ps
+    JOIN target_pairs p ON p.id = ps.pair_id
+    WHERE ps.chain_id = ?
     ORDER BY ps.pair_id, ps.timestamp DESC
 ),
 pair_tvl_24h_before AS (
@@ -629,7 +649,9 @@ pair_tvl_24h_before AS (
         ps.liquidity0_in_price,
         ps.liquidity1_in_price
     FROM pair_stats_30m ps
-    WHERE ps.timestamp < extract(epoch from now() - interval '1 day')
+    JOIN target_pairs p ON p.id = ps.pair_id
+    WHERE ps.chain_id = ?
+      AND ps.timestamp < extract(epoch from now() - interval '1 day')
     ORDER BY ps.pair_id, ps.timestamp DESC
 )
 SELECT
@@ -651,40 +673,58 @@ FROM (
         COALESCE(SUM(CASE WHEN p.asset0 = t.address THEN r.com0_24h ELSE r.com1_24h END), 0) AS commission,
         COALESCE(SUM(CASE WHEN p.asset0 = t.address THEN l.liquidity0_in_price ELSE l.liquidity1_in_price END), 0) AS tvl,
         COALESCE(SUM(CASE WHEN p.asset0 = t.address THEN lb.liquidity0_in_price ELSE lb.liquidity1_in_price END), 0) AS tvl_24h_before
-    FROM tokens t
-		LEFT JOIN pair p
-			ON p.chain_id = t.chain_id
-		AND (p.asset0 = t.address OR p.asset1 = t.address)
+    FROM target_tokens t
+		LEFT JOIN target_pairs p ON p.asset0 = t.address OR p.asset1 = t.address
 		LEFT JOIN recent_48h r ON r.pair_id = p.id
 		LEFT JOIN recent_14d r14 ON r14.pair_id = p.id
 		LEFT JOIN latest_pair_tvl l ON l.pair_id = p.id
 		LEFT JOIN pair_tvl_24h_before lb ON lb.pair_id = p.id
-    WHERE t.chain_id = ?
-`
-	type tokenStat struct {
-		Address          Addr
-		Volume           string
-		VolumeChange     string
-		VolumeWeek       string
-		VolumeWeekChange string
-		Tvl              string
-		TvlChange        string
-		Commission       string
-	}
-	var stats []tokenStat
-	var tx *gorm.DB
-	if len(addr) > 0 {
-		query += ` AND t.address = ?  GROUP BY t.address) t`
-		tx = d.Raw(query, d.chainId, addr)
-	} else {
-		query += ` GROUP BY t.address) t`
-		tx = d.Raw(query, d.chainId)
-	}
+    GROUP BY t.address
+) t
+`, targetCTEs)
 
-	if err := tx.Find(&stats).Error; err != nil {
+	args = append(args, d.chainId, d.chainId, d.chainId, d.chainId)
+	var stats []tokenStat
+	if err := d.Raw(query, args...).Find(&stats).Error; err != nil {
 		return nil, err
 	}
 
+	return tokenStatsToTokens(stats), nil
+}
+
+// tokenDetailsTargetCTEs scopes all tokens when addr is empty, or one token and its pairs otherwise.
+func (d *dashboard) tokenDetailsTargetCTEs(addr ...Addr) (string, []any) {
+	if len(addr) == 0 {
+		return `
+target_tokens AS (
+    SELECT address
+    FROM tokens
+    WHERE chain_id = ?
+),
+target_pairs AS (
+    SELECT id, asset0, asset1
+    FROM pair
+    WHERE chain_id = ?
+)`, []any{d.chainId, d.chainId}
+	}
+
+	return `
+target_tokens AS (
+    SELECT address
+    FROM tokens
+    WHERE chain_id = ?
+      AND address = ?
+),
+target_pairs AS (
+    SELECT id, asset0, asset1
+    FROM pair
+    WHERE chain_id = ?
+      AND (asset0 = ? OR asset1 = ?)
+)`, []any{d.chainId, addr[0], d.chainId, addr[0], addr[0]}
+}
+
+// tokenStatsToTokens maps raw token aggregate rows to the public token DTOs.
+func tokenStatsToTokens(stats []tokenStat) Tokens {
 	tokens := make(Tokens, len(stats))
 	for i, s := range stats {
 		tokens[i] = Token{
@@ -699,7 +739,7 @@ FROM (
 		}
 	}
 
-	return tokens, nil
+	return tokens
 }
 
 func (d *dashboard) Token(addr Addr) (Token, error) {

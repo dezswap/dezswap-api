@@ -28,6 +28,7 @@ var (
 	testPairID            string
 	testPairContractAddr1 = "test1abcd"
 	testPairContractAddr2 = "test1efgh"
+	testPairContractAddr3 = "test1ijkl"
 
 	testTokenID1  string
 	testTokenID2  string
@@ -44,6 +45,7 @@ func SetupDB(t *testing.T) *gorm.DB {
 	)
 	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
 	require.NoError(t, err)
+	cleanupDashboardTestData(t, db)
 
 	row := db.Raw(`
 INSERT INTO tokens (chain_id, address, name, symbol, decimals) VALUES (?, ?, 'Abcd', 'ABCD', 18) RETURNING id
@@ -70,7 +72,23 @@ INSERT INTO pair (chain_id, contract, asset0, asset1, lp) VALUES (?, ?, 'axpla',
 	return db
 }
 
+func cleanupDashboardTestData(t *testing.T, db *gorm.DB) {
+	t.Helper()
+
+	require.NoError(t, db.Exec(`DELETE FROM parsed_tx WHERE chain_id = ?`, testChainID).Error)
+	require.NoError(t, db.Exec(`DELETE FROM pair_stats_recent WHERE pair_id IN (SELECT id FROM pair WHERE chain_id = ?)`, testChainID).Error)
+	require.NoError(t, db.Exec(`DELETE FROM pair_stats_30m WHERE pair_id IN (SELECT id FROM pair WHERE chain_id = ?)`, testChainID).Error)
+	require.NoError(t, db.Exec(`DELETE FROM price WHERE chain_id = ?`, testChainID).Error)
+	require.NoError(t, db.Exec(`DELETE FROM pair WHERE chain_id = ?`, testChainID).Error)
+	require.NoError(t, db.Exec(`DELETE FROM tokens WHERE chain_id = ?`, testChainID).Error)
+}
+
 func generateStats(t *testing.T, db *gorm.DB, ts time.Time) {
+	t.Helper()
+	generateStatsForPair(t, db, testPairID, ts)
+}
+
+func generateStatsForPair(t *testing.T, db *gorm.DB, pairID string, ts time.Time) {
 	t.Helper()
 
 	diff := time.Since(ts)
@@ -80,7 +98,7 @@ INSERT INTO pair_stats_recent(
 	pair_id, chain_id, volume0_in_price, volume1_in_price, commission0_in_price, commission1_in_price, height, timestamp)
 VALUES(
 	?, ?, 123.45, 678.90, 12.34, 56.78, 1, ?)
-`, testPairID, testChainID, ts.Unix()).Error)
+`, pairID, testChainID, ts.Unix()).Error)
 	}
 
 	require.NoError(t, db.Exec(`
@@ -109,7 +127,7 @@ VALUES(
 	    ?, ?
 	)
 	`, ts.Year(), ts.Month(), ts.Day(), ts.Hour(), ts.Minute(),
-		testPairID, testChainID,
+		pairID, testChainID,
 		ts.Unix(),
 		ts.Unix(), ts.Unix()).Error)
 }
@@ -140,13 +158,68 @@ VALUES(?, ?, EXTRACT(EPOCH FROM NOW() - INTERVAL '1 day'), 'dummy_hash', 'dummy_
 func CleanupDB(t *testing.T, db *gorm.DB) {
 	t.Helper()
 
-	require.NoError(t, db.Exec(`DELETE FROM parsed_tx WHERE chain_id = ?`, testChainID).Error)
-	require.NoError(t, db.Exec(`DELETE FROM pair_stats_30m WHERE pair_id IN (SELECT id FROM pair WHERE chain_id = ?)`, testChainID).Error)
-	require.NoError(t, db.Exec(`DELETE FROM pair WHERE chain_id = ?`, testChainID).Error)
-	require.NoError(t, db.Exec(`DELETE FROM tokens WHERE chain_id = ?`, testChainID).Error)
+	cleanupDashboardTestData(t, db)
 
 	if sqlDB, err := db.DB(); err == nil {
 		_ = sqlDB.Close()
+	}
+}
+
+func TestTokenDetailsOf_MatchesFilteredTokenDetails(t *testing.T) {
+	db := SetupDB(t)
+	defer CleanupDB(t, db)
+
+	// Add tokens that cover shared pairs and a token with no pair stats.
+	var extraTokenID string
+	row := db.Raw(`
+INSERT INTO tokens (chain_id, address, name, symbol, decimals) VALUES (?, 'xerc20:EFGH', 'Efgh', 'EFGH', 18) RETURNING id
+`, testChainID).Row()
+	require.NoError(t, row.Err())
+	require.NoError(t, row.Scan(&extraTokenID))
+
+	row = db.Raw(`
+INSERT INTO tokens (chain_id, address, name, symbol, decimals) VALUES (?, 'xerc20:NONE', 'None', 'NONE', 18) RETURNING id
+`, testChainID).Row()
+	require.NoError(t, row.Err())
+	require.NoError(t, row.Scan(new(string)))
+
+	// Add a second active pair so one token aggregates across multiple pairs.
+	var pairID3 string
+	row = db.Raw(`
+INSERT INTO pair (chain_id, contract, asset0, asset1, lp) VALUES (?, ?, ?, 'xerc20:EFGH', 'xpla1lp3') RETURNING id
+`, testChainID, testPairContractAddr3, testTokenAddr).Row()
+	require.NoError(t, row.Err())
+	require.NoError(t, row.Scan(&pairID3))
+
+	base := time.Now().Truncate(time.Hour)
+	generateStats(t, db, base.Add(-30*time.Minute))
+	generateStats(t, db, base.Add(-25*time.Hour))
+	generateStatsForPair(t, db, pairID3, base.Add(-30*time.Minute))
+	generateStatsForPair(t, db, pairID3, base.Add(-25*time.Hour))
+
+	// Read the broad query result as the expected baseline.
+	d := &dashboard{DB: db, chainId: testChainID}
+
+	allTokens, err := d.tokenDetails()
+	require.NoError(t, err)
+	require.Len(t, allTokens, 4)
+
+	expectedByAddr := make(map[Addr]Token, len(allTokens))
+	for _, token := range allTokens {
+		expectedByAddr[token.Addr] = token
+	}
+	require.Contains(t, expectedByAddr, Addr(testTokenAddr))
+	require.Contains(t, expectedByAddr, Addr("axpla"))
+	require.Contains(t, expectedByAddr, Addr("xerc20:EFGH"))
+	require.Contains(t, expectedByAddr, Addr("xerc20:NONE"))
+	require.NotZero(t, extraTokenID)
+
+	// Compare every token's scoped query result with its broad query row.
+	for addr, expected := range expectedByAddr {
+		tokenDetails, err := d.tokenDetails(addr)
+		require.NoError(t, err)
+		require.Len(t, tokenDetails, 1)
+		assert.Equal(t, expected, tokenDetails[0])
 	}
 }
 
