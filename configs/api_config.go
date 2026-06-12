@@ -22,8 +22,16 @@ func apiConfig(v *viper.Viper) ApiConfig {
 	envCacheC := cacheConfigFromEnv(v, "API_CACHE")
 	cacheC.Override(envCacheC)
 
+	mcpC := apiMCPConfig(v.Sub("api.server.mcp"))
+	envMCPC := apiMCPConfigFromEnv(v, "API_SERVER_MCP")
+	mcpC = mcpC.Override(envMCPC)
+	if v.IsSet(strings.ToUpper(fmt.Sprintf("%s_%s", "API_SERVER_MCP", "enabled"))) {
+		mcpC.Enabled = envMCPC.Enabled
+	}
+
 	return ApiConfig{
 		Server: apiServerC,
+		MCP:    mcpC,
 		DB:     dbC,
 		Cache:  cacheC,
 	}
@@ -64,6 +72,7 @@ func apiServerConfigFromEnv(v *viper.Viper, prefix string) ApiServerConfig {
 
 type ApiConfig struct {
 	Server ApiServerConfig
+	MCP    ApiMCPConfig
 	DB     RdbConfig
 	Cache  CacheConfig
 }
@@ -78,6 +87,16 @@ type ApiServerConfig struct {
 	ChainId            string
 	CorsAllowedOrigins []string
 	CoinGeckoApiKey    string
+}
+
+type ApiMCPConfig struct {
+	Enabled           bool     // Optional; mounts the MCP endpoint.
+	Path              string   // Optional; streamable HTTP path. Defaults to "/mcp".
+	BaseURL           string   // Optional; public API URL.
+	AllowedOrigins    []string // Optional; exact browser origins.
+	IncludeOperations []string // Optional; limits exposed tools. Empty means all.
+	RequestTimeoutMs  int      // Optional; limits each tool call.
+	ResponseMaxBytes  int      // Optional; caps tool responses.
 }
 
 func (lhs *ApiServerConfig) Override(rhs ApiServerConfig) {
@@ -105,6 +124,61 @@ func (lhs *ApiServerConfig) Override(rhs ApiServerConfig) {
 	if rhs.CoinGeckoApiKey != "" {
 		lhs.CoinGeckoApiKey = rhs.CoinGeckoApiKey
 	}
+}
+
+func apiMCPConfig(v *viper.Viper) ApiMCPConfig {
+	if v == nil {
+		return ApiMCPConfig{}
+	}
+	return ApiMCPConfig{
+		Enabled:           v.GetBool("enabled"),
+		Path:              v.GetString("path"),
+		BaseURL:           v.GetString("base_url"),
+		AllowedOrigins:    v.GetStringSlice("allowed_origins"),
+		IncludeOperations: v.GetStringSlice("include_operations"),
+		RequestTimeoutMs:  v.GetInt("request_timeout_ms"),
+		ResponseMaxBytes:  v.GetInt("response_max_bytes"),
+	}
+}
+
+func apiMCPConfigFromEnv(v *viper.Viper, prefix string) ApiMCPConfig {
+	if v == nil {
+		return ApiMCPConfig{}
+	}
+	return ApiMCPConfig{
+		Enabled:           v.GetBool(strings.ToUpper(fmt.Sprintf("%s_%s", prefix, "enabled"))),
+		Path:              v.GetString(strings.ToUpper(fmt.Sprintf("%s_%s", prefix, "path"))),
+		BaseURL:           v.GetString(strings.ToUpper(fmt.Sprintf("%s_%s", prefix, "base_url"))),
+		AllowedOrigins:    splitAndTrim(v.GetString(strings.ToUpper(fmt.Sprintf("%s_%s", prefix, "allowed_origins")))),
+		IncludeOperations: splitAndTrim(v.GetString(strings.ToUpper(fmt.Sprintf("%s_%s", prefix, "include_operations")))),
+		RequestTimeoutMs:  v.GetInt(strings.ToUpper(fmt.Sprintf("%s_%s", prefix, "request_timeout_ms"))),
+		ResponseMaxBytes:  v.GetInt(strings.ToUpper(fmt.Sprintf("%s_%s", prefix, "response_max_bytes"))),
+	}
+}
+
+func (lhs ApiMCPConfig) Override(rhs ApiMCPConfig) ApiMCPConfig {
+	if rhs.Enabled {
+		lhs.Enabled = rhs.Enabled
+	}
+	if rhs.Path != "" {
+		lhs.Path = rhs.Path
+	}
+	if rhs.BaseURL != "" {
+		lhs.BaseURL = rhs.BaseURL
+	}
+	if len(rhs.AllowedOrigins) > 0 {
+		lhs.AllowedOrigins = rhs.AllowedOrigins
+	}
+	if len(rhs.IncludeOperations) > 0 {
+		lhs.IncludeOperations = rhs.IncludeOperations
+	}
+	if rhs.RequestTimeoutMs > 0 {
+		lhs.RequestTimeoutMs = rhs.RequestTimeoutMs
+	}
+	if rhs.ResponseMaxBytes > 0 {
+		lhs.ResponseMaxBytes = rhs.ResponseMaxBytes
+	}
+	return lhs
 }
 
 func splitAndTrim(value string) []string {
