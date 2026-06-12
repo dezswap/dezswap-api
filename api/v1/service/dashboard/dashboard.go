@@ -211,7 +211,7 @@ func (d *dashboard) Pools(tokens ...Addr) (Pools, error) {
 			WHERE
 				chain_id = '%s'
 			AND
-				TO_TIMESTAMP(timestamp) <= '%s'
+				timestamp <= extract(epoch from '%s'::timestamptz)
 			ORDER BY pair_id, timestamp DESC`,
 			d.chainId, at.UTC().Format(time.DateTime),
 		)
@@ -226,9 +226,9 @@ func (d *dashboard) Pools(tokens ...Addr) (Pools, error) {
 		WHERE
 			ps.chain_id = '%s'
 		AND
-			'%s' < TO_TIMESTAMP(ps."timestamp")
+			ps."timestamp" > extract(epoch from '%s'::timestamptz)
 		AND
-			TO_TIMESTAMP(ps."timestamp") <= '%s'
+			ps."timestamp" <= extract(epoch from '%s'::timestamptz)
 		GROUP BY
 			ps.pair_id
 		ORDER BY ps.pair_id ASC
@@ -318,7 +318,7 @@ func (d *dashboard) Recent() (Recent, error) {
 				WHERE
 					chain_id = '%s'
 				AND
-					TO_TIMESTAMP(timestamp) <= '%s'
+					timestamp <= extract(epoch from '%s'::timestamptz)
 				GROUP BY
 					pair_id) AS latests ON ps.pair_id = latests.pair_id
 			AND ps.timestamp = latests.timestamp`, d.chainId, at.UTC().Format(time.DateTime),
@@ -333,9 +333,9 @@ func (d *dashboard) Recent() (Recent, error) {
 		WHERE
 			chain_id = '%s'
 		AND
-			'%s' < TO_TIMESTAMP("timestamp")
+			"timestamp" > extract(epoch from '%s'::timestamptz)
 		AND
-			TO_TIMESTAMP("timestamp") <= '%s'
+			"timestamp" <= extract(epoch from '%s'::timestamptz)
 		`, d.chainId, from.UTC().Format(time.DateTime), to.UTC().Format(time.DateTime))
 	}
 
@@ -392,7 +392,7 @@ func (d *dashboard) RecentOf(pairContractAddr Addr) (Recent, error) {
 					ps0.chain_id = '%s'
 				AND p.contract = ?
 				AND
-					TO_TIMESTAMP(ps0.timestamp) <= '%s'
+					ps0.timestamp <= extract(epoch from '%s'::timestamptz)
 				GROUP BY
 					ps0.pair_id) AS latests ON ps.pair_id = latests.pair_id
 			AND ps.timestamp = latests.timestamp`, d.chainId, at.UTC().Format(time.DateTime),
@@ -409,9 +409,9 @@ func (d *dashboard) RecentOf(pairContractAddr Addr) (Recent, error) {
 			ps0.chain_id = '%s'
 		AND p.contract = ?
 		AND
-			'%s' < TO_TIMESTAMP(ps0."timestamp")
+			ps0."timestamp" > extract(epoch from '%s'::timestamptz)
 		AND
-			TO_TIMESTAMP(ps0."timestamp") <= '%s'
+			ps0."timestamp" <= extract(epoch from '%s'::timestamptz)
 		`, d.chainId, from.UTC().Format(time.DateTime), to.UTC().Format(time.DateTime))
 	}
 
