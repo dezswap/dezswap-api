@@ -16,8 +16,8 @@ CREATE UNIQUE INDEX pair_chain_id_lp_key ON pair (chain_id, lp);
 
 CREATE TABLE tokens (
     id         BIGSERIAL                    PRIMARY KEY,
-    created_at TIMESTAMP WITH TIME ZONE,
-    updated_at TIMESTAMP WITH TIME ZONE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     deleted_at TIMESTAMP WITH TIME ZONE,
     chain_id   TEXT                         NOT NULL,
     address    TEXT                         NOT NULL,
