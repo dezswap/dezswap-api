@@ -16,6 +16,9 @@ type dashboard struct {
 	*gorm.DB
 }
 
+// Annualizes 7-day fee yield into APR.
+const weekAprMultiplier = dezswap.SWAP_FEE * 365 / 7
+
 var chartCriteriaByDuration = map[Duration]struct {
 	Ago     string
 	TruncBy string
@@ -124,7 +127,7 @@ func (d *dashboard) Aprs(duration Duration) (Aprs, error) {
 	JOIN tvl AS t ON ds.timestamp = t.timestamp
 	JOIN volume7d AS v ON ds.timestamp = v.timestamp
 	ORDER BY ds.timestamp;
-	`, dateSeries, lastQuery, joinClause, dezswap.SWAP_FEE)
+	`, dateSeries, lastQuery, joinClause, weekAprMultiplier)
 
 	aprs := Aprs{}
 	if err := d.DB.Raw(query, d.chainId, d.chainId).Scan(&aprs).Error; err != nil {
@@ -201,7 +204,7 @@ func (d *dashboard) AprsOf(pool Addr, duration Duration) ([]Apr, error) {
 	JOIN tvl AS t ON ds.timestamp = t.timestamp
 	JOIN volume7d AS v ON ds.timestamp = v.timestamp
 	ORDER BY ds.timestamp;
-	`, dateSeries, d.chainId, d.chainId, d.chainId, dezswap.SWAP_FEE)
+	`, dateSeries, d.chainId, d.chainId, d.chainId, weekAprMultiplier)
 
 	aprs := Aprs{}
 	if err := d.DB.Raw(query, pool, pool).Scan(&aprs).Error; err != nil {
@@ -272,7 +275,7 @@ func (d *dashboard) Pools(tokens ...Addr) (Pools, error) {
 		WHERE
 			p.chain_id = '%s'
 		`,
-		tvl(current), volume(dayAgo, current), volume(sevenDaysAgo, current), dezswap.SWAP_FEE, dezswap.SWAP_FEE, d.chainId,
+		tvl(current), volume(dayAgo, current), volume(sevenDaysAgo, current), dezswap.SWAP_FEE, weekAprMultiplier, d.chainId,
 	)
 
 	orderBy := `ORDER BY p.contract`
@@ -364,16 +367,16 @@ func (d *dashboard) Recent() (Recent, error) {
 			prev_volume7d as (%s)
 		SELECT
 			tvl.tvl AS tvl,
-			CAST((tvl.tvl / prev_tvl.tvl - 1) AS float4) AS tvl_change_rate,
+			COALESCE((tvl.tvl / NULLIF(prev_tvl.tvl, 0) - 1)::float4, 0) AS tvl_change_rate,
 			volume.volume AS volume,
-			CAST((volume.volume / prev_volume.volume - 1) AS float4) AS volume_change_rate,
+			COALESCE((volume.volume / NULLIF(prev_volume.volume, 0) - 1)::float4, 0) AS volume_change_rate,
 			volume.volume * %f as fee,
-			CAST((volume.volume / prev_volume.volume - 1) AS float4) AS fee_change_rate,
-			volume7d.volume / tvl.tvl * %f as apr,
-			(volume7d.volume / tvl.tvl) / (prev_volume7d.volume / prev_tvl.tvl) - 1 AS apr_change_rate
+			COALESCE((volume.volume / NULLIF(prev_volume.volume, 0) - 1)::float4, 0) AS fee_change_rate,
+			COALESCE(volume7d.volume / NULLIF(tvl.tvl, 0), 0) * %f as apr,
+			COALESCE((volume7d.volume / NULLIF(tvl.tvl, 0)) / NULLIF(prev_volume7d.volume / NULLIF(prev_tvl.tvl, 0), 0) - 1, 0) AS apr_change_rate
 		FROM
 			tvl, prev_tvl, volume, prev_volume, volume7d, prev_volume7d;
-	`, tvl(current), tvl(dayAgo), volume(dayAgo, current), volume(twoDaysAgo, dayAgo), volume(sevenDaysAgo, current), volume(eightDaysAgo, dayAgo), dezswap.SWAP_FEE, dezswap.SWAP_FEE)
+	`, tvl(current), tvl(dayAgo), volume(dayAgo, current), volume(twoDaysAgo, dayAgo), volume(sevenDaysAgo, current), volume(eightDaysAgo, dayAgo), dezswap.SWAP_FEE, weekAprMultiplier)
 	recent := Recent{}
 	if err := d.DB.Raw(query).Scan(&recent).Error; err != nil {
 		return recent, errors.Wrap(err, "dashboard.Recent")
@@ -450,7 +453,7 @@ func (d *dashboard) RecentOf(pairContractAddr Addr) (Recent, error) {
 			COALESCE((volume7d.volume / NULLIF(tvl.tvl, 0)) / NULLIF(prev_volume7d.volume / NULLIF(prev_tvl.tvl, 0), 0) - 1, 0) AS apr_change_rate
 		FROM
 			tvl, prev_tvl, volume, prev_volume, volume7d, prev_volume7d
-	`, tvl(current), tvl(dayAgo), volume(dayAgo, current), volume(twoDaysAgo, dayAgo), volume(sevenDaysAgo, current), volume(eightDaysAgo, dayAgo), d.chainId, dezswap.SWAP_FEE, dezswap.SWAP_FEE)
+	`, tvl(current), tvl(dayAgo), volume(dayAgo, current), volume(twoDaysAgo, dayAgo), volume(sevenDaysAgo, current), volume(eightDaysAgo, dayAgo), d.chainId, dezswap.SWAP_FEE, weekAprMultiplier)
 	recent := Recent{}
 	if err := d.DB.Raw(query, pairContractAddr, pairContractAddr, pairContractAddr, pairContractAddr, pairContractAddr, pairContractAddr, pairContractAddr).Scan(&recent).Error; err != nil {
 		return recent, errors.Wrap(err, "dashboard.RecentOf")
