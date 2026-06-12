@@ -116,7 +116,11 @@ func TestHandleTool_DispatchesToInternalRoute(t *testing.T) {
 	if result.IsError {
 		t.Fatalf("handleTool() returned tool error: %+v", result.Content)
 	}
-	text := result.Content[0].(*mcp.TextContent).Text
+	textContent, ok := result.Content[0].(*mcp.TextContent)
+	if !ok {
+		t.Fatalf("expected TextContent, got %T", result.Content[0])
+	}
+	text := textContent.Text
 	var body map[string]string
 	if err := json.Unmarshal([]byte(text), &body); err != nil {
 		t.Fatalf("tool result is not JSON: %v", err)
