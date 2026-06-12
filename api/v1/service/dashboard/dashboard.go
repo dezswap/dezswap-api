@@ -881,7 +881,7 @@ from (select distinct pair_id, year_utc, month_utc,
            case when p.asset0 = t.address then
                first_value(ps.liquidity0_in_price) over (partition by pair_id, year_utc, month_utc order by timestamp desc)
            else
-               first_value(ps.liquidity0_in_price) over (partition by pair_id, year_utc, month_utc order by timestamp desc)
+               first_value(ps.liquidity1_in_price) over (partition by pair_id, year_utc, month_utc order by timestamp desc)
            end as tvl
     from pair_stats_30m ps
     join pair p on p.id = ps.pair_id
@@ -899,7 +899,7 @@ from (select distinct pair_id, year_utc, month_utc, day_utc,
            case when p.asset0 = t.address then
                first_value(ps.liquidity0_in_price) over (partition by pair_id, year_utc, month_utc, day_utc order by timestamp desc)
            else
-               first_value(ps.liquidity0_in_price) over (partition by pair_id, year_utc, month_utc, day_utc order by timestamp desc)
+               first_value(ps.liquidity1_in_price) over (partition by pair_id, year_utc, month_utc, day_utc order by timestamp desc)
            end as tvl
     from pair_stats_30m ps
     join pair p on p.id = ps.pair_id
@@ -917,7 +917,7 @@ from (select distinct pair_id, eow,
            case when p.asset0 = t.address then
                first_value(ps.liquidity0_in_price) over (partition by pair_id, eow order by timestamp desc)
            else
-               first_value(ps.liquidity0_in_price) over (partition by pair_id, eow order by timestamp desc)
+               first_value(ps.liquidity1_in_price) over (partition by pair_id, eow order by timestamp desc)
            end as tvl
     from (select date_trunc('week', to_timestamp(timestamp) at time zone 'UTC') + interval '6 days' as eow, -- last day of week
                  *
@@ -938,7 +938,7 @@ from (select distinct on (pair_id, eow2)
            case when p.asset0 = t.address then
                first_value(ps.liquidity0_in_price) over (partition by pair_id, year_utc, eow2 order by timestamp desc)
            else
-               first_value(ps.liquidity0_in_price) over (partition by pair_id, year_utc, eow2 order by timestamp desc)
+               first_value(ps.liquidity1_in_price) over (partition by pair_id, year_utc, eow2 order by timestamp desc)
            end as tvl
     from (select case when mod(cast(extract(week from to_timestamp(timestamp)) as bigint),2) = 0 then
                      date_trunc('week', to_timestamp(timestamp) at time zone 'UTC') + interval '6 days' -- last day of the 2nd week
