@@ -26,6 +26,12 @@ const (
 	statPeriod1mon = "1mon"
 )
 
+var aprAnnualizationByPeriod = map[string]math.LegacyDec{
+	statPeriod24h:  math.LegacyNewDec(365),
+	statPeriod7d:   math.LegacyNewDec(365).QuoInt64(7),
+	statPeriod1mon: math.LegacyNewDec(12),
+}
+
 type statService struct {
 	chainId string
 	*gorm.DB
@@ -49,7 +55,7 @@ func (s *statService) Get(key string) (*PairStats, error) {
 		if err != nil {
 			return nil, errors.Wrap(err, "statService.Get")
 		}
-		pairStats := s.mapToSlice(pairStatMap)
+		pairStats := s.mapToSlice(pairStatMap, aprAnnualizationByPeriod[key])
 
 		return &pairStats, nil
 	case statPeriod7d, statPeriod1mon:
@@ -73,7 +79,7 @@ func (s *statService) Get(key string) (*PairStats, error) {
 		if err != nil {
 			return nil, errors.Wrap(err, "statService.Get")
 		}
-		pairStats := s.mapToSlice(pairStatMap)
+		pairStats := s.mapToSlice(pairStatMap, aprAnnualizationByPeriod[key])
 
 		return &pairStats, nil
 	default:
@@ -104,7 +110,7 @@ func (s *statService) GetAll() ([]PairStats, error) {
 	}
 
 	if len(stats30m) == 0 {
-		pairStatsByPeriod[Period24h] = s.mapToSlice(pairStatMap)
+		pairStatsByPeriod[Period24h] = s.mapToSlice(pairStatMap, aprAnnualizationByPeriod[statPeriod24h])
 		return pairStatsByPeriod, nil
 	}
 
@@ -119,11 +125,11 @@ func (s *statService) GetAll() ([]PairStats, error) {
 
 		for _, stat := range stats30m {
 			if stat.Timestamp < float64(tsBefore24h) && !done24h {
-				pairStatsByPeriod[Period24h] = s.mapToSlice(pairStatMap)
+				pairStatsByPeriod[Period24h] = s.mapToSlice(pairStatMap, aprAnnualizationByPeriod[statPeriod24h])
 				done24h = true
 			}
 			if stat.Timestamp < float64(tsBefore7d) && !done7d {
-				pairStatsByPeriod[Period7d] = s.mapToSlice(pairStatMap)
+				pairStatsByPeriod[Period7d] = s.mapToSlice(pairStatMap, aprAnnualizationByPeriod[statPeriod7d])
 				done7d = true
 			}
 
@@ -131,7 +137,7 @@ func (s *statService) GetAll() ([]PairStats, error) {
 				return nil, errors.Wrap(err, "statService.GetAll")
 			}
 		}
-		pairStatsByPeriod[Period1mon] = s.mapToSlice(pairStatMap)
+		pairStatsByPeriod[Period1mon] = s.mapToSlice(pairStatMap, aprAnnualizationByPeriod[statPeriod1mon])
 	}
 
 	return pairStatsByPeriod, nil
@@ -233,7 +239,7 @@ func (s *statService) sumPairStat(stat db.PairStat, sumStatMap map[string][count
 	return nil
 }
 
-func (s *statService) mapToSlice(pairStatMap map[string][countOfStatType]math.LegacyDec) PairStats {
+func (s *statService) mapToSlice(pairStatMap map[string][countOfStatType]math.LegacyDec, aprAnnualization math.LegacyDec) PairStats {
 	pairStats := make(PairStats, 0, len(pairStatMap))
 	for k, v := range pairStatMap {
 		pairStats = append(
@@ -242,7 +248,7 @@ func (s *statService) mapToSlice(pairStatMap map[string][countOfStatType]math.Le
 				Address:           k,
 				VolumeInPrice:     v[statVolume].String(),
 				CommissionInPrice: v[statCommission].String(),
-				AprInPrice:        v[statCommission].Quo(v[statLiquidity]).MulInt64(100).String(),
+				AprInPrice:        v[statCommission].Quo(v[statLiquidity]).Mul(aprAnnualization).MulInt64(100).String(),
 			})
 	}
 

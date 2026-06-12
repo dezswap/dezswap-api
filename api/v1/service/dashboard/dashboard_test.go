@@ -90,6 +90,11 @@ func generateStats(t *testing.T, db *gorm.DB, ts time.Time) {
 
 func generateStatsForPair(t *testing.T, db *gorm.DB, pairID string, ts time.Time) {
 	t.Helper()
+	generateStatsForPairWithValues(t, db, pairID, testChainID, ts, "123.45", "678.90", "1111.11", "2222.22")
+}
+
+func generateStatsForPairWithValues(t *testing.T, db *gorm.DB, pairID string, chainID string, ts time.Time, volume0 string, volume1 string, liquidity0 string, liquidity1 string) {
+	t.Helper()
 
 	diff := time.Since(ts)
 	if diff.Microseconds() > 0 && diff.Microseconds() < (48*time.Hour).Microseconds() {
@@ -97,8 +102,8 @@ func generateStatsForPair(t *testing.T, db *gorm.DB, pairID string, ts time.Time
 INSERT INTO pair_stats_recent(
 	pair_id, chain_id, volume0_in_price, volume1_in_price, commission0_in_price, commission1_in_price, height, timestamp)
 VALUES(
-	?, ?, 123.45, 678.90, 12.34, 56.78, 1, ?)
-`, pairID, testChainID, ts.Unix()).Error)
+	?, ?, ?, ?, 12.34, 56.78, 1, ?)
+`, pairID, chainID, volume0, volume1, ts.Unix()).Error)
 	}
 
 	require.NoError(t, db.Exec(`
@@ -117,9 +122,9 @@ VALUES(
 	VALUES (
 	    ?, ?, ?, ?, ?,
 	    ?, ?,
-	    100, 200, 123.45, 678.90,
+	    100, 200, ?, ?,
 	    1.23,
-	    1000, 2000, 1111.11, 2222.22,
+	    1000, 2000, ?, ?,
 	    10, 20, 12.34, 56.78,
 	    'ibc/ABCD',
 	    5, 2,
@@ -127,7 +132,9 @@ VALUES(
 	    ?, ?
 	)
 	`, ts.Year(), ts.Month(), ts.Day(), ts.Hour(), ts.Minute(),
-		pairID, testChainID,
+		pairID, chainID,
+		volume0, volume1,
+		liquidity0, liquidity1,
 		ts.Unix(),
 		ts.Unix(), ts.Unix()).Error)
 }
@@ -242,6 +249,21 @@ func TestRecentOf_NoDivisionByZero_WithPrevZeros(t *testing.T) {
 	assert.Equal(t, float32(0), recent.AprChangeRate)
 }
 
+func TestRecent_NoDivisionByZero_WithPrevZeros(t *testing.T) {
+	db := SetupDB(t)
+	defer CleanupDB(t, db)
+	generateStatsForPairWithValues(t, db, testPairID, testChainID, time.Now().Truncate(time.Hour).Add(-30*time.Minute), "100", "0", "1000", "1000")
+
+	d := &dashboard{DB: db, chainId: testChainID}
+	recent, err := d.Recent()
+	require.NoError(t, err)
+
+	assert.Equal(t, float32(0), recent.VolumeChangeRate)
+	assert.Equal(t, float32(0), recent.FeeChangeRate)
+	assert.Equal(t, float32(0), recent.TvlChangeRate)
+	assert.Equal(t, float32(0), recent.AprChangeRate)
+}
+
 func TestTokens_NoTransaction48h(t *testing.T) {
 	db := SetupDB(t)
 	defer CleanupDB(t, db)
@@ -351,6 +373,72 @@ func TestTestTokenTvls(t *testing.T) {
 		_, err = strconv.ParseInt(chart[0].Timestamp, 10, 64)
 		require.NoError(t, err)
 	})
+
+	t.Run("Asset1 uses asset1 liquidity", func(t *testing.T) {
+		chart, err := d.TokenTvls(addr, Month)
+		require.NoError(t, err)
+		require.NotEmpty(t, chart)
+
+		assert.Equal(t, "2222.22", chart[len(chart)-1].Value)
+	})
+}
+
+func TestAprsOf_UsesOnlyTargetPoolVolume(t *testing.T) {
+	db := SetupDB(t)
+	defer CleanupDB(t, db)
+
+	var otherPairID string
+	row := db.Raw(`
+INSERT INTO pair (chain_id, contract, asset0, asset1, lp) VALUES (?, ?, 'axpla', 'xerc20:OTHER', 'xpla1lp3') RETURNING id
+`, testChainID, testPairContractAddr3).Row()
+	require.NoError(t, row.Err())
+	require.NoError(t, row.Scan(&otherPairID))
+
+	ts := time.Now().Truncate(time.Hour).Add(-30 * time.Minute)
+	generateStatsForPairWithValues(t, db, testPairID, testChainID, ts, "100", "0", "1000", "1000")
+	generateStatsForPairWithValues(t, db, otherPairID, testChainID, ts, "1000000", "0", "1000", "1000")
+
+	d := &dashboard{DB: db, chainId: testChainID}
+	aprs, err := d.AprsOf(Addr(testPairContractAddr2), Month)
+	require.NoError(t, err)
+	require.NotEmpty(t, aprs)
+
+	actual, err := strconv.ParseFloat(aprs[len(aprs)-1].Apr, 64)
+	require.NoError(t, err)
+	expected := 100.0 / 2000.0 * weekAprMultiplier
+	assert.InDelta(t, expected, actual, 0.000001)
+}
+
+func TestAprs_ExcludesOtherChainVolume(t *testing.T) {
+	db := SetupDB(t)
+	defer CleanupDB(t, db)
+
+	otherChainID := "otherchain-1"
+	var otherPairID string
+	row := db.Raw(`
+INSERT INTO pair (chain_id, contract, asset0, asset1, lp) VALUES (?, 'otherpair', 'axpla', ?, 'xpla1lp-other') RETURNING id
+`, otherChainID, testTokenAddr).Row()
+	require.NoError(t, row.Err())
+	require.NoError(t, row.Scan(&otherPairID))
+
+	ts := time.Now().Truncate(time.Hour).Add(-30 * time.Minute)
+	generateStatsForPairWithValues(t, db, testPairID, testChainID, ts, "100", "0", "1000", "1000")
+	generateStatsForPairWithValues(t, db, otherPairID, otherChainID, ts, "1000000", "0", "1000", "1000")
+	defer func() {
+		require.NoError(t, db.Exec(`DELETE FROM pair_stats_recent WHERE pair_id = ?`, otherPairID).Error)
+		require.NoError(t, db.Exec(`DELETE FROM pair_stats_30m WHERE pair_id = ?`, otherPairID).Error)
+		require.NoError(t, db.Exec(`DELETE FROM pair WHERE chain_id = ?`, otherChainID).Error)
+	}()
+
+	d := &dashboard{DB: db, chainId: testChainID}
+	aprs, err := d.Aprs(Month)
+	require.NoError(t, err)
+	require.NotEmpty(t, aprs)
+
+	actual, err := strconv.ParseFloat(aprs[len(aprs)-1].Apr, 64)
+	require.NoError(t, err)
+	expected := 100.0 / 2000.0 * weekAprMultiplier
+	assert.InDelta(t, expected, actual, 0.000001)
 }
 
 func TestPools_NewPairAppearsWithoutStats(t *testing.T) {
@@ -446,6 +534,36 @@ func TestTxs_SwapWithTransfer_TransferHidden(t *testing.T) {
 	assert.Equal(t, hash, txs[0].Hash)
 	assert.Equal(t, "1000", txs[0].Asset0Amount)
 	assert.Equal(t, "2000", txs[0].Asset1Amount)
+}
+
+func TestTxs_UsesLatestPriceAtOrBeforeTx(t *testing.T) {
+	db := SetupDB(t)
+	defer CleanupDB(t, db)
+
+	var txID int64
+	row := db.Raw(`
+INSERT INTO parsed_tx(chain_id, height, timestamp, hash, sender, type, contract, asset0, asset0_amount, asset1, asset1_amount, lp_amount)
+VALUES(?, 1, EXTRACT(EPOCH FROM NOW()), 'priced_hash', 'test_sender', 'swap', ?, 'axpla', 1000000000000000000, ?, 2000000000000000000, 0)
+RETURNING id
+`, testChainID, testPairContractAddr2, testTokenAddr).Row()
+	require.NoError(t, row.Err())
+	require.NoError(t, row.Scan(&txID))
+
+	require.NoError(t, db.Exec(`
+INSERT INTO price(height, chain_id, token_id, price, price_token_id, route_id, tx_id)
+VALUES(1, ?, ?, 7, ?, 1, ?)
+`, testChainID, testTokenID2, testTokenID1, txID-1).Error)
+	require.NoError(t, db.Exec(`
+INSERT INTO price(height, chain_id, token_id, price, price_token_id, route_id, tx_id)
+VALUES(1, ?, ?, 9, ?, 1, ?)
+`, testChainID, testTokenID2, testTokenID1, txID+1).Error)
+
+	d := &dashboard{DB: db, chainId: testChainID}
+	txs, err := d.Txs(TX_TYPE_ALL)
+	require.NoError(t, err)
+	require.Len(t, txs, 1)
+
+	assert.Equal(t, "7", txs[0].TotalValue)
 }
 
 // TestTxs_TransferOnly_ExcludedRegardlessOfAssets verifies that transfer-only hashes are excluded
