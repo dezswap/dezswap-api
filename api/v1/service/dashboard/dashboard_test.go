@@ -191,10 +191,11 @@ INSERT INTO pair (chain_id, contract, asset0, asset1, lp) VALUES (?, ?, ?, 'xerc
 	require.NoError(t, row.Err())
 	require.NoError(t, row.Scan(&pairID3))
 
-	generateStats(t, db, time.Now().Truncate(time.Hour).Add(-30*time.Minute))
-	generateStats(t, db, time.Now().Truncate(time.Hour).Add(-25*time.Hour))
-	generateStatsForPair(t, db, pairID3, time.Now().Truncate(time.Hour).Add(-30*time.Minute))
-	generateStatsForPair(t, db, pairID3, time.Now().Truncate(time.Hour).Add(-25*time.Hour))
+	base := time.Now().Truncate(time.Hour)
+	generateStats(t, db, base.Add(-30*time.Minute))
+	generateStats(t, db, base.Add(-25*time.Hour))
+	generateStatsForPair(t, db, pairID3, base.Add(-30*time.Minute))
+	generateStatsForPair(t, db, pairID3, base.Add(-25*time.Hour))
 
 	// Read the broad query result as the expected baseline.
 	d := &dashboard{DB: db, chainId: testChainID}
