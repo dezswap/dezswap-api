@@ -853,12 +853,13 @@ from (
                      date_trunc('week', to_timestamp(timestamp) at time zone 'UTC') + interval '6 days' -- last day of the 2nd week
                  else
                      date_trunc('week', to_timestamp(timestamp) at time zone 'UTC') + interval '13 days' -- next week's last day of the 1st week
-                 end as eow2, * from pair_stats_30m) ps
+                 end as eow2, *
+          from pair_stats_30m
+          where chain_id = ?
+            and timestamp >= extract(epoch from date_trunc('day', now()) - interval '1 year')) ps
     join pair p on p.id = ps.pair_id
     join tokens t on p.chain_id = t.chain_id and (p.asset0 = t.address or p.asset1 = t.address)
-    where ps.chain_id = ?
-      and t.address = ?
-      and ps.timestamp >= extract(epoch from date_trunc('day', now()) - interval '1 year')
+    where t.address = ?
     group by eow2, p.asset0, t.address
 ) t
 group by eow2
@@ -921,12 +922,12 @@ from (select distinct pair_id, eow,
            end as tvl
     from (select date_trunc('week', to_timestamp(timestamp) at time zone 'UTC') + interval '6 days' as eow, -- last day of week
                  *
-          from pair_stats_30m) ps
+          from pair_stats_30m
+          where chain_id = ?
+            and timestamp >= extract(epoch from date_trunc('day', now()) - interval '3 month')) ps
     join pair p on p.id = ps.pair_id
     join tokens t on p.chain_id = t.chain_id and (p.asset0 = t.address or p.asset1 = t.address)
-    where ps.chain_id = ?
-      and t.address = ?
-      and ps.timestamp >= extract(epoch from date_trunc('day', now()) - interval '3 month')) t
+    where t.address = ?) t
 group by eow
 order by eow
 `
@@ -946,12 +947,12 @@ from (select distinct on (pair_id, eow2)
                      date_trunc('week', to_timestamp(timestamp) at time zone 'UTC') + interval '13 days' -- next week's last day of the 1st week
                  end as eow2,
                  *
-          from pair_stats_30m) ps
+          from pair_stats_30m
+          where chain_id = ?
+            and timestamp >= extract(epoch from date_trunc('day', now()) - interval '1 year')) ps
     join pair p on p.id = ps.pair_id
     join tokens t on p.chain_id = t.chain_id and (p.asset0 = t.address or p.asset1 = t.address)
-    where ps.chain_id = ?
-      and t.address = ?
-      and ps.timestamp >= extract(epoch from date_trunc('day', now()) - interval '1 year')) t
+    where t.address = ?) t
 group by eow2
 order by eow2
 `
@@ -1019,10 +1020,10 @@ from (select p.height, eow2, p.price
                            date_trunc('week', to_timestamp(timestamp) at time zone 'UTC') + interval '13 days' -- next week's last day of the 1st week
                        end as eow2,
                        *
-                from parsed_tx) pt on p.chain_id = pt.chain_id and p.tx_id = pt.id
-      where pt.chain_id = ?
-        and (pt.asset0 = ? or pt.asset1 = ?)
-        and pt.timestamp >= extract(epoch from date_trunc('day', now()) - interval '1 year')) t
+                from parsed_tx
+                where chain_id = ?
+                  and (asset0 = ? or asset1 = ?)
+                  and timestamp >= extract(epoch from date_trunc('day', now()) - interval '1 year')) pt on p.chain_id = pt.chain_id and p.tx_id = pt.id) t
 `
 	}
 
@@ -1191,8 +1192,8 @@ func (d *dashboard) Txs(txType TxType, addr ...Addr) (Txs, error) {
 	).Table("(?) AS pt", subQuery).Joins(`
 		JOIN tokens AS t0 ON pt.asset0 = t0.address AND pt.chain_id = t0.chain_id
 		JOIN tokens AS t1 ON pt.asset1 = t1.address AND pt.chain_id = t1.chain_id
-		LEFT JOIN LATERAL (select price from price p join (SELECT max(tx_id) tx_id FROM price WHERE token_id = t0.id AND tx_id <= pt.id) t on p.tx_id = t.tx_id where p.token_id = t0.id) pr0 ON TRUE
-		LEFT JOIN LATERAL (select price from price p join (SELECT max(tx_id) tx_id FROM price WHERE token_id = t1.id AND tx_id <= pt.id) t on p.tx_id = t.tx_id where p.token_id = t1.id) pr1 ON TRUE
+		LEFT JOIN LATERAL (SELECT price FROM price p WHERE p.token_id = t0.id AND p.tx_id <= pt.id ORDER BY p.tx_id DESC LIMIT 1) pr0 ON TRUE
+		LEFT JOIN LATERAL (SELECT price FROM price p WHERE p.token_id = t1.id AND p.tx_id <= pt.id ORDER BY p.tx_id DESC LIMIT 1) pr1 ON TRUE
 	`,
 	).Order(`pt. "timestamp" DESC`)
 
@@ -1241,8 +1242,8 @@ func (d *dashboard) TxsOfToken(txType TxType, tokenAddrs ...Addr) (Txs, error) {
 	).Table("(?) AS pt", subQuery).Joins(`
 		JOIN tokens AS t0 ON pt.asset0 = t0.address AND pt.chain_id = t0.chain_id
 		JOIN tokens AS t1 ON pt.asset1 = t1.address AND pt.chain_id = t1.chain_id
-		LEFT JOIN LATERAL (select price from price p join (SELECT max(tx_id) tx_id FROM price WHERE token_id = t0.id AND tx_id <= pt.id) t on p.tx_id = t.tx_id where p.token_id = t0.id) pr0 ON TRUE
-		LEFT JOIN LATERAL (select price from price p join (SELECT max(tx_id) tx_id FROM price WHERE token_id = t1.id AND tx_id <= pt.id) t on p.tx_id = t.tx_id where p.token_id = t1.id) pr1 ON TRUE
+		LEFT JOIN LATERAL (SELECT price FROM price p WHERE p.token_id = t0.id AND p.tx_id <= pt.id ORDER BY p.tx_id DESC LIMIT 1) pr0 ON TRUE
+		LEFT JOIN LATERAL (SELECT price FROM price p WHERE p.token_id = t1.id AND p.tx_id <= pt.id ORDER BY p.tx_id DESC LIMIT 1) pr1 ON TRUE
 	`,
 	).Order(`pt. "timestamp" DESC`)
 
