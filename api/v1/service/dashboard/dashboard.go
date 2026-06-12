@@ -110,6 +110,7 @@ func (d *dashboard) Aprs(duration Duration) (Aprs, error) {
 			ds
 		LEFT JOIN pair_stats_30m AS ps ON ps. "timestamp" <= ds.timestamp
 			AND ps. "timestamp" > (ds.timestamp - EXTRACT(EPOCH FROM INTERVAL '7 days'))
+			AND ps.chain_id = ?
 		GROUP BY
 			ds.timestamp
 		ORDER BY
@@ -126,7 +127,7 @@ func (d *dashboard) Aprs(duration Duration) (Aprs, error) {
 	`, dateSeries, lastQuery, joinClause, dezswap.SWAP_FEE)
 
 	aprs := Aprs{}
-	if err := d.DB.Raw(query, d.chainId).Scan(&aprs).Error; err != nil {
+	if err := d.DB.Raw(query, d.chainId, d.chainId).Scan(&aprs).Error; err != nil {
 		return nil, errors.Wrap(err, "dashboard.Aprs")
 	}
 	return aprs, nil
@@ -181,8 +182,12 @@ func (d *dashboard) AprsOf(pool Addr, duration Duration) ([]Apr, error) {
 			ds.timestamp
 		FROM
 			ds
-		LEFT JOIN pair_stats_30m AS ps ON ps. "timestamp" <= ds.timestamp
+		LEFT JOIN pair AS p ON p.chain_id = '%s'
+			AND p.contract = ?
+		LEFT JOIN pair_stats_30m AS ps ON ps.pair_id = p.id
+			AND ps. "timestamp" <= ds.timestamp
 			AND ps. "timestamp" > (ds.timestamp - EXTRACT(EPOCH FROM INTERVAL '7 days'))
+			AND ps.chain_id = '%s'
 		GROUP BY
 			ds.timestamp
 		ORDER BY
@@ -196,10 +201,10 @@ func (d *dashboard) AprsOf(pool Addr, duration Duration) ([]Apr, error) {
 	JOIN tvl AS t ON ds.timestamp = t.timestamp
 	JOIN volume7d AS v ON ds.timestamp = v.timestamp
 	ORDER BY ds.timestamp;
-	`, dateSeries, d.chainId, dezswap.SWAP_FEE)
+	`, dateSeries, d.chainId, d.chainId, d.chainId, dezswap.SWAP_FEE)
 
 	aprs := Aprs{}
-	if err := d.DB.Raw(query, pool).Scan(&aprs).Error; err != nil {
+	if err := d.DB.Raw(query, pool, pool).Scan(&aprs).Error; err != nil {
 		return nil, errors.Wrap(err, "dashboard.AprsOf")
 	}
 	return aprs, nil
