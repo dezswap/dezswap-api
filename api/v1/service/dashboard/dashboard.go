@@ -16,6 +16,9 @@ type dashboard struct {
 	*gorm.DB
 }
 
+// Annualizes 7-day fee yield into APR.
+const weekAprMultiplier = dezswap.SWAP_FEE * 365 / 7
+
 var chartCriteriaByDuration = map[Duration]struct {
 	Ago     string
 	TruncBy string
@@ -110,6 +113,7 @@ func (d *dashboard) Aprs(duration Duration) (Aprs, error) {
 			ds
 		LEFT JOIN pair_stats_30m AS ps ON ps. "timestamp" <= ds.timestamp
 			AND ps. "timestamp" > (ds.timestamp - EXTRACT(EPOCH FROM INTERVAL '7 days'))
+			AND ps.chain_id = ?
 		GROUP BY
 			ds.timestamp
 		ORDER BY
@@ -123,10 +127,10 @@ func (d *dashboard) Aprs(duration Duration) (Aprs, error) {
 	JOIN tvl AS t ON ds.timestamp = t.timestamp
 	JOIN volume7d AS v ON ds.timestamp = v.timestamp
 	ORDER BY ds.timestamp;
-	`, dateSeries, lastQuery, joinClause, dezswap.SWAP_FEE)
+	`, dateSeries, lastQuery, joinClause, weekAprMultiplier)
 
 	aprs := Aprs{}
-	if err := d.DB.Raw(query, d.chainId).Scan(&aprs).Error; err != nil {
+	if err := d.DB.Raw(query, d.chainId, d.chainId).Scan(&aprs).Error; err != nil {
 		return nil, errors.Wrap(err, "dashboard.Aprs")
 	}
 	return aprs, nil
@@ -181,8 +185,12 @@ func (d *dashboard) AprsOf(pool Addr, duration Duration) ([]Apr, error) {
 			ds.timestamp
 		FROM
 			ds
-		LEFT JOIN pair_stats_30m AS ps ON ps. "timestamp" <= ds.timestamp
+		LEFT JOIN pair AS p ON p.chain_id = '%s'
+			AND p.contract = ?
+		LEFT JOIN pair_stats_30m AS ps ON ps.pair_id = p.id
+			AND ps. "timestamp" <= ds.timestamp
 			AND ps. "timestamp" > (ds.timestamp - EXTRACT(EPOCH FROM INTERVAL '7 days'))
+			AND ps.chain_id = '%s'
 		GROUP BY
 			ds.timestamp
 		ORDER BY
@@ -196,10 +204,10 @@ func (d *dashboard) AprsOf(pool Addr, duration Duration) ([]Apr, error) {
 	JOIN tvl AS t ON ds.timestamp = t.timestamp
 	JOIN volume7d AS v ON ds.timestamp = v.timestamp
 	ORDER BY ds.timestamp;
-	`, dateSeries, d.chainId, dezswap.SWAP_FEE)
+	`, dateSeries, d.chainId, d.chainId, d.chainId, weekAprMultiplier)
 
 	aprs := Aprs{}
-	if err := d.DB.Raw(query, pool).Scan(&aprs).Error; err != nil {
+	if err := d.DB.Raw(query, pool, pool).Scan(&aprs).Error; err != nil {
 		return nil, errors.Wrap(err, "dashboard.AprsOf")
 	}
 	return aprs, nil
@@ -267,7 +275,7 @@ func (d *dashboard) Pools(tokens ...Addr) (Pools, error) {
 		WHERE
 			p.chain_id = '%s'
 		`,
-		tvl(current), volume(dayAgo, current), volume(sevenDaysAgo, current), dezswap.SWAP_FEE, dezswap.SWAP_FEE, d.chainId,
+		tvl(current), volume(dayAgo, current), volume(sevenDaysAgo, current), dezswap.SWAP_FEE, weekAprMultiplier, d.chainId,
 	)
 
 	orderBy := `ORDER BY p.contract`
@@ -359,16 +367,16 @@ func (d *dashboard) Recent() (Recent, error) {
 			prev_volume7d as (%s)
 		SELECT
 			tvl.tvl AS tvl,
-			CAST((tvl.tvl / prev_tvl.tvl - 1) AS float4) AS tvl_change_rate,
+			COALESCE((tvl.tvl / NULLIF(prev_tvl.tvl, 0) - 1)::float4, 0) AS tvl_change_rate,
 			volume.volume AS volume,
-			CAST((volume.volume / prev_volume.volume - 1) AS float4) AS volume_change_rate,
+			COALESCE((volume.volume / NULLIF(prev_volume.volume, 0) - 1)::float4, 0) AS volume_change_rate,
 			volume.volume * %f as fee,
-			CAST((volume.volume / prev_volume.volume - 1) AS float4) AS fee_change_rate,
-			volume7d.volume / tvl.tvl * %f as apr,
-			(volume7d.volume / tvl.tvl) / (prev_volume7d.volume / prev_tvl.tvl) - 1 AS apr_change_rate
+			COALESCE((volume.volume / NULLIF(prev_volume.volume, 0) - 1)::float4, 0) AS fee_change_rate,
+			COALESCE(volume7d.volume / NULLIF(tvl.tvl, 0), 0) * %f as apr,
+			COALESCE((volume7d.volume / NULLIF(tvl.tvl, 0)) / NULLIF(prev_volume7d.volume / NULLIF(prev_tvl.tvl, 0), 0) - 1, 0) AS apr_change_rate
 		FROM
 			tvl, prev_tvl, volume, prev_volume, volume7d, prev_volume7d;
-	`, tvl(current), tvl(dayAgo), volume(dayAgo, current), volume(twoDaysAgo, dayAgo), volume(sevenDaysAgo, current), volume(eightDaysAgo, dayAgo), dezswap.SWAP_FEE, dezswap.SWAP_FEE)
+	`, tvl(current), tvl(dayAgo), volume(dayAgo, current), volume(twoDaysAgo, dayAgo), volume(sevenDaysAgo, current), volume(eightDaysAgo, dayAgo), dezswap.SWAP_FEE, weekAprMultiplier)
 	recent := Recent{}
 	if err := d.DB.Raw(query).Scan(&recent).Error; err != nil {
 		return recent, errors.Wrap(err, "dashboard.Recent")
@@ -445,7 +453,7 @@ func (d *dashboard) RecentOf(pairContractAddr Addr) (Recent, error) {
 			COALESCE((volume7d.volume / NULLIF(tvl.tvl, 0)) / NULLIF(prev_volume7d.volume / NULLIF(prev_tvl.tvl, 0), 0) - 1, 0) AS apr_change_rate
 		FROM
 			tvl, prev_tvl, volume, prev_volume, volume7d, prev_volume7d
-	`, tvl(current), tvl(dayAgo), volume(dayAgo, current), volume(twoDaysAgo, dayAgo), volume(sevenDaysAgo, current), volume(eightDaysAgo, dayAgo), d.chainId, dezswap.SWAP_FEE, dezswap.SWAP_FEE)
+	`, tvl(current), tvl(dayAgo), volume(dayAgo, current), volume(twoDaysAgo, dayAgo), volume(sevenDaysAgo, current), volume(eightDaysAgo, dayAgo), d.chainId, dezswap.SWAP_FEE, weekAprMultiplier)
 	recent := Recent{}
 	if err := d.DB.Raw(query, pairContractAddr, pairContractAddr, pairContractAddr, pairContractAddr, pairContractAddr, pairContractAddr, pairContractAddr).Scan(&recent).Error; err != nil {
 		return recent, errors.Wrap(err, "dashboard.RecentOf")
@@ -845,12 +853,13 @@ from (
                      date_trunc('week', to_timestamp(timestamp) at time zone 'UTC') + interval '6 days' -- last day of the 2nd week
                  else
                      date_trunc('week', to_timestamp(timestamp) at time zone 'UTC') + interval '13 days' -- next week's last day of the 1st week
-                 end as eow2, * from pair_stats_30m) ps
+                 end as eow2, *
+          from pair_stats_30m
+          where chain_id = ?
+            and timestamp >= extract(epoch from date_trunc('day', now()) - interval '1 year')) ps
     join pair p on p.id = ps.pair_id
     join tokens t on p.chain_id = t.chain_id and (p.asset0 = t.address or p.asset1 = t.address)
-    where ps.chain_id = ?
-      and t.address = ?
-      and ps.timestamp >= extract(epoch from date_trunc('day', now()) - interval '1 year')
+    where t.address = ?
     group by eow2, p.asset0, t.address
 ) t
 group by eow2
@@ -873,7 +882,7 @@ from (select distinct pair_id, year_utc, month_utc,
            case when p.asset0 = t.address then
                first_value(ps.liquidity0_in_price) over (partition by pair_id, year_utc, month_utc order by timestamp desc)
            else
-               first_value(ps.liquidity0_in_price) over (partition by pair_id, year_utc, month_utc order by timestamp desc)
+               first_value(ps.liquidity1_in_price) over (partition by pair_id, year_utc, month_utc order by timestamp desc)
            end as tvl
     from pair_stats_30m ps
     join pair p on p.id = ps.pair_id
@@ -891,7 +900,7 @@ from (select distinct pair_id, year_utc, month_utc, day_utc,
            case when p.asset0 = t.address then
                first_value(ps.liquidity0_in_price) over (partition by pair_id, year_utc, month_utc, day_utc order by timestamp desc)
            else
-               first_value(ps.liquidity0_in_price) over (partition by pair_id, year_utc, month_utc, day_utc order by timestamp desc)
+               first_value(ps.liquidity1_in_price) over (partition by pair_id, year_utc, month_utc, day_utc order by timestamp desc)
            end as tvl
     from pair_stats_30m ps
     join pair p on p.id = ps.pair_id
@@ -909,16 +918,16 @@ from (select distinct pair_id, eow,
            case when p.asset0 = t.address then
                first_value(ps.liquidity0_in_price) over (partition by pair_id, eow order by timestamp desc)
            else
-               first_value(ps.liquidity0_in_price) over (partition by pair_id, eow order by timestamp desc)
+               first_value(ps.liquidity1_in_price) over (partition by pair_id, eow order by timestamp desc)
            end as tvl
     from (select date_trunc('week', to_timestamp(timestamp) at time zone 'UTC') + interval '6 days' as eow, -- last day of week
                  *
-          from pair_stats_30m) ps
+          from pair_stats_30m
+          where chain_id = ?
+            and timestamp >= extract(epoch from date_trunc('day', now()) - interval '3 month')) ps
     join pair p on p.id = ps.pair_id
     join tokens t on p.chain_id = t.chain_id and (p.asset0 = t.address or p.asset1 = t.address)
-    where ps.chain_id = ?
-      and t.address = ?
-      and ps.timestamp >= extract(epoch from date_trunc('day', now()) - interval '3 month')) t
+    where t.address = ?) t
 group by eow
 order by eow
 `
@@ -930,7 +939,7 @@ from (select distinct on (pair_id, eow2)
            case when p.asset0 = t.address then
                first_value(ps.liquidity0_in_price) over (partition by pair_id, year_utc, eow2 order by timestamp desc)
            else
-               first_value(ps.liquidity0_in_price) over (partition by pair_id, year_utc, eow2 order by timestamp desc)
+               first_value(ps.liquidity1_in_price) over (partition by pair_id, year_utc, eow2 order by timestamp desc)
            end as tvl
     from (select case when mod(cast(extract(week from to_timestamp(timestamp)) as bigint),2) = 0 then
                      date_trunc('week', to_timestamp(timestamp) at time zone 'UTC') + interval '6 days' -- last day of the 2nd week
@@ -938,12 +947,12 @@ from (select distinct on (pair_id, eow2)
                      date_trunc('week', to_timestamp(timestamp) at time zone 'UTC') + interval '13 days' -- next week's last day of the 1st week
                  end as eow2,
                  *
-          from pair_stats_30m) ps
+          from pair_stats_30m
+          where chain_id = ?
+            and timestamp >= extract(epoch from date_trunc('day', now()) - interval '1 year')) ps
     join pair p on p.id = ps.pair_id
     join tokens t on p.chain_id = t.chain_id and (p.asset0 = t.address or p.asset1 = t.address)
-    where ps.chain_id = ?
-      and t.address = ?
-      and ps.timestamp >= extract(epoch from date_trunc('day', now()) - interval '1 year')) t
+    where t.address = ?) t
 group by eow2
 order by eow2
 `
@@ -1011,10 +1020,10 @@ from (select p.height, eow2, p.price
                            date_trunc('week', to_timestamp(timestamp) at time zone 'UTC') + interval '13 days' -- next week's last day of the 1st week
                        end as eow2,
                        *
-                from parsed_tx) pt on p.chain_id = pt.chain_id and p.tx_id = pt.id
-      where pt.chain_id = ?
-        and (pt.asset0 = ? or pt.asset1 = ?)
-        and pt.timestamp >= extract(epoch from date_trunc('day', now()) - interval '1 year')) t
+                from parsed_tx
+                where chain_id = ?
+                  and (asset0 = ? or asset1 = ?)
+                  and timestamp >= extract(epoch from date_trunc('day', now()) - interval '1 year')) pt on p.chain_id = pt.chain_id and p.tx_id = pt.id) t
 `
 	}
 
@@ -1183,8 +1192,8 @@ func (d *dashboard) Txs(txType TxType, addr ...Addr) (Txs, error) {
 	).Table("(?) AS pt", subQuery).Joins(`
 		JOIN tokens AS t0 ON pt.asset0 = t0.address AND pt.chain_id = t0.chain_id
 		JOIN tokens AS t1 ON pt.asset1 = t1.address AND pt.chain_id = t1.chain_id
-		LEFT JOIN LATERAL (select price from price p join (SELECT max(tx_id) tx_id FROM price WHERE token_id = t0.id AND tx_id <= pt.id) t on p.tx_id = t.tx_id where p.token_id = t0.id) pr0 ON TRUE
-		LEFT JOIN LATERAL (select price from price p join (SELECT max(tx_id) tx_id FROM price WHERE token_id = t1.id AND tx_id <= pt.id) t on p.tx_id = t.tx_id where p.token_id = t1.id) pr1 ON TRUE
+		LEFT JOIN LATERAL (SELECT price FROM price p WHERE p.token_id = t0.id AND p.tx_id <= pt.id ORDER BY p.tx_id DESC LIMIT 1) pr0 ON TRUE
+		LEFT JOIN LATERAL (SELECT price FROM price p WHERE p.token_id = t1.id AND p.tx_id <= pt.id ORDER BY p.tx_id DESC LIMIT 1) pr1 ON TRUE
 	`,
 	).Order(`pt. "timestamp" DESC`)
 
@@ -1233,8 +1242,8 @@ func (d *dashboard) TxsOfToken(txType TxType, tokenAddrs ...Addr) (Txs, error) {
 	).Table("(?) AS pt", subQuery).Joins(`
 		JOIN tokens AS t0 ON pt.asset0 = t0.address AND pt.chain_id = t0.chain_id
 		JOIN tokens AS t1 ON pt.asset1 = t1.address AND pt.chain_id = t1.chain_id
-		LEFT JOIN LATERAL (select price from price p join (SELECT max(tx_id) tx_id FROM price WHERE token_id = t0.id AND tx_id <= pt.id) t on p.tx_id = t.tx_id where p.token_id = t0.id) pr0 ON TRUE
-		LEFT JOIN LATERAL (select price from price p join (SELECT max(tx_id) tx_id FROM price WHERE token_id = t1.id AND tx_id <= pt.id) t on p.tx_id = t.tx_id where p.token_id = t1.id) pr1 ON TRUE
+		LEFT JOIN LATERAL (SELECT price FROM price p WHERE p.token_id = t0.id AND p.tx_id <= pt.id ORDER BY p.tx_id DESC LIMIT 1) pr0 ON TRUE
+		LEFT JOIN LATERAL (SELECT price FROM price p WHERE p.token_id = t1.id AND p.tx_id <= pt.id ORDER BY p.tx_id DESC LIMIT 1) pr1 ON TRUE
 	`,
 	).Order(`pt. "timestamp" DESC`)
 
