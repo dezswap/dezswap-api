@@ -242,13 +242,18 @@ func (s *statService) sumPairStat(stat db.PairStat, sumStatMap map[string][count
 func (s *statService) mapToSlice(pairStatMap map[string][countOfStatType]math.LegacyDec, aprAnnualization math.LegacyDec) PairStats {
 	pairStats := make(PairStats, 0, len(pairStatMap))
 	for k, v := range pairStatMap {
+		aprInPrice := "0"
+		if !v[statLiquidity].IsZero() {
+			aprInPrice = v[statCommission].Quo(v[statLiquidity]).Mul(aprAnnualization).MulInt64(100).String()
+		}
+
 		pairStats = append(
 			pairStats,
 			PairStat{
 				Address:           k,
 				VolumeInPrice:     v[statVolume].String(),
 				CommissionInPrice: v[statCommission].String(),
-				AprInPrice:        v[statCommission].Quo(v[statLiquidity]).Mul(aprAnnualization).MulInt64(100).String(),
+				AprInPrice:        aprInPrice,
 			})
 	}
 
