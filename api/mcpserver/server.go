@@ -142,6 +142,7 @@ func (s *Server) Mount() {
 			return s.handleTool(ctx, spec, req)
 		})
 	}
+	addResources(server)
 
 	handler := mcp.NewStreamableHTTPHandler(func(req *http.Request) *mcp.Server {
 		return server
