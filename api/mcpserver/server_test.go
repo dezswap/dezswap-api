@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/gin-gonic/gin"
@@ -149,5 +150,88 @@ func TestMCPOriginValidation(t *testing.T) {
 
 	if rec.Code != http.StatusForbidden {
 		t.Fatalf("expected 403, got %d", rec.Code)
+	}
+}
+
+func TestMCPResources_ListAndRead(t *testing.T) {
+	ctx := context.Background()
+	server := mcp.NewServer(&mcp.Implementation{Name: "test-server", Version: "v0.0.1"}, nil)
+	addResources(server)
+
+	client := mcp.NewClient(&mcp.Implementation{Name: "test-client", Version: "v0.0.1"}, nil)
+	serverTransport, clientTransport := mcp.NewInMemoryTransports()
+	if _, err := server.Connect(ctx, serverTransport, nil); err != nil {
+		t.Fatalf("server.Connect() error = %v", err)
+	}
+	clientSession, err := client.Connect(ctx, clientTransport, nil)
+	if err != nil {
+		t.Fatalf("client.Connect() error = %v", err)
+	}
+	defer clientSession.Close()
+
+	resources, err := clientSession.ListResources(ctx, nil)
+	if err != nil {
+		t.Fatalf("ListResources() error = %v", err)
+	}
+	if len(resources.Resources) != 2 {
+		t.Fatalf("expected 2 resources, got %d", len(resources.Resources))
+	}
+
+	got := map[string]*mcp.Resource{}
+	for _, resource := range resources.Resources {
+		got[resource.URI] = resource
+		if resource.MIMEType != resourceMIMETypeMarkdown {
+			t.Fatalf("expected resource %s MIME type %s, got %s", resource.URI, resourceMIMETypeMarkdown, resource.MIMEType)
+		}
+	}
+	for _, uri := range []string{"dezswap://service/guide", "dezswap://dex/domain-model"} {
+		if _, ok := got[uri]; !ok {
+			t.Fatalf("expected resource %s", uri)
+		}
+	}
+
+	for _, tc := range []struct {
+		uri      string
+		contains []string
+	}{
+		{
+			uri: "dezswap://service/guide",
+			contains: []string{
+				"read-only Dezswap analytics and discovery",
+				"cannot execute swaps",
+				"cannot return amount-based quotes",
+				"cannot calculate slippage",
+				"cannot calculate price impact",
+				"hopCount argument is a maximum path length filter",
+			},
+		},
+		{
+			uri: "dezswap://dex/domain-model",
+			contains: []string{
+				"ibc/<hash>",
+				"ibc-<hash>",
+				"decimal strings",
+				"raw time series with {t, v} items",
+				"not a quote",
+				"public transaction action values are swap, add, and remove",
+			},
+		},
+	} {
+		result, err := clientSession.ReadResource(ctx, &mcp.ReadResourceParams{URI: tc.uri})
+		if err != nil {
+			t.Fatalf("ReadResource(%s) error = %v", tc.uri, err)
+		}
+		if len(result.Contents) != 1 {
+			t.Fatalf("expected one content item for %s, got %d", tc.uri, len(result.Contents))
+		}
+		content := result.Contents[0]
+		if content.MIMEType != resourceMIMETypeMarkdown {
+			t.Fatalf("expected read MIME type %s for %s, got %s", resourceMIMETypeMarkdown, tc.uri, content.MIMEType)
+		}
+		for _, want := range tc.contains {
+			if !strings.Contains(content.Text, want) {
+				t.Fatalf("expected %s to contain %q", tc.uri, want)
+			}
+		}
 	}
 }
