@@ -23,7 +23,17 @@ func indexerConfig(v *viper.Viper) IndexerConfig {
 
 	nodeC := grpcConfig(v.Sub("indexer.src_node"))
 	envNodeC := grpcConfigFromEnv(v, "INDEXER_SRC_NODE")
-	nodeCs := grpcConfigs(v, "indexer.src_nodes")
+	envNodeCs, err := grpcConfigsFromEnv(v, "INDEXER_SRC_NODES")
+	if err != nil {
+		panic(err)
+	}
+	nodeCs := envNodeCs
+	if len(nodeCs) == 0 {
+		nodeCs, err = grpcConfigs(v, "indexer.src_nodes")
+		if err != nil {
+			panic(err)
+		}
+	}
 	nodeC.Override(envNodeC)
 	if !envNodeC.IsZero() {
 		nodeCs = nil

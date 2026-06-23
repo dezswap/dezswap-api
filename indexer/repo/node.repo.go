@@ -3,6 +3,7 @@ package repo
 import (
 	"context"
 
+	ibc_types "github.com/cosmos/ibc-go/v10/modules/apps/transfer/types"
 	"github.com/dezswap/dezswap-api/indexer"
 	"github.com/dezswap/dezswap-api/pkg"
 	"github.com/dezswap/dezswap-api/pkg/dezswap"
@@ -11,7 +12,7 @@ import (
 
 type nodeRepoImpl struct {
 	pkg.EthClient
-	pkg.GrpcClient
+	grpcClients []pkg.GrpcClient
 	nodeMapper
 	pkg.NetworkMetadata
 	chainId string
@@ -19,41 +20,66 @@ type nodeRepoImpl struct {
 
 var _ indexer.NodeRepo = &nodeRepoImpl{}
 
+type GrpcEndpoint struct {
+	Target string
+	UseTLS bool
+}
+
 func NewNodeRepo(grpcEndpoint, ethRpcEndpoint string, useTls bool, chainId string, networkMetadata pkg.NetworkMetadata) (indexer.NodeRepo, error) {
-	grpcClient, err := pkg.NewGrpcClient(grpcEndpoint, useTls)
-	if err != nil {
-		return nil, err
+	return NewNodeRepoWithGrpcEndpoints([]GrpcEndpoint{{Target: grpcEndpoint, UseTLS: useTls}}, ethRpcEndpoint, chainId, networkMetadata)
+}
+
+func NewNodeRepoWithGrpcEndpoints(grpcEndpoints []GrpcEndpoint, ethRpcEndpoint string, chainId string, networkMetadata pkg.NetworkMetadata) (indexer.NodeRepo, error) {
+	if len(grpcEndpoints) == 0 {
+		return nil, errors.New("NewNodeRepoWithGrpcEndpoints: grpc endpoint is not configured")
+	}
+
+	grpcClients := make([]pkg.GrpcClient, 0, len(grpcEndpoints))
+	for i, endpoint := range grpcEndpoints {
+		grpcClient, err := pkg.NewGrpcClient(endpoint.Target, endpoint.UseTLS)
+		if err != nil {
+			return nil, errors.Wrapf(err, "NewNodeRepoWithGrpcEndpoints: failed to create grpc client endpoint[%d]=%s", i, endpoint.Target)
+		}
+		grpcClients = append(grpcClients, grpcClient)
 	}
 
 	var ethClient pkg.EthClient
+	var err error
 	if ethRpcEndpoint != "" {
 		ethClient, err = pkg.NewEthClient(ethRpcEndpoint)
 		if err != nil {
-			return nil, err
+			return nil, errors.Wrapf(err, "NewNodeRepoWithGrpcEndpoints: failed to create eth client endpoint=%s", ethRpcEndpoint)
 		}
 	}
 
 	return &nodeRepoImpl{
-		ethClient,
-		grpcClient,
-		&nodeMapperImpl{},
-		networkMetadata,
-		chainId,
+		EthClient:       ethClient,
+		grpcClients:     grpcClients,
+		nodeMapper:      &nodeMapperImpl{},
+		NetworkMetadata: networkMetadata,
+		chainId:         chainId,
 	}, nil
 }
 
 // LatestHeightFromNode implements NodeRepo
 func (r *nodeRepoImpl) LatestHeightFromNode() (uint64, error) {
-	height, err := r.SyncedHeight()
-	if err != nil {
-		return 0, errors.Wrap(err, "nodeRepoImpl.HeightFromNode")
+	var lastErr error
+	for _, client := range r.grpcClients {
+		height, err := client.SyncedHeight()
+		if err == nil {
+			return height, nil
+		}
+		lastErr = err
 	}
-	return height, nil
+	if lastErr != nil {
+		return 0, errors.Wrap(lastErr, "nodeRepoImpl.HeightFromNode")
+	}
+	return 0, errors.New("nodeRepoImpl.HeightFromNode: grpc client is not configured")
 }
 
 // PoolFromNode implements NodeRepo
 func (r *nodeRepoImpl) PoolFromNode(addr string, height uint64) (*indexer.PoolInfo, error) {
-	res, err := r.QueryContract(addr, dezswap.QUERY_POOL, height)
+	res, err := r.queryContractFromNode(addr, dezswap.QUERY_POOL, height)
 	if err != nil {
 		return nil, errors.Wrap(err, "nodeRepoImpl.PoolFromNode")
 	}
@@ -93,7 +119,7 @@ func (r *nodeRepoImpl) denomFromNode(addr string) (*indexer.Token, error) {
 }
 
 func (r *nodeRepoImpl) ibcFromNode(addr string) (*indexer.Token, error) {
-	trace, err := r.QueryIbcDenomTrace(addr)
+	trace, err := r.ibcDenomTraceFromNode(addr)
 	if err != nil {
 		return nil, errors.Wrap(err, "nodeRepoImpl.cw20FromNode")
 	}
@@ -112,7 +138,7 @@ func (r *nodeRepoImpl) ibcFromNode(addr string) (*indexer.Token, error) {
 func (r *nodeRepoImpl) cw20FromNode(addr string) (*indexer.Token, error) {
 	trimmedAddr := r.TrimDenomPrefix(addr) // in case of xcw20: address
 
-	res, err := r.QueryContract(trimmedAddr, dezswap.QUERY_TOKEN, r.LatestHeightIndicator)
+	res, err := r.queryContractFromNode(trimmedAddr, dezswap.QUERY_TOKEN, r.LatestHeightIndicator)
 	if err != nil {
 		return nil, errors.Wrap(err, "nodeRepoImpl.cw20FromNode")
 	}
@@ -127,6 +153,36 @@ func (r *nodeRepoImpl) cw20FromNode(addr string) (*indexer.Token, error) {
 	token.Address = addr
 	token.ChainId = r.chainId
 	return token, nil
+}
+
+func (r *nodeRepoImpl) queryContractFromNode(addr string, query []byte, height uint64) ([]byte, error) {
+	var lastErr error
+	for _, client := range r.grpcClients {
+		res, err := client.QueryContract(addr, query, height)
+		if err == nil {
+			return res, nil
+		}
+		lastErr = err
+	}
+	if lastErr != nil {
+		return nil, lastErr
+	}
+	return nil, errors.New("nodeRepoImpl.QueryContractFromNode: grpc client is not configured")
+}
+
+func (r *nodeRepoImpl) ibcDenomTraceFromNode(addr string) (*ibc_types.Denom, error) {
+	var lastErr error
+	for _, client := range r.grpcClients {
+		trace, err := client.QueryIbcDenomTrace(addr)
+		if err == nil {
+			return trace, nil
+		}
+		lastErr = err
+	}
+	if lastErr != nil {
+		return nil, lastErr
+	}
+	return nil, errors.New("nodeRepoImpl.QueryIbcDenomTraceFromNode: grpc client is not configured")
 }
 
 func (r *nodeRepoImpl) erc20FromNode(addr string) (*indexer.Token, error) {

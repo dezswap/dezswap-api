@@ -97,8 +97,17 @@ func main() {
 }
 
 func initApp(config configs.IndexerConfig, networkMetadata pkg.NetworkMetadata) (indexer.Indexer, bool) {
-	grpcEndpoint := fmt.Sprintf("%s:%s", config.SrcNode.Host, config.SrcNode.Port)
-	nodeRepo, err := repo.NewNodeRepo(grpcEndpoint, config.SrcEvmRpcEndpoint, config.SrcNode.UseTls, config.ChainId, networkMetadata)
+	grpcEndpoints := []repo.GrpcEndpoint{{Target: fmt.Sprintf("%s:%s", config.SrcNode.Host, config.SrcNode.Port), UseTLS: config.SrcNode.UseTls}}
+	if len(config.SrcNodes) > 0 {
+		grpcEndpoints = make([]repo.GrpcEndpoint, 0, len(config.SrcNodes))
+		for _, node := range config.SrcNodes {
+			grpcEndpoints = append(grpcEndpoints, repo.GrpcEndpoint{
+				Target: fmt.Sprintf("%s:%s", node.Host, node.Port),
+				UseTLS: node.UseTls,
+			})
+		}
+	}
+	nodeRepo, err := repo.NewNodeRepoWithGrpcEndpoints(grpcEndpoints, config.SrcEvmRpcEndpoint, config.ChainId, networkMetadata)
 	if err != nil {
 		panic(err)
 	}
