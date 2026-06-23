@@ -7,6 +7,7 @@ import (
 type IndexerConfig struct {
 	ChainId           string
 	SrcNode           GrpcConfig
+	SrcNodes          []GrpcConfig
 	SrcEvmRpcEndpoint string
 	SrcDb             RdbConfig
 	Db                RdbConfig
@@ -22,7 +23,11 @@ func indexerConfig(v *viper.Viper) IndexerConfig {
 
 	nodeC := grpcConfig(v.Sub("indexer.src_node"))
 	envNodeC := grpcConfigFromEnv(v, "INDEXER_SRC_NODE")
+	nodeCs := grpcConfigs(v, "indexer.src_nodes")
 	nodeC.Override(envNodeC)
+	if !envNodeC.IsZero() {
+		nodeCs = nil
+	}
 
 	srcEvmRpcEndpoint := v.GetString("indexer.src_evm_rpc_endpoint")
 	envSrcEvmRpcEndpoint := v.GetString("INDEXER_SRC_EVM_RPC_ENDPOINT")
@@ -47,6 +52,7 @@ func indexerConfig(v *viper.Viper) IndexerConfig {
 	return IndexerConfig{
 		ChainId:           chainId,
 		SrcNode:           nodeC,
+		SrcNodes:          nodeCs,
 		SrcEvmRpcEndpoint: srcEvmRpcEndpoint,
 		SrcDb:             srcDbC,
 		Db:                dbC,
