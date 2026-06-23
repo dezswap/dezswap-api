@@ -2,15 +2,12 @@ package repo
 
 import (
 	"context"
-	"time"
 
 	"github.com/dezswap/dezswap-api/indexer"
 	"github.com/dezswap/dezswap-api/pkg"
 	"github.com/dezswap/dezswap-api/pkg/dezswap"
 	"github.com/pkg/errors"
 )
-
-const queryTimeout = 5 * time.Second
 
 type nodeRepoImpl struct {
 	pkg.EthClient
@@ -138,7 +135,7 @@ func (r *nodeRepoImpl) erc20FromNode(addr string) (*indexer.Token, error) {
 	}
 
 	trimmedAddr := r.TrimDenomPrefix(addr)
-	ctx, cancel := context.WithTimeout(context.Background(), queryTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), pkg.NodeQueryTimeout)
 	defer cancel()
 
 	erc20Meta, err := r.QueryErc20Info(ctx, trimmedAddr)
