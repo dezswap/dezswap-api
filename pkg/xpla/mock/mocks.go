@@ -32,7 +32,7 @@ func (g *GrpcClientMock) SyncedHeight() (uint64, error) {
 
 // QueryIbcDenomTrace implements pkg.GrpcClient
 func (g *GrpcClientMock) QueryIbcDenomTrace(hash string) (*ibctypes.Denom, error) {
-	args := g.MethodCalled("QueryIbcDenomTrace")
+	args := g.MethodCalled("QueryIbcDenomTrace", hash)
 	return args.Get(0).(*ibctypes.Denom), args.Error(1)
 }
 

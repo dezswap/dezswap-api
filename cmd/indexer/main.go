@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"math"
 	"os"
 	"reflect"
 	"runtime"
@@ -25,7 +24,6 @@ type repeatableJob struct {
 	delay        time.Duration
 	errCount     uint
 	tolerance    uint
-	exponential  bool
 }
 
 func runJob(j *repeatableJob, logger logging.Logger) {
@@ -44,11 +42,6 @@ func runJob(j *repeatableJob, logger logging.Logger) {
 			j.errorHandler(err)
 		}
 
-		wait := j.delay
-		if j.exponential {
-			wait = j.delay * time.Duration(math.Pow(2, float64(j.errCount)))
-		}
-		time.Sleep(wait)
 	} else {
 		j.errCount = 0
 	}
@@ -71,8 +64,8 @@ func main() {
 
 	app, hasAssetRepo := initApp(c.Indexer, networkMetadata)
 	jobs := []*repeatableJob{
-		{each: app.UpdateTokens, errorHandler: nil, delay: time.Duration(networkMetadata.BlockSecond) * time.Second, errCount: 0, tolerance: 3, exponential: true},
-		{each: app.UpdateLatestPools, errorHandler: nil, delay: time.Duration(networkMetadata.BlockSecond) * time.Second, errCount: 0, tolerance: 3, exponential: true},
+		{each: app.UpdateTokens, errorHandler: nil, delay: time.Duration(networkMetadata.BlockSecond) * time.Second, errCount: 0, tolerance: 3},
+		{each: app.UpdateLatestPools, errorHandler: nil, delay: time.Duration(networkMetadata.BlockSecond) * time.Second, errCount: 0, tolerance: 3},
 	}
 	// indexer.UpdateVerifiedTokens can run only when assetRepo exists
 	if hasAssetRepo {
@@ -84,7 +77,6 @@ func main() {
 				delay:        time.Duration(networkMetadata.BlockSecond) * time.Second,
 				errCount:     0,
 				tolerance:    3,
-				exponential:  true,
 			},
 		)
 	}
@@ -105,8 +97,17 @@ func main() {
 }
 
 func initApp(config configs.IndexerConfig, networkMetadata pkg.NetworkMetadata) (indexer.Indexer, bool) {
-	grpcEndpoint := fmt.Sprintf("%s:%s", config.SrcNode.Host, config.SrcNode.Port)
-	nodeRepo, err := repo.NewNodeRepo(grpcEndpoint, config.SrcEvmRpcEndpoint, config.SrcNode.UseTls, config.ChainId, networkMetadata)
+	grpcEndpoints := []repo.GrpcEndpoint{{Target: fmt.Sprintf("%s:%s", config.SrcNode.Host, config.SrcNode.Port), UseTLS: config.SrcNode.UseTls}}
+	if len(config.SrcNodes) > 0 {
+		grpcEndpoints = make([]repo.GrpcEndpoint, 0, len(config.SrcNodes))
+		for _, node := range config.SrcNodes {
+			grpcEndpoints = append(grpcEndpoints, repo.GrpcEndpoint{
+				Target: fmt.Sprintf("%s:%s", node.Host, node.Port),
+				UseTLS: node.UseTls,
+			})
+		}
+	}
+	nodeRepo, err := repo.NewNodeRepoWithGrpcEndpoints(grpcEndpoints, config.SrcEvmRpcEndpoint, config.ChainId, networkMetadata)
 	if err != nil {
 		panic(err)
 	}

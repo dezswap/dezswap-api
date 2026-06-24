@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"fmt"
 	"strconv"
+	"time"
 
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
@@ -29,6 +30,8 @@ type grpcClient struct {
 
 var _ GrpcClient = &grpcClient{}
 
+const NodeQueryTimeout = 5 * time.Second
+
 func NewGrpcClient(target string, useTls bool) (GrpcClient, error) {
 	var cred credentials.TransportCredentials
 	if useTls {
@@ -48,9 +51,11 @@ func NewGrpcClient(target string, useTls bool) (GrpcClient, error) {
 // SyncedHeight implements GrpcClient
 func (c *grpcClient) SyncedHeight() (uint64, error) {
 	client := cmtservice.NewServiceClient(c)
+	ctx, cancel := context.WithTimeout(context.Background(), NodeQueryTimeout)
+	defer cancel()
 
 	// Get the latest block height
-	res, err := client.GetLatestBlock(context.Background(), &cmtservice.GetLatestBlockRequest{})
+	res, err := client.GetLatestBlock(ctx, &cmtservice.GetLatestBlockRequest{})
 	if err != nil {
 		fmt.Printf("failed to get latest block height: %v\n", err)
 		return 0, err
@@ -72,6 +77,8 @@ func (c *grpcClient) QueryContract(addr string, query []byte, height uint64) ([]
 		//nolint:staticcheck
 		ctx = context.WithValue(ctx, cosmos_types.GRPCBlockHeightHeader, strconv.FormatUint(height, 10))
 	}
+	ctx, cancel := context.WithTimeout(ctx, NodeQueryTimeout)
+	defer cancel()
 
 	res, err := client.SmartContractState(ctx, &cosmwasm_types.QuerySmartContractStateRequest{Address: addr, QueryData: query})
 	if err != nil {
@@ -84,7 +91,8 @@ func (c *grpcClient) QueryContract(addr string, query []byte, height uint64) ([]
 // QueryIbcDenomTrace implements GrpcClient
 func (c *grpcClient) QueryIbcDenomTrace(addr string) (*ibc_types.Denom, error) {
 	client := ibc_types.NewQueryClient(c)
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), NodeQueryTimeout)
+	defer cancel()
 
 	res, err := client.Denom(ctx, &ibc_types.QueryDenomRequest{Hash: addr})
 	if err != nil {
