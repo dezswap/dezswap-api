@@ -16,7 +16,7 @@ func TestNew_FiltersIncludedOperations(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	server, err := New(gin.New(), Config{
 		IncludeOperations: []string{"get_service_version", "find_routes"},
-	})
+	}, "test")
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
@@ -35,9 +35,53 @@ func TestNew_RejectsUnknownIncludedOperation(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	_, err := New(gin.New(), Config{
 		IncludeOperations: []string{"get_service_version", "missing_operation"},
-	})
+	}, "test")
 	if err == nil {
 		t.Fatal("expected unknown included operation error")
+	}
+}
+
+func TestNew_RejectsEmptyVersion(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	_, err := New(gin.New(), Config{
+		IncludeOperations: []string{"get_service_version"},
+	}, " ")
+	if err == nil {
+		t.Fatal("expected empty version error")
+	}
+	if err.Error() != "MCP server version is required" {
+		t.Fatalf("expected version required error, got %q", err.Error())
+	}
+}
+
+func TestNew_UsesServiceVersionAsMCPServerInfo(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	ctx := context.Background()
+	server, err := New(gin.New(), Config{
+		IncludeOperations: []string{"get_service_version"},
+	}, "v1.2.3")
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+
+	mcpServer := server.newMCPServer()
+	client := mcp.NewClient(&mcp.Implementation{Name: "test-client", Version: "v0.0.1"}, nil)
+	serverTransport, clientTransport := mcp.NewInMemoryTransports()
+	if _, err := mcpServer.Connect(ctx, serverTransport, nil); err != nil {
+		t.Fatalf("server.Connect() error = %v", err)
+	}
+	clientSession, err := client.Connect(ctx, clientTransport, nil)
+	if err != nil {
+		t.Fatalf("client.Connect() error = %v", err)
+	}
+	defer clientSession.Close()
+
+	serverInfo := clientSession.InitializeResult().ServerInfo
+	if serverInfo.Name != "dezswap-api" {
+		t.Fatalf("expected server name dezswap-api, got %q", serverInfo.Name)
+	}
+	if serverInfo.Version != "v1.2.3" {
+		t.Fatalf("expected MCP server version v1.2.3, got %q", serverInfo.Version)
 	}
 }
 
@@ -101,7 +145,7 @@ func TestHandleTool_DispatchesToInternalRoute(t *testing.T) {
 	server, err := New(engine, Config{
 		IncludeOperations: []string{"get_service_version"},
 		ResponseMaxBytes:  1024,
-	})
+	}, "test")
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
@@ -139,7 +183,7 @@ func TestMCPOriginValidation(t *testing.T) {
 		Path:              "/mcp",
 		AllowedOrigins:    []string{"https://allowed.example.com"},
 		IncludeOperations: []string{"get_service_version"},
-	}); err != nil {
+	}, "test"); err != nil {
 		t.Fatalf("Mount() error = %v", err)
 	}
 

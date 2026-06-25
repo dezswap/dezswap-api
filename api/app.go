@@ -75,7 +75,7 @@ func RunServer(c configs.Config, cache cache.Cache, db *gorm.DB) {
 		app.engine.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 	}
 
-	if err := mcpserver.Mount(app.engine, c.Api.MCP); err != nil {
+	if err := mcpserver.Mount(app.engine, c.Api.MCP, AppVersion); err != nil {
 		panic(err)
 	}
 
