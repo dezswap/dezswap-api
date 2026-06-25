@@ -32,6 +32,7 @@ type Config = configs.ApiMCPConfig
 type Server struct {
 	engine           *gin.Engine
 	config           Config
+	version          string
 	tools            []toolSpec
 	toolByName       map[string]toolSpec
 	requestTimeout   time.Duration
@@ -56,9 +57,13 @@ type paramSpec struct {
 	Enum        []string
 }
 
-// New creates an MCP server backed by the given Gin engine.
-func New(engine *gin.Engine, cfg Config) (*Server, error) {
+// New creates an MCP server backed by the given Gin engine and service version.
+func New(engine *gin.Engine, cfg Config, version string) (*Server, error) {
 	cfg = withDefaults(cfg)
+	version = strings.TrimSpace(version)
+	if version == "" {
+		return nil, errors.New("MCP server version is required")
+	}
 	tools := defaultTools()
 	if len(cfg.IncludeOperations) > 0 {
 		allowed, err := validateIncludedOperations(tools, cfg.IncludeOperations)
@@ -86,6 +91,7 @@ func New(engine *gin.Engine, cfg Config) (*Server, error) {
 	return &Server{
 		engine:           engine,
 		config:           cfg,
+		version:          version,
 		tools:            tools,
 		toolByName:       toolByName,
 		requestTimeout:   time.Duration(cfg.RequestTimeoutMs) * time.Millisecond,
@@ -109,12 +115,12 @@ func validateIncludedOperations(tools []toolSpec, operations []string) (map[stri
 	return allowed, nil
 }
 
-// Mount attaches the MCP endpoint when it is enabled.
-func Mount(engine *gin.Engine, cfg Config) error {
+// Mount attaches the MCP endpoint with the given service version when it is enabled.
+func Mount(engine *gin.Engine, cfg Config, version string) error {
 	if !cfg.Enabled {
 		return nil
 	}
-	srv, err := New(engine, cfg)
+	srv, err := New(engine, cfg, version)
 	if err != nil {
 		return err
 	}
@@ -124,25 +130,7 @@ func Mount(engine *gin.Engine, cfg Config) error {
 
 // Mount registers the streamable HTTP MCP handler.
 func (s *Server) Mount() {
-	server := mcp.NewServer(&mcp.Implementation{
-		Name:    "dezswap-api",
-		Version: "v1",
-	}, &mcp.ServerOptions{
-		Instructions: "Read-only Dezswap DEX analytics and discovery tools. These tools do not execute swaps, build transactions, or provide amount-based quotes/slippage.",
-	})
-
-	for _, spec := range s.tools {
-		spec := spec
-		server.AddTool(&mcp.Tool{
-			Name:        spec.Name,
-			Title:       spec.Title,
-			Description: spec.Description,
-			InputSchema: inputSchema(spec),
-		}, func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			return s.handleTool(ctx, spec, req)
-		})
-	}
-	addResources(server)
+	server := s.newMCPServer()
 
 	handler := mcp.NewStreamableHTTPHandler(func(req *http.Request) *mcp.Server {
 		return server
@@ -162,6 +150,29 @@ func (s *Server) Mount() {
 		s.setCORSHeaders(c)
 		handler.ServeHTTP(c.Writer, c.Request)
 	})
+}
+
+func (s *Server) newMCPServer() *mcp.Server {
+	server := mcp.NewServer(&mcp.Implementation{
+		Name:    "dezswap-api",
+		Version: s.version,
+	}, &mcp.ServerOptions{
+		Instructions: "Read-only Dezswap DEX analytics and discovery tools. These tools do not execute swaps, build transactions, or provide amount-based quotes/slippage.",
+	})
+
+	for _, spec := range s.tools {
+		spec := spec
+		server.AddTool(&mcp.Tool{
+			Name:        spec.Name,
+			Title:       spec.Title,
+			Description: spec.Description,
+			InputSchema: inputSchema(spec),
+		}, func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			return s.handleTool(ctx, spec, req)
+		})
+	}
+	addResources(server)
+	return server
 }
 
 // handleTool validates arguments and dispatches one MCP tool call.
