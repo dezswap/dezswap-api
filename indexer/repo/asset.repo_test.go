@@ -9,6 +9,7 @@ import (
 	"github.com/dezswap/dezswap-api/pkg/types"
 	xpla_mock "github.com/dezswap/dezswap-api/pkg/xpla/mock"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -21,17 +22,14 @@ type assetRepoSuite struct {
 
 func (s *assetRepoSuite) SetupSuite() {
 	s.client = xpla_mock.NewClientMock()
-	s.networkMetadata = pkg.NewNetworkMetadata(
-		pkg.NetworkNameXplaChain,
-		"dimension",
-		"cube",
-		"xpla1",
-		map[types.TokenType]string{types.TokenTypeCW20: "xcw20:", types.TokenTypeERC20: "xerc20:"},
-		5,
-		0,
-		"",
-		"",
-	)
+	s.networkMetadata = pkg.NewNetworkMetadata(pkg.NetworkMetadataConfig{
+		NetworkName:   pkg.NetworkNameXplaChain,
+		AddrPrefix:    "xpla1",
+		TokenPrefixes: map[types.TokenType]string{types.TokenTypeCW20: "xcw20:", types.TokenTypeERC20: "xerc20:"},
+		BlockSecond:   5,
+		Mainnet:       pkg.ChainInfo{ChainIdPrefix: "dimension"},
+		Testnets:      []pkg.ChainInfo{{ChainIdPrefix: "cube"}},
+	})
 	s.r = assetRepoImpl{s.client, &assetMapperImpl{}, s.networkMetadata}
 }
 
@@ -119,22 +117,61 @@ func Test_AssetRepo(t *testing.T) {
 }
 
 func Test_NewAssetRepo(t *testing.T) {
-	networkMetadata := pkg.NewNetworkMetadata(
-		pkg.NetworkNameXplaChain,
-		"dimension",
-		"cube",
-		"xpla1",
-		map[types.TokenType]string{types.TokenTypeCW20: "xcw20:", types.TokenTypeERC20: "xerc20:"},
-		5,
-		0,
-		"xpla1abcd",
-		"xpla1efgh",
-	)
+	networkMetadata := pkg.NewNetworkMetadata(pkg.NetworkMetadataConfig{
+		NetworkName:   pkg.NetworkNameXplaChain,
+		AddrPrefix:    "xpla1",
+		TokenPrefixes: map[types.TokenType]string{types.TokenTypeCW20: "xcw20:", types.TokenTypeERC20: "xerc20:"},
+		BlockSecond:   5,
+		Mainnet:       pkg.ChainInfo{ChainIdPrefix: "dimension", FactoryAddress: "xpla1abcd"},
+		Testnets:      []pkg.ChainInfo{{ChainIdPrefix: "cube", FactoryAddress: "xpla1efgh"}},
+	})
 
 	t.Run("success with valid factory address", func(t *testing.T) {
 		repo, err := NewAssetRepo(networkMetadata, "cube_47-5", "xpla1efgh")
 		assert.NoError(t, err)
 		assert.NotNil(t, repo)
+	})
+
+	// every supported network must resolve to a client, otherwise the repo panics on first use
+	t.Run("client is set for every supported network", func(t *testing.T) {
+		asiAllianceMetadata := pkg.NewNetworkMetadata(pkg.NetworkMetadataConfig{
+			NetworkName:   pkg.NetworkNameAsiAlliance,
+			AddrPrefix:    "fetch1",
+			TokenPrefixes: map[types.TokenType]string{},
+			BlockSecond:   5,
+			Mainnet:       pkg.ChainInfo{ChainIdPrefix: "fetchhub", FactoryAddress: "fetch1abcd"},
+			Testnets:      []pkg.ChainInfo{{ChainIdPrefix: "dorado", FactoryAddress: "fetch1efgh"}},
+		})
+		terraClassicMetadata := pkg.NewNetworkMetadata(pkg.NetworkMetadataConfig{
+			NetworkName:   pkg.NetworkNameTerraClassic,
+			AddrPrefix:    "terra1",
+			TokenPrefixes: map[types.TokenType]string{},
+			BlockSecond:   6,
+			Mainnet:       pkg.ChainInfo{ChainIdPrefix: "columbus", FactoryAddress: "terra1abcd"},
+		})
+
+		tcs := []struct {
+			name     string
+			metadata pkg.NetworkMetadata
+			chainId  string
+			factory  string
+		}{
+			{"xpla chain", networkMetadata, "cube_47-5", "xpla1efgh"},
+			{"asi alliance mainnet", asiAllianceMetadata, "fetchhub-4", "fetch1abcd"},
+			{"asi alliance testnet", asiAllianceMetadata, "dorado-1", "fetch1efgh"},
+			{"terra classic", terraClassicMetadata, "columbus-5", "terra1abcd"},
+		}
+
+		for _, tc := range tcs {
+			t.Run(tc.name, func(t *testing.T) {
+				repo, err := NewAssetRepo(tc.metadata, tc.chainId, tc.factory)
+				assert.NoError(t, err)
+
+				impl, ok := repo.(*assetRepoImpl)
+				require.Truef(t, ok, "expected *assetRepoImpl but got %T", repo)
+				assert.NotNil(t, impl.Client)
+			})
+		}
 	})
 
 	t.Run("error with unregistered factory address", func(t *testing.T) {
@@ -145,7 +182,14 @@ func Test_NewAssetRepo(t *testing.T) {
 	})
 
 	t.Run("error with unsupported network", func(t *testing.T) {
-		unsupportedMetadata := pkg.NewNetworkMetadata("unsupported", "mainprefix", "testprefix", "uns1", map[types.TokenType]string{}, 5, 0, "mainfactory", "testfactory")
+		unsupportedMetadata := pkg.NewNetworkMetadata(pkg.NetworkMetadataConfig{
+			NetworkName:   "unsupported",
+			AddrPrefix:    "uns1",
+			TokenPrefixes: map[types.TokenType]string{},
+			BlockSecond:   5,
+			Mainnet:       pkg.ChainInfo{ChainIdPrefix: "mainprefix", FactoryAddress: "mainfactory"},
+			Testnets:      []pkg.ChainInfo{{ChainIdPrefix: "testprefix", FactoryAddress: "testfactory"}},
+		})
 		repo, err := NewAssetRepo(unsupportedMetadata, "testprefix", "testfactory")
 		assert.Error(t, err)
 		assert.Equal(t, pkg.ErrUnsupportedNetwork, err)

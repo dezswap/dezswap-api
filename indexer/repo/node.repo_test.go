@@ -54,17 +54,14 @@ func (s *nodeRepoSuite) SetupSuite() {
 	s.client = xpla_mock.NewGrpcClientMock()
 	s.ethClient = xpla_mock.NewEthClientMock()
 	s.chainId = "test"
-	s.networkMetadata = pkg.NewNetworkMetadata(
-		pkg.NetworkNameXplaChain,
-		"dimension",
-		"cube",
-		"xpla1",
-		map[types.TokenType]string{types.TokenTypeCW20: "xcw20:", types.TokenTypeERC20: "xerc20:"},
-		5,
-		0,
-		"",
-		"",
-	)
+	s.networkMetadata = pkg.NewNetworkMetadata(pkg.NetworkMetadataConfig{
+		NetworkName:   pkg.NetworkNameXplaChain,
+		AddrPrefix:    "xpla1",
+		TokenPrefixes: map[types.TokenType]string{types.TokenTypeCW20: "xcw20:", types.TokenTypeERC20: "xerc20:"},
+		BlockSecond:   5,
+		Mainnet:       pkg.ChainInfo{ChainIdPrefix: "dimension"},
+		Testnets:      []pkg.ChainInfo{{ChainIdPrefix: "cube"}},
+	})
 	s.r = nodeRepoImpl{
 		EthClient:       s.ethClient,
 		grpcClients:     []pkg.GrpcClient{s.client},

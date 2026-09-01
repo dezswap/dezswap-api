@@ -14,41 +14,65 @@ var (
 	ErrUnregisteredFactoryAddress = errors.New("unregistered factory address")
 )
 
+// ChainInfo is a single chain of a network, identified by the prefix of its chain ID.
+type ChainInfo struct {
+	ChainIdPrefix  string
+	FactoryAddress string
+}
+
 type NetworkMetadata struct {
 	NetworkName           NetworkName
-	mainnetPrefix         string
-	testnetPrefix         string
 	addrPrefix            string
 	tokenPrefixes         map[types.TokenType]string
 	BlockSecond           uint8
 	LatestHeightIndicator uint64
-	factoryAddresses      map[string]string
+	mainnet               ChainInfo
+	testnets              []ChainInfo
 }
 
-func NewNetworkMetadata(
-	networkName NetworkName, mainnetPrefix string, testnetPrefix string, addrPrefix string, tokenPrefixes map[types.TokenType]string, blockSecond uint8, latestHeightIndicator uint64,
-	mainnetFactoryAddress, testnetFactoryAddress string) NetworkMetadata {
-	return NetworkMetadata{
-		networkName,
-		mainnetPrefix,
-		testnetPrefix,
-		addrPrefix,
-		tokenPrefixes,
-		blockSecond,
-		latestHeightIndicator,
-		map[string]string{
-			mainnetPrefix: mainnetFactoryAddress,
-			testnetPrefix: testnetFactoryAddress,
-		},
+// NetworkMetadataConfig registers the chains of a network. At most one of them, Mainnet,
+// is classified as the mainnet; every other registered chain is classified as a testnet.
+// A chain whose ChainIdPrefix is empty cannot be matched against any chain ID, so it is
+// left unregistered.
+type NetworkMetadataConfig struct {
+	NetworkName           NetworkName
+	AddrPrefix            string
+	TokenPrefixes         map[types.TokenType]string
+	BlockSecond           uint8
+	LatestHeightIndicator uint64
+	Mainnet               ChainInfo
+	Testnets              []ChainInfo
+}
+
+func NewNetworkMetadata(c NetworkMetadataConfig) NetworkMetadata {
+	metadata := NetworkMetadata{
+		NetworkName:           c.NetworkName,
+		addrPrefix:            c.AddrPrefix,
+		tokenPrefixes:         c.TokenPrefixes,
+		BlockSecond:           c.BlockSecond,
+		LatestHeightIndicator: c.LatestHeightIndicator,
+		mainnet:               c.Mainnet,
 	}
+
+	for _, testnet := range c.Testnets {
+		if testnet.ChainIdPrefix == "" {
+			continue
+		}
+		metadata.testnets = append(metadata.testnets, testnet)
+	}
+
+	return metadata
 }
 
+// IsMainnet reports whether chainId belongs to the network's mainnet.
 func (i NetworkMetadata) IsMainnet(chainId string) bool {
-	return strings.Contains(chainId, i.mainnetPrefix)
+	return i.mainnet.ChainIdPrefix != "" && strings.HasPrefix(chainId, i.mainnet.ChainIdPrefix)
 }
 
+// IsTestnet reports whether chainId belongs to any of the network's testnets.
 func (i NetworkMetadata) IsTestnet(chainId string) bool {
-	return strings.Contains(chainId, i.testnetPrefix)
+	_, found := i.testnet(chainId)
+	return found
 }
 
 func (i NetworkMetadata) IsMainnetOrTestnet(chainId string) bool {
@@ -57,13 +81,23 @@ func (i NetworkMetadata) IsMainnetOrTestnet(chainId string) bool {
 
 func (i NetworkMetadata) GetFactoryAddress(chainId string) (string, error) {
 	if i.IsMainnet(chainId) {
-		return i.factoryAddresses[i.mainnetPrefix], nil
+		return i.mainnet.FactoryAddress, nil
 	}
-	if i.IsTestnet(chainId) {
-		return i.factoryAddresses[i.testnetPrefix], nil
+	if testnet, found := i.testnet(chainId); found {
+		return testnet.FactoryAddress, nil
 	}
 
 	return "", ErrUnsupportedNetwork
+}
+
+func (i NetworkMetadata) testnet(chainId string) (ChainInfo, bool) {
+	for _, testnet := range i.testnets {
+		if strings.HasPrefix(chainId, testnet.ChainIdPrefix) {
+			return testnet, true
+		}
+	}
+
+	return ChainInfo{}, false
 }
 
 func (i NetworkMetadata) IsCw20(addr string) bool {
