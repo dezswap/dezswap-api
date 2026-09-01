@@ -15,7 +15,7 @@ services:
 
   db:
     container_name: dezswap-api-db
-    image: postgres
+    image: postgres:16
     volumes:
       - ./db/data:/var/lib/postgres
     ports:
@@ -30,7 +30,7 @@ services:
 
   cache:
     container_name: dezswap-api-cache
-    image: redis
+    image: redis:8
     environment:
       - REDIS_PASSWORD=${REDIS_PASSWORD:-appPW}
       - REDIS_PORT=${REDIS_PORT:-6379}

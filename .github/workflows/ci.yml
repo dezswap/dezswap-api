@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     services:
       cosmwasm-etl-db:
-        image: postgres # ratchet:exclude
+        image: postgres:16 # ratchet:exclude
         env:
           POSTGRES_USER: app
           POSTGRES_PASSWORD: appPW
