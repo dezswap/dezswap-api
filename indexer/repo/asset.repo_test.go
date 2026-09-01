@@ -9,6 +9,7 @@ import (
 	"github.com/dezswap/dezswap-api/pkg/types"
 	xpla_mock "github.com/dezswap/dezswap-api/pkg/xpla/mock"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -167,9 +168,7 @@ func Test_NewAssetRepo(t *testing.T) {
 				assert.NoError(t, err)
 
 				impl, ok := repo.(*assetRepoImpl)
-				if !ok {
-					t.Fatalf("expected *assetRepoImpl but got %T", repo)
-				}
+				require.Truef(t, ok, "expected *assetRepoImpl but got %T", repo)
 				assert.NotNil(t, impl.Client)
 			})
 		}

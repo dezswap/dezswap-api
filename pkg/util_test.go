@@ -2,6 +2,9 @@ package pkg
 
 import (
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func Test_TruncateDecimal(t *testing.T) {
@@ -75,24 +78,14 @@ func Test_NetworkMetadataChainClassification(t *testing.T) {
 
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
-			if actual := tc.metadata.IsMainnet(tc.chainId); actual != tc.expectedMainnet {
-				t.Errorf("IsMainnet(%q): expected %v but got %v", tc.chainId, tc.expectedMainnet, actual)
-			}
-			if actual := tc.metadata.IsTestnet(tc.chainId); actual != tc.expectedTestnet {
-				t.Errorf("IsTestnet(%q): expected %v but got %v", tc.chainId, tc.expectedTestnet, actual)
-			}
+			assert.Equal(t, tc.expectedMainnet, tc.metadata.IsMainnet(tc.chainId), "IsMainnet(%q)", tc.chainId)
+			assert.Equal(t, tc.expectedTestnet, tc.metadata.IsTestnet(tc.chainId), "IsTestnet(%q)", tc.chainId)
 			expectedEither := tc.expectedMainnet || tc.expectedTestnet
-			if actual := tc.metadata.IsMainnetOrTestnet(tc.chainId); actual != expectedEither {
-				t.Errorf("IsMainnetOrTestnet(%q): expected %v but got %v", tc.chainId, expectedEither, actual)
-			}
+			assert.Equal(t, expectedEither, tc.metadata.IsMainnetOrTestnet(tc.chainId), "IsMainnetOrTestnet(%q)", tc.chainId)
 
 			factory, err := tc.metadata.GetFactoryAddress(tc.chainId)
-			if err != tc.expectedErr {
-				t.Errorf("GetFactoryAddress(%q): expected error %v but got %v", tc.chainId, tc.expectedErr, err)
-			}
-			if factory != tc.expectedFactory {
-				t.Errorf("GetFactoryAddress(%q): expected %q but got %q", tc.chainId, tc.expectedFactory, factory)
-			}
+			assert.Equal(t, tc.expectedErr, err, "GetFactoryAddress(%q)", tc.chainId)
+			assert.Equal(t, tc.expectedFactory, factory, "GetFactoryAddress(%q)", tc.chainId)
 		})
 	}
 }
@@ -120,28 +113,17 @@ func Test_GetNetworkMetadata(t *testing.T) {
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
 			metadata, err := GetNetworkMetadata(tc.chainId)
-			if err != tc.expectedErr {
-				t.Fatalf("expected error %v but got %v", tc.expectedErr, err)
-			}
-			if metadata.NetworkName != tc.expectedName {
-				t.Errorf("expected network %q but got %q", tc.expectedName, metadata.NetworkName)
-			}
+			require.Equal(t, tc.expectedErr, err)
+			assert.Equal(t, tc.expectedName, metadata.NetworkName)
 			if tc.expectedErr != nil {
 				return
 			}
-			if actual := metadata.IsMainnet(tc.chainId); actual != tc.expectedMainnet {
-				t.Errorf("IsMainnet: expected %v but got %v", tc.expectedMainnet, actual)
-			}
-			if actual := metadata.IsTestnet(tc.chainId); actual != tc.expectedTestnet {
-				t.Errorf("IsTestnet: expected %v but got %v", tc.expectedTestnet, actual)
-			}
+			assert.Equal(t, tc.expectedMainnet, metadata.IsMainnet(tc.chainId), "IsMainnet")
+			assert.Equal(t, tc.expectedTestnet, metadata.IsTestnet(tc.chainId), "IsTestnet")
+
 			factory, err := metadata.GetFactoryAddress(tc.chainId)
-			if err != nil {
-				t.Fatalf("GetFactoryAddress: unexpected error %v", err)
-			}
-			if factory == "" {
-				t.Error("GetFactoryAddress: expected a registered factory address but got an empty one")
-			}
+			require.NoError(t, err, "GetFactoryAddress")
+			assert.NotEmpty(t, factory, "GetFactoryAddress: expected a registered factory address")
 		})
 	}
 }
