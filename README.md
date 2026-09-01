@@ -1,8 +1,9 @@
 # dezswap-api
 
-[![codecov](https://codecov.io/github/dezswap/dezswap-api/graph/badge.svg?token=K9YH072SSY)](https://codecov.io/github/dezswap/cosmwasm-etl)
+[![codecov](https://codecov.io/github/dezswap/dezswap-api/graph/badge.svg?token=K9YH072SSY)](https://codecov.io/github/dezswap/dezswap-api)
 ![CI](https://github.com/dezswap/dezswap-api/actions/workflows/ci.yml/badge.svg)
-![Go Report Card](https://goreportcard.com/badge/dezswap/dezswap-api)
+![Go](https://img.shields.io/github/go-mod/go-version/dezswap/dezswap-api)
+![Release](https://img.shields.io/github/v/release/dezswap/dezswap-api)
 ![License](https://img.shields.io/github/license/dezswap/dezswap-api)
 
 Backend API and indexer service for [Dezswap](https://dezswap.io).
@@ -16,7 +17,7 @@ This repository contains two independent binaries that share a PostgreSQL databa
 
 ## Prerequisites
 
-- Go 1.25+
+- Go (version per [go.mod](go.mod))
 - Docker (for PostgreSQL and Redis)
 - [golangci-lint](https://golangci-lint.run/) (for linting)
 
