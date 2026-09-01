@@ -1,6 +1,6 @@
 services:
   db:
-    image: postgres
+    image: postgres:16
     container_name: dezswap_db
     restart: unless-stopped
     environment:

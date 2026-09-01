@@ -2,20 +2,20 @@ name: CI
 
 on:
   push:
-    branches: [ "main" ]
-    paths-ignore: [ 'README.md', 'LICENSE', 'config.example.yml', '.gitignore', '.github/CODEOWNERS', '.github/pull_request_template.md' ]
+    branches: ["main"]
+    paths-ignore: ['README.md', 'LICENSE', 'config.example.yml', '.gitignore', '.github/CODEOWNERS', '.github/pull_request_template.md']
   pull_request:
-    branches: [ "*" ]
+    branches: ["*"]
 
 permissions:
-  id-token: write
+  contents: read
 
 jobs:
   build:
     runs-on: ubuntu-latest
     services:
       cosmwasm-etl-db:
-        image: postgres
+        image: postgres:16 # ratchet:exclude
         env:
           POSTGRES_USER: app
           POSTGRES_PASSWORD: appPW
@@ -29,38 +29,38 @@ jobs:
           --health-retries 5
 
     steps:
-    - uses: actions/checkout@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # ratchet:actions/checkout@v7
 
-    - name: Setup Golang with cache
-      uses: magnetikonline/action-golang-cache@v5
-      with:
-        go-version-file: go.mod
+      - name: Setup Golang with cache
+        uses: magnetikonline/action-golang-cache@fcca93e25c7fe3943de4d40c22d255d17f63e63b # ratchet:magnetikonline/action-golang-cache@v5
+        with:
+          go-version-file: go.mod
 
-    - name: Generate bindings
-      run: |
-        go install github.com/ethereum/go-ethereum/cmd/abigen@v1.14.12
-        echo "$(go env GOPATH)/bin" >> $GITHUB_PATH
-        make generate
+      - name: Generate bindings
+        run: |
+          go install github.com/ethereum/go-ethereum/cmd/abigen@v1.14.12
+          echo "$(go env GOPATH)/bin" >> $GITHUB_PATH
+          make generate
 
-    - name: Run Golang linter
-      uses: golangci/golangci-lint-action@v8
-    
-    - name: Build all
-      run: make build-all
+      - name: Run Golang linter
+        uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # ratchet:golangci/golangci-lint-action@v9
 
-    - name: Setup postgres
-      run: cd test_supplements && docker compose up -d
+      - name: Build all
+        run: make build-all
 
-    - name: Tests
-      shell: bash
-      env:
-        TEST_CONFIG: ${{ secrets.TEST_CONFIG }}
-      run: |
-        echo "$TEST_CONFIG" > config.yml
-        go test -race -count=1 -short -coverprofile=coverage.out -covermode=atomic ./...
-    
-    - name: Upload to Codecov
-      uses: codecov/codecov-action@v6
-      with:
-        token: ${{ secrets.CODECOV_TOKEN }}
-        files: ./coverage.out
+      - name: Setup postgres
+        run: cd test_supplements && docker compose up -d
+
+      - name: Tests
+        shell: bash
+        env:
+          TEST_CONFIG: ${{ secrets.TEST_CONFIG }}
+        run: |
+          echo "$TEST_CONFIG" > config.yml
+          go test -race -count=1 -short -coverprofile=coverage.out -covermode=atomic ./...
+
+      - name: Upload to Codecov
+        uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # ratchet:codecov/codecov-action@v7
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./coverage.out
