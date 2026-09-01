@@ -16,7 +16,7 @@ This repository contains two independent binaries that share a PostgreSQL databa
 
 ## Prerequisites
 
-- Go 1.25+
+- Go (version per [go.mod](go.mod))
 - Docker (for PostgreSQL and Redis)
 - [golangci-lint](https://golangci-lint.run/) (for linting)
 
