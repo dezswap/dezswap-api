@@ -39,5 +39,12 @@ var (
 				{ChainIdPrefix: "dorado", FactoryAddress: "fetch1kmag3937lrl6dtsv29mlfsedzngl9egv5c3apnr468q50gu04zrqea398u"},
 			},
 		}),
+		NewNetworkMetadata(NetworkMetadataConfig{
+			NetworkName:   NetworkNameTerraClassic,
+			AddrPrefix:    "terra1",
+			TokenPrefixes: map[types.TokenType]string{},
+			BlockSecond:   6,
+			Mainnet:       ChainInfo{ChainIdPrefix: "columbus", FactoryAddress: "terra1jkndu9w5attpz09ut02sgey5dd3e8sq5watzm0"},
+		}),
 	}
 )

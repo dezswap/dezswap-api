@@ -131,6 +131,50 @@ func Test_NewAssetRepo(t *testing.T) {
 		assert.NotNil(t, repo)
 	})
 
+	// every supported network must resolve to a client, otherwise the repo panics on first use
+	t.Run("client is set for every supported network", func(t *testing.T) {
+		asiAllianceMetadata := pkg.NewNetworkMetadata(pkg.NetworkMetadataConfig{
+			NetworkName:   pkg.NetworkNameAsiAlliance,
+			AddrPrefix:    "fetch1",
+			TokenPrefixes: map[types.TokenType]string{},
+			BlockSecond:   5,
+			Mainnet:       pkg.ChainInfo{ChainIdPrefix: "fetchhub", FactoryAddress: "fetch1abcd"},
+			Testnets:      []pkg.ChainInfo{{ChainIdPrefix: "dorado", FactoryAddress: "fetch1efgh"}},
+		})
+		terraClassicMetadata := pkg.NewNetworkMetadata(pkg.NetworkMetadataConfig{
+			NetworkName:   pkg.NetworkNameTerraClassic,
+			AddrPrefix:    "terra1",
+			TokenPrefixes: map[types.TokenType]string{},
+			BlockSecond:   6,
+			Mainnet:       pkg.ChainInfo{ChainIdPrefix: "columbus", FactoryAddress: "terra1abcd"},
+		})
+
+		tcs := []struct {
+			name     string
+			metadata pkg.NetworkMetadata
+			chainId  string
+			factory  string
+		}{
+			{"xpla chain", networkMetadata, "cube_47-5", "xpla1efgh"},
+			{"asi alliance mainnet", asiAllianceMetadata, "fetchhub-4", "fetch1abcd"},
+			{"asi alliance testnet", asiAllianceMetadata, "dorado-1", "fetch1efgh"},
+			{"terra classic", terraClassicMetadata, "columbus-5", "terra1abcd"},
+		}
+
+		for _, tc := range tcs {
+			t.Run(tc.name, func(t *testing.T) {
+				repo, err := NewAssetRepo(tc.metadata, tc.chainId, tc.factory)
+				assert.NoError(t, err)
+
+				impl, ok := repo.(*assetRepoImpl)
+				if !ok {
+					t.Fatalf("expected *assetRepoImpl but got %T", repo)
+				}
+				assert.NotNil(t, impl.Client)
+			})
+		}
+	})
+
 	t.Run("error with unregistered factory address", func(t *testing.T) {
 		repo, err := NewAssetRepo(networkMetadata, "cube_47-5", "invalid_factory_address")
 		assert.Error(t, err)

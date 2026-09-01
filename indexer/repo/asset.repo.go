@@ -36,7 +36,7 @@ func NewAssetRepo(networkMetadata pkg.NetworkMetadata, chainId, factoryAddress s
 	switch networkMetadata.NetworkName {
 	case pkg.NetworkNameXplaChain:
 		client = xpla.NewClient()
-	case pkg.NetworkNameAsiAlliance:
+	case pkg.NetworkNameAsiAlliance, pkg.NetworkNameTerraClassic:
 		var err error
 		client, err = chainregistry.NewClient(chainId)
 		if err != nil {

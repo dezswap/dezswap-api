@@ -96,3 +96,52 @@ func Test_NetworkMetadataChainClassification(t *testing.T) {
 		})
 	}
 }
+
+func Test_GetNetworkMetadata(t *testing.T) {
+	tcs := []struct {
+		name            string
+		chainId         string
+		expectedName    NetworkName
+		expectedMainnet bool
+		expectedTestnet bool
+		expectedErr     error
+	}{
+		{"xpla mainnet", "dimension_37-1", NetworkNameXplaChain, true, false, nil},
+		{"xpla testnet", "cube_47-5", NetworkNameXplaChain, false, true, nil},
+		{"asi alliance mainnet", "fetchhub-4", NetworkNameAsiAlliance, true, false, nil},
+		{"asi alliance testnet", "dorado-1", NetworkNameAsiAlliance, false, true, nil},
+		{"terra classic mainnet", "columbus-5", NetworkNameTerraClassic, true, false, nil},
+		// terra classic has no testnet, so no unregistered chain may resolve to it
+		{"terra 2 is not registered", "phoenix-1", "", false, false, ErrUnsupportedNetwork},
+		{"unknown chain", "unknown-1", "", false, false, ErrUnsupportedNetwork},
+		{"empty chain id", "", "", false, false, ErrUnsupportedNetwork},
+	}
+
+	for _, tc := range tcs {
+		t.Run(tc.name, func(t *testing.T) {
+			metadata, err := GetNetworkMetadata(tc.chainId)
+			if err != tc.expectedErr {
+				t.Fatalf("expected error %v but got %v", tc.expectedErr, err)
+			}
+			if metadata.NetworkName != tc.expectedName {
+				t.Errorf("expected network %q but got %q", tc.expectedName, metadata.NetworkName)
+			}
+			if tc.expectedErr != nil {
+				return
+			}
+			if actual := metadata.IsMainnet(tc.chainId); actual != tc.expectedMainnet {
+				t.Errorf("IsMainnet: expected %v but got %v", tc.expectedMainnet, actual)
+			}
+			if actual := metadata.IsTestnet(tc.chainId); actual != tc.expectedTestnet {
+				t.Errorf("IsTestnet: expected %v but got %v", tc.expectedTestnet, actual)
+			}
+			factory, err := metadata.GetFactoryAddress(tc.chainId)
+			if err != nil {
+				t.Fatalf("GetFactoryAddress: unexpected error %v", err)
+			}
+			if factory == "" {
+				t.Error("GetFactoryAddress: expected a registered factory address but got an empty one")
+			}
+		})
+	}
+}
