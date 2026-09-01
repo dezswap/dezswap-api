@@ -2,6 +2,7 @@ package repo
 
 import (
 	"context"
+	"time"
 
 	ibc_types "github.com/cosmos/ibc-go/v10/modules/apps/transfer/types"
 	"github.com/dezswap/dezswap-api/indexer"
@@ -21,8 +22,9 @@ type nodeRepoImpl struct {
 var _ indexer.NodeRepo = &nodeRepoImpl{}
 
 type GrpcEndpoint struct {
-	Target string
-	UseTLS bool
+	Target       string
+	UseTLS       bool
+	QueryTimeout time.Duration
 }
 
 func NewNodeRepo(grpcEndpoint, ethRpcEndpoint string, useTls bool, chainId string, networkMetadata pkg.NetworkMetadata) (indexer.NodeRepo, error) {
@@ -36,7 +38,7 @@ func NewNodeRepoWithGrpcEndpoints(grpcEndpoints []GrpcEndpoint, ethRpcEndpoint s
 
 	grpcClients := make([]pkg.GrpcClient, 0, len(grpcEndpoints))
 	for i, endpoint := range grpcEndpoints {
-		grpcClient, err := pkg.NewGrpcClient(endpoint.Target, endpoint.UseTLS)
+		grpcClient, err := pkg.NewGrpcClientWithTimeout(endpoint.Target, endpoint.UseTLS, endpoint.QueryTimeout)
 		if err != nil {
 			return nil, errors.Wrapf(err, "NewNodeRepoWithGrpcEndpoints: failed to create grpc client endpoint[%d]=%s", i, endpoint.Target)
 		}

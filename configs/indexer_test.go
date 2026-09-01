@@ -109,3 +109,101 @@ func TestIndexerConfigSrcNodesUnmarshalErrorPanics(t *testing.T) {
 		indexerConfig(v)
 	})
 }
+
+func TestIndexerConfigSrcNodeQueryTimeoutSec(t *testing.T) {
+	v := newTestViper(t, `
+indexer:
+  chain_id: dorado-1
+  src_node:
+    host: primary.example.com
+    port: "443"
+    use_tls: true
+    query_timeout_sec: 15
+`)
+
+	c := indexerConfig(v)
+
+	require.Equal(t, 15, c.SrcNode.QueryTimeoutSec)
+}
+
+func TestIndexerConfigSrcNodesQueryTimeoutSec(t *testing.T) {
+	v := newTestViper(t, `
+indexer:
+  chain_id: dorado-1
+  src_nodes:
+    - host: candidate-1.example.com
+      port: "443"
+      use_tls: true
+      query_timeout_sec: 10
+    - host: candidate-2.example.com
+      port: "9090"
+      use_tls: false
+`)
+
+	c := indexerConfig(v)
+
+	require.Equal(t, []GrpcConfig{
+		{Host: "candidate-1.example.com", Port: "443", UseTls: true, QueryTimeoutSec: 10},
+		// left unset, so the client falls back to pkg.NodeQueryTimeout
+		{Host: "candidate-2.example.com", Port: "9090", UseTls: false, QueryTimeoutSec: 0},
+	}, c.SrcNodes)
+}
+
+func TestIndexerConfigSrcNodeQueryTimeoutSecOverrideByEnv(t *testing.T) {
+	t.Setenv("APP_INDEXER_SRC_NODE_QUERY_TIMEOUT_SEC", "20")
+
+	v := newTestViper(t, `
+indexer:
+  chain_id: dorado-1
+  src_node:
+    host: primary.example.com
+    port: "443"
+    query_timeout_sec: 15
+`)
+
+	c := indexerConfig(v)
+
+	require.Equal(t, 20, c.SrcNode.QueryTimeoutSec)
+}
+
+// A timeout carries no node identity, so tuning it through the environment must not
+// look like a src_node override and discard the fallback candidates.
+func TestIndexerConfigQueryTimeoutSecEnvKeepsSrcNodes(t *testing.T) {
+	t.Setenv("APP_INDEXER_SRC_NODE_QUERY_TIMEOUT_SEC", "20")
+
+	v := newTestViper(t, `
+indexer:
+  chain_id: dorado-1
+  src_nodes:
+    - host: candidate-1.example.com
+      port: "443"
+    - host: candidate-2.example.com
+      port: "9090"
+`)
+
+	c := indexerConfig(v)
+
+	require.Equal(t, []GrpcConfig{
+		{Host: "candidate-1.example.com", Port: "443"},
+		{Host: "candidate-2.example.com", Port: "9090"},
+	}, c.SrcNodes)
+	require.Equal(t, 20, c.SrcNode.QueryTimeoutSec)
+}
+
+// The YAML and JSON env forms spell query_timeout_sec the same way: a plain number of
+// seconds.
+func TestIndexerConfigSrcNodesEnvQueryTimeoutSec(t *testing.T) {
+	t.Setenv("APP_INDEXER_SRC_NODES",
+		`[{"host":"env-1.example.com","port":"443","use_tls":true,"query_timeout_sec":10}]`)
+
+	v := newTestViper(t, `
+indexer:
+  chain_id: dorado-1
+`)
+
+	c := indexerConfig(v)
+
+	require.Equal(t, []GrpcConfig{
+		{Host: "env-1.example.com", Port: "443", UseTls: true, QueryTimeoutSec: 10},
+	}, c.SrcNodes)
+}

@@ -97,13 +97,18 @@ func main() {
 }
 
 func initApp(config configs.IndexerConfig, networkMetadata pkg.NetworkMetadata) (indexer.Indexer, bool) {
-	grpcEndpoints := []repo.GrpcEndpoint{{Target: fmt.Sprintf("%s:%s", config.SrcNode.Host, config.SrcNode.Port), UseTLS: config.SrcNode.UseTls}}
+	grpcEndpoints := []repo.GrpcEndpoint{{
+		Target:       fmt.Sprintf("%s:%s", config.SrcNode.Host, config.SrcNode.Port),
+		UseTLS:       config.SrcNode.UseTls,
+		QueryTimeout: time.Duration(config.SrcNode.QueryTimeoutSec) * time.Second,
+	}}
 	if len(config.SrcNodes) > 0 {
 		grpcEndpoints = make([]repo.GrpcEndpoint, 0, len(config.SrcNodes))
 		for _, node := range config.SrcNodes {
 			grpcEndpoints = append(grpcEndpoints, repo.GrpcEndpoint{
-				Target: fmt.Sprintf("%s:%s", node.Host, node.Port),
-				UseTLS: node.UseTls,
+				Target:       fmt.Sprintf("%s:%s", node.Host, node.Port),
+				UseTLS:       node.UseTls,
+				QueryTimeout: time.Duration(node.QueryTimeoutSec) * time.Second,
 			})
 		}
 	}

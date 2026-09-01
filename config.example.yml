@@ -4,12 +4,14 @@ indexer:
     host: 10.0.0.1
     port: 9090
     factory:
+    # query_timeout_sec: 10
   # Optional fallback candidates. When set, indexer selects the first
   # responding node at the start of each job.
   # src_nodes:
   #   - host: 10.0.0.1
   #     port: 9090
   #     use_tls: false
+  #     query_timeout_sec: 10
   src_evm_rpc_endpoint: "http://10.0.0.1:8545"
   src_db:
     host: localhost
