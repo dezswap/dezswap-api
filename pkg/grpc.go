@@ -26,13 +26,26 @@ type GrpcClient interface {
 
 type grpcClient struct {
 	*grpc.ClientConn
+	queryTimeout time.Duration
 }
 
 var _ GrpcClient = &grpcClient{}
 
+// NodeQueryTimeout is the per-query timeout applied when a client is created
+// without an explicit one.
 const NodeQueryTimeout = 5 * time.Second
 
 func NewGrpcClient(target string, useTls bool) (GrpcClient, error) {
+	return NewGrpcClientWithTimeout(target, useTls, NodeQueryTimeout)
+}
+
+// NewGrpcClientWithTimeout builds a client whose queries time out after queryTimeout.
+// A non-positive queryTimeout falls back to NodeQueryTimeout.
+func NewGrpcClientWithTimeout(target string, useTls bool, queryTimeout time.Duration) (GrpcClient, error) {
+	if queryTimeout <= 0 {
+		queryTimeout = NodeQueryTimeout
+	}
+
 	var cred credentials.TransportCredentials
 	if useTls {
 		cred = credentials.NewTLS(&tls.Config{})
@@ -42,16 +55,16 @@ func NewGrpcClient(target string, useTls bool) (GrpcClient, error) {
 
 	conn, err := grpc.NewClient(target, grpc.WithTransportCredentials(cred))
 	if err != nil {
-		return nil, errors.Wrap(err, "NewGrpcClient: failed to dial")
+		return nil, errors.Wrapf(err, "grpc client: failed to dial %s", target)
 	}
 
-	return &grpcClient{conn}, nil
+	return &grpcClient{ClientConn: conn, queryTimeout: queryTimeout}, nil
 }
 
 // SyncedHeight implements GrpcClient
 func (c *grpcClient) SyncedHeight() (uint64, error) {
 	client := cmtservice.NewServiceClient(c)
-	ctx, cancel := context.WithTimeout(context.Background(), NodeQueryTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), c.queryTimeout)
 	defer cancel()
 
 	// Get the latest block height
@@ -77,7 +90,7 @@ func (c *grpcClient) QueryContract(addr string, query []byte, height uint64) ([]
 		//nolint:staticcheck
 		ctx = context.WithValue(ctx, cosmos_types.GRPCBlockHeightHeader, strconv.FormatUint(height, 10))
 	}
-	ctx, cancel := context.WithTimeout(ctx, NodeQueryTimeout)
+	ctx, cancel := context.WithTimeout(ctx, c.queryTimeout)
 	defer cancel()
 
 	res, err := client.SmartContractState(ctx, &cosmwasm_types.QuerySmartContractStateRequest{Address: addr, QueryData: query})
@@ -91,7 +104,7 @@ func (c *grpcClient) QueryContract(addr string, query []byte, height uint64) ([]
 // QueryIbcDenomTrace implements GrpcClient
 func (c *grpcClient) QueryIbcDenomTrace(addr string) (*ibc_types.Denom, error) {
 	client := ibc_types.NewQueryClient(c)
-	ctx, cancel := context.WithTimeout(context.Background(), NodeQueryTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), c.queryTimeout)
 	defer cancel()
 
 	res, err := client.Denom(ctx, &ibc_types.QueryDenomRequest{Hash: addr})

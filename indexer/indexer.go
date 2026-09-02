@@ -6,6 +6,10 @@ import (
 	"github.com/pkg/errors"
 )
 
+// tokenSaveBatchSize bounds how many freshly fetched tokens are held in memory before
+// they are persisted. Keeping it small means an interrupted pass still makes progress.
+const tokenSaveBatchSize = 100
+
 type dexIndexer struct {
 	pkg.NetworkMetadata
 	repo    Repo
@@ -75,25 +79,57 @@ func (d *dexIndexer) UpdateTokens() error {
 		tokensInDB[t] = true
 	}
 
-	var newTokens []Token
+	newTokens := make([]Token, 0, tokenSaveBatchSize)
+	flush := func() error {
+		if len(newTokens) == 0 {
+			return nil
+		}
+		if err := d.repo.SaveTokens(newTokens); err != nil {
+			return errors.Wrap(err, "dexIndexer.UpdateTokens")
+		}
+		// A fresh buffer, so the batch just handed over is never written through.
+		newTokens = make([]Token, 0, tokenSaveBatchSize)
+		return nil
+	}
+
+	var failedCount uint
+	var firstErr error
+	var firstFailedAddr string
+
 	for _, p := range pairs {
 		for _, addr := range []string{p.Asset0, p.Asset1, p.Lp} {
 			if _, ok := tokensInDB[addr]; ok {
 				continue
 			}
+			// Mark before querying so one address is attempted at most once per pass. The
+			// map is rebuilt from the DB on the next run, so failures are retried then.
+			tokensInDB[addr] = true
 
 			token, err := d.repo.TokenFromNode(addr)
 			if err != nil {
-				return errors.Wrap(err, "dexIndexer.UpdateTokens")
+				// One unresolvable token must not discard the rest of the pass.
+				failedCount++
+				if firstErr == nil {
+					firstErr, firstFailedAddr = err, addr
+				}
+				continue
 			}
 
-			tokensInDB[addr] = true
 			newTokens = append(newTokens, *token)
+			if len(newTokens) >= tokenSaveBatchSize {
+				if err := flush(); err != nil {
+					return err
+				}
+			}
 		}
 	}
 
-	if err := d.repo.SaveTokens(newTokens); err != nil {
-		return errors.Wrap(err, "dexIndexer.UpdateTokens")
+	if err := flush(); err != nil {
+		return err
+	}
+
+	if firstErr != nil {
+		return errors.Wrapf(firstErr, "dexIndexer.UpdateTokens: %d token(s) failed, first failure on %s", failedCount, firstFailedAddr)
 	}
 
 	return nil
