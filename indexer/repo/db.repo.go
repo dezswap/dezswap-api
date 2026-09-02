@@ -1,7 +1,6 @@
 package repo
 
 import (
-	"database/sql"
 	"fmt"
 
 	"github.com/dezswap/dezswap-api/configs"
@@ -18,6 +17,10 @@ import (
 
 var _ indexer.DbRepo = &dbRepoImpl{}
 
+// upsertBatchSize caps the rows per INSERT so a large call stays well under the 65535
+// bind parameter limit of a single postgres statement.
+const upsertBatchSize = 500
+
 type dbRepoImpl struct {
 	dbMapper
 	*gorm.DB
@@ -26,12 +29,12 @@ type dbRepoImpl struct {
 }
 
 func NewDbRepo(chainId string, srcC configs.RdbConfig, destC configs.RdbConfig) (indexer.DbRepo, error) {
-    openDb := func(c configs.RdbConfig) (*gorm.DB, error) {
-        dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s",
-            c.Host, c.Username, c.Password, c.Database, c.Port)
-        if c.SSLMode != "" {
-            dsn = fmt.Sprintf("%s sslmode=%s", dsn, c.SSLMode)
-        }
+	openDb := func(c configs.RdbConfig) (*gorm.DB, error) {
+		dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s",
+			c.Host, c.Username, c.Password, c.Database, c.Port)
+		if c.SSLMode != "" {
+			dsn = fmt.Sprintf("%s sslmode=%s", dsn, c.SSLMode)
+		}
 
 		gormDB, err := gorm.Open(postgres.New(postgres.Config{
 			DSN: dsn,
@@ -176,17 +179,12 @@ func (r *dbRepoImpl) SaveLatestPools(pools []indexer.PoolInfo, height uint64) er
 		return errors.Wrap(err, "dbRepoImpl.SavePools")
 	}
 
-	tx := r.dest.Begin()
-	for _, m := range poolModels {
-		if err := tx.Model(&m).Clauses(clause.OnConflict{
-			UpdateAll: true,
-			Columns:   []clause.Column{{Name: "address"}, {Name: "chain_id"}},
-		}).Create(&m).Error; err != nil {
-			return errors.Wrap(err, "dbRepoImpl.SavePools")
-		}
-	}
-	err = tx.Commit().Error
-	if err != nil {
+	// poolToPoolModel never fills the embedded gorm.Model, so no id reaches the insert
+	// and idx_latest_pools_chain_id_address_key is the only arbiter available.
+	if err := r.dest.Clauses(clause.OnConflict{
+		UpdateAll: true,
+		Columns:   []clause.Column{{Name: "address"}, {Name: "chain_id"}},
+	}).CreateInBatches(&poolModels, upsertBatchSize).Error; err != nil {
 		return errors.Wrap(err, "dbRepoImpl.SavePools")
 	}
 
@@ -204,14 +202,23 @@ func (r *dbRepoImpl) SaveTokens(tokens []indexer.Token) error {
 		return errors.Wrap(err, "dbRepoImpl.SaveTokens")
 	}
 
-	tx := r.dest.Begin(&sql.TxOptions{Isolation: sql.LevelSerializable})
-	for _, m := range models {
-		if err := tx.Model(&m).Save(&m).Error; err != nil {
-			return errors.Wrap(err, "dbRepoImpl.SaveTokens")
+	// The id is left to the sequence so that idx_tokens_chain_id_address_key is the only
+	// index an insert can collide on. Sending an existing id would also collide with
+	// tokens_pkey, which is not the declared arbiter and would raise a unique violation
+	// instead of taking the update branch.
+	for i := range models {
+		if models[i].Model != nil {
+			models[i].Model.ID = 0
 		}
 	}
-	err = tx.Commit().Error
-	if err != nil {
+
+	if err := r.dest.Clauses(clause.OnConflict{
+		Columns: []clause.Column{{Name: "chain_id"}, {Name: "address"}},
+		// created_at and deleted_at are left alone; the rest is what a token carries.
+		DoUpdates: clause.AssignmentColumns([]string{
+			"updated_at", "protocol", "symbol", "name", "decimals", "icon", "verified",
+		}),
+	}).CreateInBatches(&models, upsertBatchSize).Error; err != nil {
 		return errors.Wrap(err, "dbRepoImpl.SaveTokens")
 	}
 
