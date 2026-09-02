@@ -208,7 +208,7 @@ func (r *dbRepoImpl) SaveTokens(tokens []indexer.Token) error {
 	// instead of taking the update branch.
 	for i := range models {
 		if models[i].Model != nil {
-			models[i].Model.ID = 0
+			models[i].ID = 0
 		}
 	}
 
