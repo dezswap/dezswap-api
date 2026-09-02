@@ -1,6 +1,8 @@
 package repo
 
 import (
+	"errors"
+	"fmt"
 	"regexp"
 	"testing"
 
@@ -10,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 	"gorm.io/gorm/schema"
 )
 
@@ -23,10 +26,31 @@ func newMockedDbRepo(t *testing.T, mapper dbMapper) (*dbRepoImpl, sqlmock.Sqlmoc
 	gormDB, err := gorm.Open(postgres.New(postgres.Config{
 		Conn:                 conn,
 		PreferSimpleProtocol: true,
-	}), &gorm.Config{NamingStrategy: schema.NamingStrategy{}})
+		// a batched insert carries thousands of placeholders; logging it on every
+		// mismatch buries the assertion that failed
+	}), &gorm.Config{NamingStrategy: schema.NamingStrategy{}, Logger: logger.Discard})
 	require.NoError(t, err)
 
 	return &dbRepoImpl{mapper, gormDB, gormDB, "chainId"}, mock
+}
+
+func manyTokens(n int) []indexer.Token {
+	tokens := make([]indexer.Token, 0, n)
+	for i := range n {
+		tokens = append(tokens, indexer.Token{ChainId: "chainId", Address: fmt.Sprintf("addr%d", i), Symbol: "A", Decimals: 6})
+	}
+	return tokens
+}
+
+func manyPools(n int) []indexer.PoolInfo {
+	pools := make([]indexer.PoolInfo, 0, n)
+	for i := range n {
+		pools = append(pools, indexer.PoolInfo{
+			ChainId: "chainId", Address: fmt.Sprintf("pool%d", i),
+			Asset0: "a0", Asset0Amount: "1", Asset1: "a1", Asset1Amount: "2", LpAmount: "3",
+		})
+	}
+	return pools
 }
 
 func idRows(n int) *sqlmock.Rows {
@@ -69,6 +93,36 @@ func Test_SaveTokens_SendsEveryRowInOneStatement(t *testing.T) {
 		{ChainId: "chainId", Address: "addr1", Symbol: "A", Decimals: 6},
 		{ChainId: "chainId", Address: "addr2", Symbol: "B", Decimals: 6},
 	}))
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+// A single statement past the batch size would grow the bind parameter count without
+// bound, so the split itself is what this pins down.
+func Test_SaveTokens_SplitsAtBatchSize(t *testing.T) {
+	r, mock := newMockedDbRepo(t, &dbMapperImpl{})
+
+	mock.ExpectBegin()
+	// 11 columns per row, so the 500th row of the first statement starts at $5490
+	mock.ExpectQuery(`INSERT INTO "tokens".*,\(\$5490,[^)]*\) ON CONFLICT`).WillReturnRows(idRows(upsertBatchSize))
+	// and the leftover row goes out on its own
+	mock.ExpectQuery(`INSERT INTO "tokens".*VALUES \(\$1,[^)]*\) ON CONFLICT`).WillReturnRows(idRows(1))
+	mock.ExpectCommit()
+
+	require.NoError(t, r.SaveTokens(manyTokens(upsertBatchSize+1)))
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+// The scheduler backs off on this error, so it must not be swallowed.
+func Test_SaveTokens_ReturnsDbError(t *testing.T) {
+	r, mock := newMockedDbRepo(t, &dbMapperImpl{})
+
+	mock.ExpectBegin()
+	mock.ExpectQuery(`INSERT INTO "tokens"`).WillReturnError(errors.New("insert failed"))
+	mock.ExpectRollback()
+
+	err := r.SaveTokens([]indexer.Token{{ChainId: "chainId", Address: "addr1"}})
+	require.ErrorContains(t, err, "dbRepoImpl.SaveTokens")
+	require.ErrorContains(t, err, "insert failed")
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
@@ -120,6 +174,32 @@ func Test_SaveLatestPools_SendsEveryRowInOneStatement(t *testing.T) {
 		{ChainId: "chainId", Address: "pool1", Asset0: "a0", Asset0Amount: "1", Asset1: "a1", Asset1Amount: "2", LpAmount: "3"},
 		{ChainId: "chainId", Address: "pool2", Asset0: "a0", Asset0Amount: "4", Asset1: "a1", Asset1Amount: "5", LpAmount: "6"},
 	}, 100))
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func Test_SaveLatestPools_SplitsAtBatchSize(t *testing.T) {
+	r, mock := newMockedDbRepo(t, &dbMapperImpl{})
+
+	mock.ExpectBegin()
+	// 12 columns per row, so the 500th row of the first statement starts at $5989
+	mock.ExpectQuery(`INSERT INTO "latest_pools".*,\(\$5989,[^)]*\) ON CONFLICT`).WillReturnRows(idRows(upsertBatchSize))
+	mock.ExpectQuery(`INSERT INTO "latest_pools".*VALUES \(\$1,[^)]*\) ON CONFLICT`).WillReturnRows(idRows(1))
+	mock.ExpectCommit()
+
+	require.NoError(t, r.SaveLatestPools(manyPools(upsertBatchSize+1), 100))
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func Test_SaveLatestPools_ReturnsDbError(t *testing.T) {
+	r, mock := newMockedDbRepo(t, &dbMapperImpl{})
+
+	mock.ExpectBegin()
+	mock.ExpectQuery(`INSERT INTO "latest_pools"`).WillReturnError(errors.New("insert failed"))
+	mock.ExpectRollback()
+
+	err := r.SaveLatestPools(manyPools(1), 100)
+	require.ErrorContains(t, err, "dbRepoImpl.SavePools")
+	require.ErrorContains(t, err, "insert failed")
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
