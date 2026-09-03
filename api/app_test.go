@@ -25,7 +25,7 @@ func TestSetMiddlewares_AllowsMCPPreflightHeaders(t *testing.T) {
 		},
 		logger: logging.New("test", configs.LogConfig{}),
 	}
-	app.setMiddlewares(nil)
+	app.setMiddlewares()
 	app.engine.POST("/mcp", func(c *gin.Context) {
 		c.Status(http.StatusOK)
 	})

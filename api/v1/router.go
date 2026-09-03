@@ -1,6 +1,8 @@
 package v1
 
 import (
+	"github.com/dezswap/dezswap-api/api/cachekey"
+	"github.com/dezswap/dezswap-api/api/httpcache"
 	"github.com/dezswap/dezswap-api/api/v1/controller"
 	"github.com/dezswap/dezswap-api/api/v1/controller/coingecko"
 	"github.com/dezswap/dezswap-api/api/v1/controller/coinmarketcap"
@@ -21,22 +23,35 @@ import (
 	"gorm.io/gorm"
 )
 
-// RegisterRoutes sets up v1 API endpoints
-func RegisterRoutes(rg *gin.RouterGroup, chainId string, coinGeckoApiKey string, version string, networkMetadata pkg.NetworkMetadata, db *gorm.DB, cache cache.Cache, logger logging.Logger) {
-	statusService := service.NewStatusService(db, cache)
+// RegisterRoutes sets up v1 API endpoints.
+func RegisterRoutes(rg *gin.RouterGroup, chainId string, coinGeckoApiKey string, version string, networkMetadata pkg.NetworkMetadata, db *gorm.DB, cacheStore cache.Cache, cacheHandlers httpcache.Handlers, logger logging.Logger) {
+	statusService := service.NewStatusService(db, cacheStore)
 	pairService := service.NewPairService(chainId, db)
 	poolService := service.NewPoolService(chainId, db)
 	tokenService := service.NewTokenService(chainId, db)
 	statService := service.NewStatService(chainId, db)
 
 	controller.InitStatusController(statusService, rg, version, logger)
-	controller.InitPairController(pairService, rg, networkMetadata, logger)
-	controller.InitPoolController(poolService, rg, networkMetadata, logger)
-	controller.InitTokenController(tokenService, rg, logger)
-	controller.InitStatController(statService, rg, logger)
+
+	// Tokens and pairs are the only families whose writes are tracked.
+	versioned := func(r cachekey.Resource) *gin.RouterGroup {
+		g := rg.Group("")
+		g.Use(cacheHandlers.Versioned(r))
+
+		return g
+	}
+	controller.InitTokenController(tokenService, versioned(cachekey.Tokens), logger)
+	controller.InitPairController(pairService, versioned(cachekey.Pairs), networkMetadata, logger)
+
+	// Nothing follows when these tables change, so the clock is all that expires them.
+	timed := rg.Group("")
+	timed.Use(cacheHandlers.Timed())
+
+	controller.InitPoolController(poolService, timed, networkMetadata, logger)
+	controller.InitStatController(statService, timed, logger)
 
 	// CoinGecko endpoint
-	r := rg.Group("/coingecko")
+	r := timed.Group("/coingecko")
 	coinGeckoPairService := cgs.NewPairService(chainId, db)
 	coinGeckoTickerService := cgs.NewTickerService(chainId, db, coinGeckoApiKey)
 
@@ -44,16 +59,19 @@ func RegisterRoutes(rg *gin.RouterGroup, chainId string, coinGeckoApiKey string,
 	coingecko.InitTickerController(coinGeckoTickerService, r, logger)
 
 	// CoinMarketCap endpoint
-	r = rg.Group("/coinmarketcap")
+	r = timed.Group("/coinmarketcap")
 	coinMarketCapTickerService := cmcs.NewTickerService(chainId, db)
 	coinmarketcap.InitTickerController(coinMarketCapTickerService, r, logger)
 
 	dashboardService := ds.NewDashboardService(chainId, db)
-	dashboard.InitDashboardController(dashboardService, rg.Group("/dashboard"), logger)
+	dashboard.InitDashboardController(dashboardService, timed.Group("/dashboard"), logger)
 
 	noticeService := ns.NewService(db)
-	notice.InitNoticeController(noticeService, rg.Group("/notices"), logger)
+	notice.InitNoticeController(noticeService, timed.Group("/notices"), logger)
 
+	// Routes costs one indexed lookup into an already aggregated table, while its
+	// from/to are caller-supplied and an unknown address still returns 200. Caching
+	// would let any caller mint an entry per string it invents, and save little.
 	routerRepo := api.NewRouterDbRepo(chainId, db)
 	routerService := rs.New(routerRepo)
 	router.InitRouterController(routerService, rg.Group("/routes"), logger)

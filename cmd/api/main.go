@@ -32,7 +32,7 @@ func main() {
 	c.Log.ChainId = c.Api.Server.ChainId
 	cache := cacheStore(ctx, c.Api.Cache)
 	db := dbCon(c.Api.DB)
-	api.RunServer(c, cache, db)
+	api.RunServer(ctx, c, cache, db)
 }
 
 func dbCon(c configs.RdbConfig) *gorm.DB {
