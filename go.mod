@@ -17,6 +17,7 @@ require (
 	github.com/go-co-op/gocron v1.18.0
 	github.com/go-gormigrate/gormigrate/v2 v2.0.2
 	github.com/go-redis/redismock/v9 v9.2.0
+	github.com/jellydator/ttlcache/v3 v3.4.1
 	github.com/modelcontextprotocol/go-sdk v1.4.1
 	github.com/pkg/errors v0.9.1
 	github.com/redis/go-redis/v9 v9.6.3

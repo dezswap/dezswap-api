@@ -1,18 +1,20 @@
 package api
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"regexp"
 	"slices"
 	"time"
 
+	"github.com/dezswap/dezswap-api/api/cachekey"
 	"github.com/dezswap/dezswap-api/api/docs"
+	"github.com/dezswap/dezswap-api/api/httpcache"
 	"github.com/dezswap/dezswap-api/api/mcpserver"
 	v1 "github.com/dezswap/dezswap-api/api/v1"
 	"github.com/dezswap/dezswap-api/pkg"
 
-	gin_cache "github.com/chenyahui/gin-cache"
 	"gorm.io/gorm"
 
 	"github.com/gin-contrib/cors"
@@ -39,7 +41,7 @@ type app struct {
 	logger logging.Logger
 }
 
-func RunServer(c configs.Config, cache cache.Cache, db *gorm.DB) {
+func RunServer(ctx context.Context, c configs.Config, cache cache.Cache, db *gorm.DB) {
 	serverConfig := c.Api.Server
 	networkMetadata, err := pkg.GetNetworkMetadata(serverConfig.ChainId)
 	if err != nil {
@@ -55,10 +57,12 @@ func RunServer(c configs.Config, cache cache.Cache, db *gorm.DB) {
 	}
 
 	gin.SetMode(serverConfig.Mode)
-	app.setMiddlewares(cache)
+	app.setMiddlewares()
+
+	cacheHandlers := app.cacheHandlers(ctx, cache, db)
 
 	v1Router := app.engine.Group(ApiVersion)
-	v1.RegisterRoutes(v1Router, serverConfig.ChainId, serverConfig.CoinGeckoApiKey, AppVersion, app.NetworkMetadata, db, cache, app.logger)
+	v1.RegisterRoutes(v1Router, serverConfig.ChainId, serverConfig.CoinGeckoApiKey, AppVersion, app.NetworkMetadata, db, cache, cacheHandlers, app.logger)
 
 	if c.Sentry.DSN != "" {
 		if err := app.configureReporter(c.Sentry.DSN, serverConfig.ChainId, map[string]string{
@@ -72,7 +76,9 @@ func RunServer(c configs.Config, cache cache.Cache, db *gorm.DB) {
 
 	if c.Api.Server.Swagger {
 		docs.SwaggerInfo.BasePath = fmt.Sprintf("/%s", ApiVersion)
-		app.engine.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
+		g := app.engine.Group("")
+		g.Use(cacheHandlers.Timed())
+		g.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 	}
 
 	if err := mcpserver.Mount(app.engine, c.Api.MCP, AppVersion); err != nil {
@@ -80,6 +86,16 @@ func RunServer(c configs.Config, cache cache.Cache, db *gorm.DB) {
 	}
 
 	app.run()
+}
+
+// cacheHandlers builds the cache middleware the router hands to its groups.
+func (app *app) cacheHandlers(ctx context.Context, store cache.Cache, db *gorm.DB) httpcache.Handlers {
+	blockTime := time.Second * time.Duration(app.BlockSecond)
+	versioner := cachekey.NewVersioner(ctx, db, app.config.Server.ChainId, blockTime, func(err error) {
+		app.logger.Warn(err)
+	})
+
+	return httpcache.New(store, versioner, blockTime)
 }
 
 func (app *app) run() {
@@ -96,7 +112,7 @@ func (app *app) run() {
 	}
 }
 
-func (app *app) setMiddlewares(cache cache.Cache) {
+func (app *app) setMiddlewares() {
 	app.engine.Use(gin.CustomRecovery(func(c *gin.Context, err any) {
 		app.logger.Error(err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
@@ -129,24 +145,6 @@ func (app *app) setMiddlewares(cache cache.Cache) {
 		conf.ExposeHeaders = append(conf.ExposeHeaders, "Mcp-Session-Id")
 	}
 	app.engine.Use(cors.New(conf))
-	if cache != nil {
-		app.engine.Use(gin_cache.Cache(cache, time.Second*time.Duration(app.BlockSecond),
-			gin_cache.WithCacheStrategyByRequest(func(c *gin.Context) (bool, gin_cache.Strategy) {
-				mcpPath := app.config.MCP.Path
-				if mcpPath == "" {
-					mcpPath = mcpserver.DefaultPath
-				}
-				// MCP requests share one URL but vary by body and session headers, so skip response caching.
-				if app.config.MCP.Enabled && c.Request.URL.Path == mcpPath {
-					return false, gin_cache.Strategy{}
-				}
-				return true, gin_cache.Strategy{
-					CacheKey: c.Request.Host + c.Request.RequestURI,
-				}
-			}),
-			gin_cache.WithDiscardHeaders(gin_cache.CorsHeaders()),
-		))
-	}
 	app.engine.UseRawPath = true
 	app.engine.UnescapePathValues = true
 }
