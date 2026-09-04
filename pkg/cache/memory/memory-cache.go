@@ -32,7 +32,7 @@ func NewMemoryCache(ctx context.Context, codec cache.Codable) cache.Cache {
 	return c
 }
 
-func (r *memoryCacheImpl) Ping() error {
+func (r *memoryCacheImpl) Ping(context.Context) error {
 	return nil
 }
 
