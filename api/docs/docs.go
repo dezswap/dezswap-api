@@ -785,7 +785,7 @@ const docTemplate = `{
         },
         "/health": {
             "get": {
-                "description": "Checks overall service and dependency health",
+                "description": "Checks overall service and dependency health. Answers 503 once a\ndependency the API cannot serve without is unreachable, so the\nendpoint can back a readiness probe directly.",
                 "produces": [
                     "application/json"
                 ],
@@ -796,6 +796,12 @@ const docTemplate = `{
                 "responses": {
                     "200": {
                         "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/controller.HealthResponse"
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
                         "schema": {
                             "$ref": "#/definitions/controller.HealthResponse"
                         }

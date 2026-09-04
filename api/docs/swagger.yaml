@@ -860,12 +860,19 @@ paths:
       - dashboard
   /health:
     get:
-      description: Checks overall service and dependency health
+      description: |-
+        Checks overall service and dependency health. Answers 503 once a
+        dependency the API cannot serve without is unreachable, so the
+        endpoint can back a readiness probe directly.
       produces:
       - application/json
       responses:
         "200":
           description: OK
+          schema:
+            $ref: '#/definitions/controller.HealthResponse'
+        "503":
+          description: Service Unavailable
           schema:
             $ref: '#/definitions/controller.HealthResponse'
       summary: Health check
