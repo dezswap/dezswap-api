@@ -7,6 +7,7 @@ import (
 	"github.com/dezswap/dezswap-api/api/v1/controller"
 	ds "github.com/dezswap/dezswap-api/api/v1/service/dashboard"
 
+	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/dezswap/dezswap-api/pkg/httputil"
 	"github.com/dezswap/dezswap-api/pkg/logging"
 	"github.com/gin-gonic/gin"
@@ -98,8 +99,8 @@ func (c *dashboardController) ChartByToken(ctx *gin.Context) {
 	}
 
 	addr := ds.Addr(httputil.DecodeAddressParam(ctx.Param("address")))
-	if len(addr) == 0 {
-		httputil.NewError(ctx, http.StatusBadRequest, errors.New("must provide token address"))
+	if sdk.ValidateDenom(string(addr)) != nil {
+		httputil.NewError(ctx, http.StatusBadRequest, errors.New("invalid token address"))
 		return
 	}
 
@@ -161,8 +162,8 @@ func (c *dashboardController) ChartByPool(ctx *gin.Context) {
 	}
 
 	addr := ds.Addr(ctx.Param("address"))
-	if len(addr) == 0 {
-		httputil.NewError(ctx, http.StatusBadRequest, errors.New("must provide pool address"))
+	if sdk.ValidateDenom(string(addr)) != nil {
+		httputil.NewError(ctx, http.StatusBadRequest, errors.New("invalid pool address"))
 		return
 	}
 
@@ -297,6 +298,10 @@ func (c *dashboardController) Statistic(ctx *gin.Context) {
 //	@Router			/dashboard/pools [get]
 func (c *dashboardController) Pools(ctx *gin.Context) {
 	token := ctx.Query("token")
+	if len(token) > 0 && sdk.ValidateDenom(token) != nil {
+		httputil.NewError(ctx, http.StatusBadRequest, errors.New("invalid token address"))
+		return
+	}
 
 	var pools ds.Pools
 	var err error
@@ -335,7 +340,7 @@ func (c *dashboardController) Pools(ctx *gin.Context) {
 //	@Router			/dashboard/pools/{address} [get]
 func (c *dashboardController) Pool(ctx *gin.Context) {
 	address := ctx.Param("address")
-	if address == "" {
+	if sdk.ValidateDenom(address) != nil {
 		httputil.NewError(ctx, http.StatusBadRequest, errors.New("invalid address"))
 		return
 	}
@@ -369,12 +374,11 @@ func (c *dashboardController) Pool(ctx *gin.Context) {
 //	@Param			address		path	string	true	"token address"
 //	@Router			/dashboard/tokens/{address} [get]
 func (c *dashboardController) Token(ctx *gin.Context) {
-	address := ctx.Param("address")
-	if address == "" {
-		httputil.NewError(ctx, http.StatusBadRequest, errors.New("invalid address address"))
+	address := httputil.DecodeAddressParam(ctx.Param("address"))
+	if sdk.ValidateDenom(address) != nil {
+		httputil.NewError(ctx, http.StatusBadRequest, errors.New("invalid address"))
 		return
 	}
-	address = httputil.DecodeAddressParam(address)
 
 	token, err := c.Dashboard.Token(ds.Addr(address))
 	if err != nil {
@@ -436,6 +440,17 @@ func (c *dashboardController) Txs(ctx *gin.Context) {
 	if len(pool) > 0 && len(tokens) > 0 {
 		httputil.NewError(ctx, http.StatusBadRequest, errors.New("invalid query, must choose one of (pool or token, not both)"))
 		return
+	}
+
+	if len(pool) > 0 && sdk.ValidateDenom(string(pool)) != nil {
+		httputil.NewError(ctx, http.StatusBadRequest, errors.New("invalid pool address"))
+		return
+	}
+	for _, t := range tokens {
+		if sdk.ValidateDenom(string(t)) != nil {
+			httputil.NewError(ctx, http.StatusBadRequest, errors.New("invalid token address"))
+			return
+		}
 	}
 
 	var txs ds.Txs

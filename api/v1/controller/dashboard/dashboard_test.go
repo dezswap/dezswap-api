@@ -126,6 +126,32 @@ func TestHandlers_RejectValuesThatWouldReachTheDatabase(t *testing.T) {
 		"absent duration":       {"/chart/volume", http.StatusOK},
 		"empty duration":        {"/chart/volume?duration=", http.StatusOK},
 		"known duration":        {"/chart/volume?duration=year", http.StatusOK},
+
+		// The check is a shape, not a lookup: an invented name is served like any
+		// other. Only characters no address carries are turned away.
+		"token nothing names":       {"/pools?token=not-an-address", http.StatusOK},
+		"token with a stray symbol": {"/pools?token=nope!", http.StatusBadRequest},
+		"no token":                  {"/pools", http.StatusOK},
+
+		// The forms the indexer actually stores: it strips 0x and prepends the
+		// configured prefix, so a check written around bare 0x turns real tokens away.
+		"native denom":      {"/pools?token=axpla", http.StatusOK},
+		"prefixed erc20":    {"/pools?token=xerc20:8c5be1e5ebec7d5bd14f71427d1e84f3dd0314c0", http.StatusOK},
+		"prefixed cw20":     {"/pools?token=xcw20:xpla1j33xdql0h4kpgj2mhggy4vutw655u90z7nyj4afhxgj4v5urtadq44e3vd", http.StatusOK},
+		"bare cw20":         {"/pools?token=xpla1j33xdql0h4kpgj2mhggy4vutw655u90z7nyj4afhxgj4v5urtadq44e3vd", http.StatusOK},
+		"ibc denom":         {"/pools?token=ibc/A1B2C3D4E5F60718293A4B5C6D7E8F90A1B2C3D4E5F60718293A4B5C6D7E8F90", http.StatusOK},
+		"tx prefixed erc20": {"/txs?token=xerc20:EFGH", http.StatusOK},
+
+		"tx token with a stray symbol":  {"/txs?token=nope!", http.StatusBadRequest},
+		"one bad token among good ones": {"/txs?token=axpla,nope!", http.StatusBadRequest},
+		"tx pool with a stray symbol":   {"/txs?pool=nope!", http.StatusBadRequest},
+
+		// A path segment lands in the cache key whole, so it is held to what a query
+		// parameter is. /chart/pools is versioned, where an entry outlives a timed one.
+		"path address":                   {"/chart/pools/xpla1abc/volume", http.StatusOK},
+		"path address with stray symbol": {"/chart/pools/nope!/volume", http.StatusBadRequest},
+		"pool detail path address":       {"/pools/xpla1abc", http.StatusOK},
+		"pool detail stray symbol":       {"/pools/nope!", http.StatusBadRequest},
 	} {
 		require.Equalf(t, tc.want, status(engine, tc.path), "%s: %s", name, tc.path)
 	}
