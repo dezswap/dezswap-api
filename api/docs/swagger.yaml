@@ -515,6 +515,7 @@ paths:
         - year
         - quarter
         - month
+        - all
         in: query
         name: duration
         type: string
@@ -559,6 +560,7 @@ paths:
         - year
         - quarter
         - month
+        - all
         in: query
         name: duration
         type: string
@@ -608,6 +610,7 @@ paths:
         - year
         - quarter
         - month
+        - all
         in: query
         name: duration
         type: string
