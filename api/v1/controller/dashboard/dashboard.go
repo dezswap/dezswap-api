@@ -5,7 +5,7 @@ import (
 	"strings"
 
 	"github.com/dezswap/dezswap-api/api/v1/controller"
-	dashboard2 "github.com/dezswap/dezswap-api/api/v1/service/dashboard"
+	ds "github.com/dezswap/dezswap-api/api/v1/service/dashboard"
 
 	"github.com/dezswap/dezswap-api/pkg/httputil"
 	"github.com/dezswap/dezswap-api/pkg/logging"
@@ -13,7 +13,7 @@ import (
 	"github.com/pkg/errors"
 )
 
-func InitDashboardController(s dashboard2.Dashboard, route *gin.RouterGroup, logger logging.Logger) controller.DashboardController {
+func InitDashboardController(s ds.Dashboard, route *gin.RouterGroup, logger logging.Logger) controller.DashboardController {
 	c := dashboardController{
 		s, logger, mapper{},
 	}
@@ -23,7 +23,7 @@ func InitDashboardController(s dashboard2.Dashboard, route *gin.RouterGroup, log
 }
 
 type dashboardController struct {
-	dashboard2.Dashboard
+	ds.Dashboard
 	logger logging.Logger
 	mapper
 }
@@ -91,12 +91,12 @@ func (c *dashboardController) ChartByToken(ctx *gin.Context) {
 		return
 	}
 
-	duration := dashboard2.Duration(ctx.Query("duration"))
+	duration := ds.Duration(ctx.Query("duration"))
 	if len(duration) == 0 {
-		duration = dashboard2.All
+		duration = ds.All
 	}
 
-	addr := dashboard2.Addr(httputil.DecodeAddressParam(ctx.Param("address")))
+	addr := ds.Addr(httputil.DecodeAddressParam(ctx.Param("address")))
 	if len(addr) == 0 {
 		httputil.NewError(ctx, http.StatusBadRequest, errors.New("must provide token address"))
 		return
@@ -105,7 +105,7 @@ func (c *dashboardController) ChartByToken(ctx *gin.Context) {
 	var err error
 	var res ChartRes
 
-	var chart dashboard2.TokenChart
+	var chart ds.TokenChart
 	switch chartType {
 	case ChartTypeVolume:
 		chart, err = c.TokenVolumes(addr, duration)
@@ -153,12 +153,12 @@ func (c *dashboardController) ChartByPool(ctx *gin.Context) {
 		return
 	}
 
-	duration := dashboard2.Duration(ctx.Query("duration"))
+	duration := ds.Duration(ctx.Query("duration"))
 	if len(duration) == 0 {
-		duration = dashboard2.All
+		duration = ds.All
 	}
 
-	addr := dashboard2.Addr(ctx.Param("address"))
+	addr := ds.Addr(ctx.Param("address"))
 	if len(addr) == 0 {
 		httputil.NewError(ctx, http.StatusBadRequest, errors.New("must provide pool address"))
 		return
@@ -169,19 +169,19 @@ func (c *dashboardController) ChartByPool(ctx *gin.Context) {
 
 	switch chartType {
 	case ChartTypeVolume:
-		var volumes dashboard2.Volumes
+		var volumes ds.Volumes
 		volumes, err = c.VolumesOf(addr, duration)
 		res = c.volumesToChartRes(volumes)
 	case ChartTypeTvl:
-		var tvls dashboard2.Tvls
+		var tvls ds.Tvls
 		tvls, err = c.TvlsOf(addr, duration)
 		res = c.tvlsToChartRes(tvls)
 	case ChartTypeApr:
-		var aprs dashboard2.Aprs
+		var aprs ds.Aprs
 		aprs, err = c.AprsOf(addr, duration)
 		res = c.aprsToChartRes(aprs)
 	case ChartTypeFee:
-		var fees dashboard2.Fees
+		var fees ds.Fees
 		fees, err = c.FeesOf(addr, duration)
 		res = c.feesToChartRes(fees)
 	default:
@@ -219,9 +219,9 @@ func (c *dashboardController) Chart(ctx *gin.Context) {
 		return
 	}
 
-	duration := dashboard2.Duration(ctx.Query("duration"))
+	duration := ds.Duration(ctx.Query("duration"))
 	if len(duration) == 0 {
-		duration = dashboard2.All
+		duration = ds.All
 	}
 
 	var err error
@@ -229,19 +229,19 @@ func (c *dashboardController) Chart(ctx *gin.Context) {
 
 	switch chartType {
 	case ChartTypeVolume:
-		var volumes dashboard2.Volumes
+		var volumes ds.Volumes
 		volumes, err = c.Volumes(duration)
 		res = c.volumesToChartRes(volumes)
 	case ChartTypeTvl:
-		var tvls dashboard2.Tvls
+		var tvls ds.Tvls
 		tvls, err = c.Tvls(duration)
 		res = c.tvlsToChartRes(tvls)
 	case ChartTypeApr:
-		var aprs dashboard2.Aprs
+		var aprs ds.Aprs
 		aprs, err = c.Aprs(duration)
 		res = c.aprsToChartRes(aprs)
 	case ChartTypeFee:
-		var fees dashboard2.Fees
+		var fees ds.Fees
 		fees, err = c.Fees(duration)
 		res = c.feesToChartRes(fees)
 	default:
@@ -295,10 +295,10 @@ func (c *dashboardController) Statistic(ctx *gin.Context) {
 func (c *dashboardController) Pools(ctx *gin.Context) {
 	token := ctx.Query("token")
 
-	var pools dashboard2.Pools
+	var pools ds.Pools
 	var err error
 	if len(token) > 0 {
-		pools, err = c.Dashboard.Pools(dashboard2.Addr(token))
+		pools, err = c.Dashboard.Pools(ds.Addr(token))
 		if err != nil {
 			c.logger.Warn(err)
 			httputil.NewError(ctx, http.StatusInternalServerError, errors.New("internal server error"))
@@ -337,7 +337,7 @@ func (c *dashboardController) Pool(ctx *gin.Context) {
 		return
 	}
 
-	poolDetail, err := c.PoolDetail(dashboard2.Addr(address))
+	poolDetail, err := c.PoolDetail(ds.Addr(address))
 	if err != nil {
 		c.logger.Warn(err)
 		httputil.NewError(ctx, http.StatusInternalServerError, errors.New("internal server error"))
@@ -373,7 +373,7 @@ func (c *dashboardController) Token(ctx *gin.Context) {
 	}
 	address = httputil.DecodeAddressParam(address)
 
-	token, err := c.Dashboard.Token(dashboard2.Addr(address))
+	token, err := c.Dashboard.Token(ds.Addr(address))
 	if err != nil {
 		c.logger.Warn(err)
 		httputil.NewError(ctx, http.StatusInternalServerError, errors.New("internal server error"))
@@ -426,7 +426,7 @@ func (c *dashboardController) Tokens(ctx *gin.Context) {
 //	@Param			type		query	string	false	"Transaction type, empty value is for all types"  Enums(swap, add, remove)
 //	@Router			/dashboard/txs [get]
 func (c *dashboardController) Txs(ctx *gin.Context) {
-	pool := dashboard2.Addr(ctx.Query("pool"))
+	pool := ds.Addr(ctx.Query("pool"))
 	tokens := parseTokenAddrs(ctx.Query("token"))
 	txType := c.txTypeToServiceTxType(TxType(ctx.Query("type")))
 
@@ -435,7 +435,7 @@ func (c *dashboardController) Txs(ctx *gin.Context) {
 		return
 	}
 
-	var txs dashboard2.Txs
+	var txs ds.Txs
 	var err error
 	if len(tokens) > 0 {
 		txs, err = c.TxsOfToken(txType, tokens...)
@@ -453,11 +453,11 @@ func (c *dashboardController) Txs(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, txsRes)
 }
 
-func parseTokenAddrs(tokenStr string) []dashboard2.Addr {
-	var tokens []dashboard2.Addr
+func parseTokenAddrs(tokenStr string) []ds.Addr {
+	var tokens []ds.Addr
 	for _, t := range strings.Split(tokenStr, ",") {
 		if trimmed := strings.TrimSpace(t); trimmed != "" {
-			tokens = append(tokens, dashboard2.Addr(trimmed))
+			tokens = append(tokens, ds.Addr(trimmed))
 		}
 	}
 	return tokens
