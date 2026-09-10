@@ -1,6 +1,9 @@
 package dashboard
 
-import "time"
+import (
+	"strings"
+	"time"
+)
 
 type Addr string
 type Duration string
@@ -11,6 +14,22 @@ const (
 	Year    Duration = "year"
 	All     Duration = "all"
 )
+
+// ToDuration reports whether s names a duration, defaulting an empty one to All.
+// An unknown value reaches chartCriteriaByDuration as a miss and puts an empty
+// interval into the SQL, so it has to be turned away at the handler.
+func ToDuration(s string) (Duration, bool) {
+	if s == "" {
+		return All, true
+	}
+
+	d := Duration(strings.ToLower(s))
+	if _, ok := chartCriteriaByDuration[d]; !ok {
+		return "", false
+	}
+
+	return d, true
+}
 
 type ActiveAccounts = []ActiveAccount
 type ActiveAccount struct {

@@ -276,7 +276,8 @@ const docTemplate = `{
                         "enum": [
                             "year",
                             "quarter",
-                            "month"
+                            "month",
+                            "all"
                         ],
                         "type": "string",
                         "description": "default(empty) value is all",
@@ -347,7 +348,8 @@ const docTemplate = `{
                         "enum": [
                             "year",
                             "quarter",
-                            "month"
+                            "month",
+                            "all"
                         ],
                         "type": "string",
                         "description": "default(empty) value is all",
@@ -417,7 +419,8 @@ const docTemplate = `{
                         "enum": [
                             "year",
                             "quarter",
-                            "month"
+                            "month",
+                            "all"
                         ],
                         "type": "string",
                         "description": "default(empty) value is all",

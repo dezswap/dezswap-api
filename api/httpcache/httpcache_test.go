@@ -18,10 +18,15 @@ import (
 	"gorm.io/gorm"
 )
 
+// expectTokenWatermark queues the one read every version is composed from. Only the
+// token mark varies here; the rest are along because they share the read.
 func expectTokenWatermark(mock sqlmock.Sqlmock, rowCount int64, maxMark string) {
-	mock.ExpectQuery(`FROM tokens`).
-		WithArgs("test-chain").
-		WillReturnRows(sqlmock.NewRows([]string{"row_count", "max_mark"}).AddRow(rowCount, maxMark))
+	mock.ExpectQuery(`(?s)FROM "tokens".*UNION ALL.*FROM "pair".*UNION ALL.*FROM "pair_stats_30m"`).
+		WithArgs("test-chain", "test-chain", "test-chain").
+		WillReturnRows(sqlmock.NewRows([]string{"source", "row_count", "max_mark"}).
+			AddRow("tokens", rowCount, maxMark).
+			AddRow("pair", 40, "pair-40").
+			AddRow("pair_stats_30m", 0, "1756771200"))
 }
 
 func TestVersioned_CollapsesCallerAddedQueryParams(t *testing.T) {
@@ -145,8 +150,8 @@ func unreadableWatermark(t *testing.T, blockTime time.Duration) fallbackRoute {
 	gormDB, err := gorm.Open(postgres.New(postgres.Config{Conn: sqlDB}), &gorm.Config{})
 	require.NoError(t, err)
 
-	mock.ExpectQuery(`FROM tokens`).
-		WithArgs("test-chain").
+	mock.ExpectQuery(`FROM "tokens"`).
+		WithArgs("test-chain", "test-chain", "test-chain").
 		WillReturnError(errors.New("connection refused"))
 	t.Cleanup(func() { require.NoError(t, mock.ExpectationsWereMet()) })
 
@@ -239,4 +244,27 @@ func TestNew_AlwaysYieldsUsableHandlers(t *testing.T) {
 			require.Equal(t, http.StatusOK, rec.Code, "%s: %s", name, path)
 		}
 	}
+}
+
+func TestNew_VersionedRejectsAResourceTheVersionerCannotResolve(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	sqlDB, _, err := sqlmock.New()
+	require.NoError(t, err)
+	defer sqlDB.Close()
+
+	gormDB, err := gorm.Open(postgres.New(postgres.Config{Conn: sqlDB}), &gorm.Config{})
+	require.NoError(t, err)
+
+	store := memory.NewMemoryCache(context.Background(), cache.NewByteCodec())
+	handlers := New(store, cachekey.NewVersioner(context.Background(), gormDB, "test-chain", time.Minute, nil), time.Second)
+
+	require.NotPanics(t, func() { handlers.Versioned(cachekey.Tokens) })
+	// Resource fields are unexported, so the zero value is the only unresolvable one
+	// this package can construct.
+	require.Panics(t, func() { handlers.Versioned(cachekey.Resource{}) })
+}
+
+func TestNew_WithoutAStoreVersionedStaysAPassThrough(t *testing.T) {
+	require.NotPanics(t, func() { New(nil, nil, time.Second).Versioned(cachekey.Resource{}) })
 }

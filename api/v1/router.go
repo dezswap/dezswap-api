@@ -64,7 +64,7 @@ func RegisterRoutes(rg *gin.RouterGroup, chainId string, coinGeckoApiKey string,
 	coinmarketcap.InitTickerController(coinMarketCapTickerService, r, logger)
 
 	dashboardService := ds.NewDashboardService(chainId, db)
-	dashboard.InitDashboardController(dashboardService, timed.Group("/dashboard"), logger)
+	dashboard.InitDashboardController(dashboardService, rg.Group("/dashboard"), cacheHandlers, logger)
 
 	noticeService := ns.NewService(db)
 	notice.InitNoticeController(noticeService, timed.Group("/notices"), logger)

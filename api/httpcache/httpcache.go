@@ -51,6 +51,13 @@ func New(store cache.Cache, versioner *cachekey.Versioner, blockTime time.Durati
 	handlers := Handlers{timed: timed(store, blockTime)}
 	if versioner != nil {
 		handlers.versioned = func(r cachekey.Resource) gin.HandlerFunc {
+			// r has to be a resource the versioner reads a mark for, or no version can be
+			// composed for it. Called once per route at startup, not per request, so this
+			// fails the boot.
+			if err := versioner.Check(r); err != nil {
+				panic(err)
+			}
+
 			return versioned(store, versioner, r, blockTime)
 		}
 	}

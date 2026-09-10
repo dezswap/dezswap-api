@@ -4,48 +4,55 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/dezswap/dezswap-api/api/cachekey"
+	"github.com/dezswap/dezswap-api/api/httpcache"
 	"github.com/dezswap/dezswap-api/api/v1/controller"
-	dashboard2 "github.com/dezswap/dezswap-api/api/v1/service/dashboard"
+	ds "github.com/dezswap/dezswap-api/api/v1/service/dashboard"
 
+	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/dezswap/dezswap-api/pkg/httputil"
 	"github.com/dezswap/dezswap-api/pkg/logging"
 	"github.com/gin-gonic/gin"
 	"github.com/pkg/errors"
 )
 
-func InitDashboardController(s dashboard2.Dashboard, route *gin.RouterGroup, logger logging.Logger) controller.DashboardController {
+// route must have no cache middleware of its own. On a hit gin-cache replies and
+// returns without calling c.Next(), so a cache on the group would answer before the
+// per-route ones in register ever ran -- which is why router.go passes a bare group.
+func InitDashboardController(s ds.Dashboard, route *gin.RouterGroup, cache httpcache.Handlers, logger logging.Logger) controller.DashboardController {
 	c := dashboardController{
 		s, logger, mapper{},
 	}
 	c.logger.Debug("InitDashboardController")
-	c.register(route)
+	c.register(route, cache)
 	return &c
 }
 
 type dashboardController struct {
-	dashboard2.Dashboard
+	ds.Dashboard
 	logger logging.Logger
 	mapper
 }
 
-func (c *dashboardController) register(route *gin.RouterGroup) {
+func (c *dashboardController) register(route *gin.RouterGroup, cache httpcache.Handlers) {
+	// One watermark read backs all three: they read the same tables and differ only
+	// in the parameters their handlers take, which is what the key varies on.
+	versioned := cache.Versioned(cachekey.DashboardCharts)
 
-	route.GET("/chart/:type", c.Chart)
-	route.GET("/chart/pools/:address/:type", c.ChartByPool)
-	route.GET("/chart/tokens/:address/:type", c.ChartByToken)
+	route.GET("/chart/:type", versioned, c.Chart)
+	route.GET("/chart/pools/:address/:type", versioned, c.ChartByPool)
+	route.GET("/recent", cache.Versioned(cachekey.DashboardRecent), c.Recent)
+	route.GET("/pools", cache.Versioned(cachekey.DashboardPools), c.Pools)
 
-	route.GET("/recent", c.Recent)
+	// These reach parsed_tx or price too, and neither is a tracked source yet.
+	timed := cache.Timed()
 
-	route.GET("/statistics", c.Statistic)
-
-	route.GET("/tokens", c.Tokens)
-	route.GET("/tokens/:address", c.Token)
-
-	route.GET("/txs", c.Txs)
-
-	route.GET("/pools", c.Pools)
-	route.GET("/pools/:address", c.Pool)
-
+	route.GET("/chart/tokens/:address/:type", timed, c.ChartByToken)
+	route.GET("/statistics", timed, c.Statistic)
+	route.GET("/tokens", timed, c.Tokens)
+	route.GET("/tokens/:address", timed, c.Token)
+	route.GET("/txs", timed, c.Txs)
+	route.GET("/pools/:address", timed, c.Pool)
 }
 
 // Dashboard godoc
@@ -80,7 +87,7 @@ func (c *dashboardController) Recent(ctx *gin.Context) {
 //	@Failure		400	{object}	httputil.BadRequestError
 //	@Failure		500	{object}	httputil.InternalServerError
 //
-// @Param			duration	query	string	false	"default(empty) value is all"	Enums(year, quarter, month)
+// @Param			duration	query	string	false	"default(empty) value is all"	Enums(year, quarter, month, all)
 // @Param			address		path	string	true	"Token Address"
 // @Param			type		path	string	true	"chart type"					Enums(volume, tvl, price)
 // @Router			/dashboard/chart/tokens/{address}/{type} [get]
@@ -91,21 +98,22 @@ func (c *dashboardController) ChartByToken(ctx *gin.Context) {
 		return
 	}
 
-	duration := dashboard2.Duration(ctx.Query("duration"))
-	if len(duration) == 0 {
-		duration = dashboard2.All
+	duration, ok := ds.ToDuration(ctx.Query("duration"))
+	if !ok {
+		httputil.NewError(ctx, http.StatusBadRequest, errors.New("invalid duration"))
+		return
 	}
 
-	addr := dashboard2.Addr(httputil.DecodeAddressParam(ctx.Param("address")))
-	if len(addr) == 0 {
-		httputil.NewError(ctx, http.StatusBadRequest, errors.New("must provide token address"))
+	addr := ds.Addr(httputil.DecodeAddressParam(ctx.Param("address")))
+	if sdk.ValidateDenom(string(addr)) != nil {
+		httputil.NewError(ctx, http.StatusBadRequest, errors.New("invalid token address"))
 		return
 	}
 
 	var err error
 	var res ChartRes
 
-	var chart dashboard2.TokenChart
+	var chart ds.TokenChart
 	switch chartType {
 	case ChartTypeVolume:
 		chart, err = c.TokenVolumes(addr, duration)
@@ -142,7 +150,7 @@ func (c *dashboardController) ChartByToken(ctx *gin.Context) {
 //	@Failure		400	{object}	httputil.BadRequestError
 //	@Failure		500	{object}	httputil.InternalServerError
 //
-// @Param			duration	query	string	false	"default(empty) value is all"	Enums(year, quarter, month)
+// @Param			duration	query	string	false	"default(empty) value is all"	Enums(year, quarter, month, all)
 // @Param			address		path	string	true	"Pool Address"
 // @Param			type		path	string	true	"chart type"					Enums(volume, tvl, apr, fee)
 // @Router			/dashboard/chart/pools/{address}/{type} [get]
@@ -153,14 +161,15 @@ func (c *dashboardController) ChartByPool(ctx *gin.Context) {
 		return
 	}
 
-	duration := dashboard2.Duration(ctx.Query("duration"))
-	if len(duration) == 0 {
-		duration = dashboard2.All
+	duration, ok := ds.ToDuration(ctx.Query("duration"))
+	if !ok {
+		httputil.NewError(ctx, http.StatusBadRequest, errors.New("invalid duration"))
+		return
 	}
 
-	addr := dashboard2.Addr(ctx.Param("address"))
-	if len(addr) == 0 {
-		httputil.NewError(ctx, http.StatusBadRequest, errors.New("must provide pool address"))
+	addr := ds.Addr(ctx.Param("address"))
+	if sdk.ValidateDenom(string(addr)) != nil {
+		httputil.NewError(ctx, http.StatusBadRequest, errors.New("invalid pool address"))
 		return
 	}
 
@@ -169,19 +178,19 @@ func (c *dashboardController) ChartByPool(ctx *gin.Context) {
 
 	switch chartType {
 	case ChartTypeVolume:
-		var volumes dashboard2.Volumes
+		var volumes ds.Volumes
 		volumes, err = c.VolumesOf(addr, duration)
 		res = c.volumesToChartRes(volumes)
 	case ChartTypeTvl:
-		var tvls dashboard2.Tvls
+		var tvls ds.Tvls
 		tvls, err = c.TvlsOf(addr, duration)
 		res = c.tvlsToChartRes(tvls)
 	case ChartTypeApr:
-		var aprs dashboard2.Aprs
+		var aprs ds.Aprs
 		aprs, err = c.AprsOf(addr, duration)
 		res = c.aprsToChartRes(aprs)
 	case ChartTypeFee:
-		var fees dashboard2.Fees
+		var fees ds.Fees
 		fees, err = c.FeesOf(addr, duration)
 		res = c.feesToChartRes(fees)
 	default:
@@ -209,7 +218,7 @@ func (c *dashboardController) ChartByPool(ctx *gin.Context) {
 //	@Failure		400	{object}	httputil.BadRequestError
 //	@Failure		500	{object}	httputil.InternalServerError
 //
-// @Param			duration	query	string	false	"default(empty) value is all"	Enums(year, quarter, month)
+// @Param			duration	query	string	false	"default(empty) value is all"	Enums(year, quarter, month, all)
 // @Param			type		path	string	true	"chart type"					Enums(volume, tvl, apr, fee)
 // @Router			/dashboard/chart/{type} [get]
 func (c *dashboardController) Chart(ctx *gin.Context) {
@@ -219,9 +228,10 @@ func (c *dashboardController) Chart(ctx *gin.Context) {
 		return
 	}
 
-	duration := dashboard2.Duration(ctx.Query("duration"))
-	if len(duration) == 0 {
-		duration = dashboard2.All
+	duration, ok := ds.ToDuration(ctx.Query("duration"))
+	if !ok {
+		httputil.NewError(ctx, http.StatusBadRequest, errors.New("invalid duration"))
+		return
 	}
 
 	var err error
@@ -229,19 +239,19 @@ func (c *dashboardController) Chart(ctx *gin.Context) {
 
 	switch chartType {
 	case ChartTypeVolume:
-		var volumes dashboard2.Volumes
+		var volumes ds.Volumes
 		volumes, err = c.Volumes(duration)
 		res = c.volumesToChartRes(volumes)
 	case ChartTypeTvl:
-		var tvls dashboard2.Tvls
+		var tvls ds.Tvls
 		tvls, err = c.Tvls(duration)
 		res = c.tvlsToChartRes(tvls)
 	case ChartTypeApr:
-		var aprs dashboard2.Aprs
+		var aprs ds.Aprs
 		aprs, err = c.Aprs(duration)
 		res = c.aprsToChartRes(aprs)
 	case ChartTypeFee:
-		var fees dashboard2.Fees
+		var fees ds.Fees
 		fees, err = c.Fees(duration)
 		res = c.feesToChartRes(fees)
 	default:
@@ -294,11 +304,15 @@ func (c *dashboardController) Statistic(ctx *gin.Context) {
 //	@Router			/dashboard/pools [get]
 func (c *dashboardController) Pools(ctx *gin.Context) {
 	token := ctx.Query("token")
+	if len(token) > 0 && sdk.ValidateDenom(token) != nil {
+		httputil.NewError(ctx, http.StatusBadRequest, errors.New("invalid token address"))
+		return
+	}
 
-	var pools dashboard2.Pools
+	var pools ds.Pools
 	var err error
 	if len(token) > 0 {
-		pools, err = c.Dashboard.Pools(dashboard2.Addr(token))
+		pools, err = c.Dashboard.Pools(ds.Addr(token))
 		if err != nil {
 			c.logger.Warn(err)
 			httputil.NewError(ctx, http.StatusInternalServerError, errors.New("internal server error"))
@@ -332,12 +346,12 @@ func (c *dashboardController) Pools(ctx *gin.Context) {
 //	@Router			/dashboard/pools/{address} [get]
 func (c *dashboardController) Pool(ctx *gin.Context) {
 	address := ctx.Param("address")
-	if address == "" {
+	if sdk.ValidateDenom(address) != nil {
 		httputil.NewError(ctx, http.StatusBadRequest, errors.New("invalid address"))
 		return
 	}
 
-	poolDetail, err := c.PoolDetail(dashboard2.Addr(address))
+	poolDetail, err := c.PoolDetail(ds.Addr(address))
 	if err != nil {
 		c.logger.Warn(err)
 		httputil.NewError(ctx, http.StatusInternalServerError, errors.New("internal server error"))
@@ -366,14 +380,13 @@ func (c *dashboardController) Pool(ctx *gin.Context) {
 //	@Param			address		path	string	true	"token address"
 //	@Router			/dashboard/tokens/{address} [get]
 func (c *dashboardController) Token(ctx *gin.Context) {
-	address := ctx.Param("address")
-	if address == "" {
-		httputil.NewError(ctx, http.StatusBadRequest, errors.New("invalid address address"))
+	address := httputil.DecodeAddressParam(ctx.Param("address"))
+	if sdk.ValidateDenom(address) != nil {
+		httputil.NewError(ctx, http.StatusBadRequest, errors.New("invalid address"))
 		return
 	}
-	address = httputil.DecodeAddressParam(address)
 
-	token, err := c.Dashboard.Token(dashboard2.Addr(address))
+	token, err := c.Dashboard.Token(ds.Addr(address))
 	if err != nil {
 		c.logger.Warn(err)
 		httputil.NewError(ctx, http.StatusInternalServerError, errors.New("internal server error"))
@@ -426,7 +439,7 @@ func (c *dashboardController) Tokens(ctx *gin.Context) {
 //	@Param			type		query	string	false	"Transaction type, empty value is for all types"  Enums(swap, add, remove)
 //	@Router			/dashboard/txs [get]
 func (c *dashboardController) Txs(ctx *gin.Context) {
-	pool := dashboard2.Addr(ctx.Query("pool"))
+	pool := ds.Addr(ctx.Query("pool"))
 	tokens := parseTokenAddrs(ctx.Query("token"))
 	txType := c.txTypeToServiceTxType(TxType(ctx.Query("type")))
 
@@ -435,7 +448,18 @@ func (c *dashboardController) Txs(ctx *gin.Context) {
 		return
 	}
 
-	var txs dashboard2.Txs
+	if len(pool) > 0 && sdk.ValidateDenom(string(pool)) != nil {
+		httputil.NewError(ctx, http.StatusBadRequest, errors.New("invalid pool address"))
+		return
+	}
+	for _, t := range tokens {
+		if sdk.ValidateDenom(string(t)) != nil {
+			httputil.NewError(ctx, http.StatusBadRequest, errors.New("invalid token address"))
+			return
+		}
+	}
+
+	var txs ds.Txs
 	var err error
 	if len(tokens) > 0 {
 		txs, err = c.TxsOfToken(txType, tokens...)
@@ -453,11 +477,11 @@ func (c *dashboardController) Txs(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, txsRes)
 }
 
-func parseTokenAddrs(tokenStr string) []dashboard2.Addr {
-	var tokens []dashboard2.Addr
+func parseTokenAddrs(tokenStr string) []ds.Addr {
+	var tokens []ds.Addr
 	for _, t := range strings.Split(tokenStr, ",") {
 		if trimmed := strings.TrimSpace(t); trimmed != "" {
-			tokens = append(tokens, dashboard2.Addr(trimmed))
+			tokens = append(tokens, ds.Addr(trimmed))
 		}
 	}
 	return tokens
