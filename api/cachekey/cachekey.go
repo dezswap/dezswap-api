@@ -16,13 +16,16 @@ import (
 	"gorm.io/gorm"
 )
 
-// VersionSeparator divides a path from the version its response was built at.
-const VersionSeparator = "|v="
-
-// readTimeout bounds a watermark read. It sits on the request path with every
-// other caller for that resource queued behind it, so a database that has stopped
-// answering has to fall out rather than hold the route.
-const readTimeout = time.Second
+const (
+	// VersionSeparator divides a path from the version its response was built at.
+	VersionSeparator = "|v="
+	// readTimeout bounds a watermark read. It sits on the request path with every
+	// other caller for that resource queued behind it, so a database that has stopped
+	// answering has to fall out rather than hold the route.
+	readTimeout = time.Second
+	// Every source is read together, so one memo entry serves them all.
+	marksKey = "marks"
+)
 
 // source is a table whose writes invalidate a cached response. Both names are
 // package constants and never carry request input, so they are safe to interpolate
@@ -34,6 +37,9 @@ type source struct {
 	mark string
 	// softDeleted marks a table whose rows the API reads with `deleted_at IS NULL`.
 	softDeleted bool
+	// unbounded drops COUNT(*), which is a full scan. A delete that leaves MAX
+	// standing then waits for the entry's own expiry.
+	unbounded bool
 }
 
 var (
@@ -41,17 +47,25 @@ var (
 	tokenSource = source{table: "tokens", mark: "updated_at", softDeleted: true}
 	// pair carries no timestamp of its own, but is append-only.
 	pairSource = source{table: "pair", mark: "id"}
+	// The (chain_id, timestamp) index makes MAX(timestamp) a lookup. A replay that
+	// rewrites an older window in place leaves the MAX where it was, so that change
+	// waits for versionedTTL.
+	pairStats30mSource = source{table: "pair_stats_30m", mark: "timestamp", unbounded: true}
 )
 
-// A Resource is an endpoint family together with the tables its responses are
-// built from.
+type param struct {
+	name     string
+	fallback string
+	fold     bool
+}
+
 type Resource struct {
 	name    string
 	sources []source
 	// params are the query parameters that decide which response a request gets.
 	// One the handler reads but that is missing here would serve a single response
 	// for all of its values.
-	params []string
+	params []param
 }
 
 func (r Resource) String() string { return r.name }
@@ -65,120 +79,232 @@ func (r Resource) CanonicalQuery(q url.Values) string {
 
 	parts := make([]string, 0, len(r.params))
 	for _, p := range r.params {
-		if values, ok := q[p]; ok {
-			parts = append(parts, p+"="+strings.Join(values, ","))
+		value := p.fallback
+		// Handlers read these with gin's Query, which takes the first value.
+		if values := q[p.name]; len(values) > 0 && values[0] != "" {
+			value = values[0]
+		}
+		if p.fold {
+			value = strings.ToLower(value)
+		}
+
+		if value != "" {
+			parts = append(parts, p.name+"="+value)
 		}
 	}
 
 	return strings.Join(parts, "&")
 }
 
-var (
-	Tokens = Resource{name: "tokens", sources: []source{tokenSource}}
-	// A pair response carries columns joined in from tokens.
-	Pairs = Resource{name: "pairs", sources: []source{pairSource, tokenSource}}
+// resources is every resource a Versioner can resolve. Pools are deliberately not
+// among them: SaveLatestPools upserts every row on each pass, so a pool version
+// would move on every block and buy nothing over a plain expiry.
+var resources []Resource
 
-	// resources is the one list a Versioner resolves from. Pools are absent because
-	// SaveLatestPools upserts every row on each pass, so their version would move on
-	// every block and buy nothing over a plain expiry.
-	resources = []Resource{Tokens, Pairs}
+// register is the only way into resources. A resource declared beside the others
+// but never passed through it has no mark to read, and its route would quietly fall
+// back to a short-lived entry. Check turns that into a startup failure.
+func register(r Resource) Resource {
+	resources = append(resources, r)
+	return r
+}
+
+var (
+	Tokens = register(Resource{name: "tokens", sources: []source{tokenSource}})
+	// A pair response carries columns joined in from tokens.
+	Pairs = register(Resource{name: "pairs", sources: []source{pairSource, tokenSource}})
+
+	// dashboardSources is shared by the three resources below, so they also share a
+	// version and the single read behind it. They stay separate resources because
+	// params differ: no two of those handlers read the same set.
+	dashboardSources = []source{pairStats30mSource, pairSource, tokenSource}
+
+	DashboardRecent = register(Resource{name: "dashboard_recent", sources: dashboardSources})
+	DashboardCharts = register(Resource{
+		name:    "dashboard_charts",
+		sources: dashboardSources,
+		params:  []param{{name: "duration", fallback: "all", fold: true}},
+	})
+	DashboardPools = register(Resource{
+		name:    "dashboard_pools",
+		sources: dashboardSources,
+		params:  []param{{name: "token"}},
+	})
 )
 
-type versionResult struct {
-	version string
-	err     error
+type mark struct {
+	RowCount uint64
+	MaxMark  string
+}
+
+type marksResult struct {
+	marks map[string]mark
+	err   error
 }
 
 type Versioner struct {
-	db       *gorm.DB
-	chainId  string
-	versions *ttlcache.Cache[string, versionResult]
+	db     *gorm.DB
+	stmt   string
+	args   []any
+	tables map[string]bool
+	marks  *ttlcache.Cache[string, marksResult]
 }
 
-// NewVersioner returns a Versioner that reads no more than once per memoTTL per
-// resource, and only when asked. onError is called from the read itself, so an
-// outage costs one report per interval rather than one per request.
+// NewVersioner returns a Versioner that reads no more than once per memoTTL, and
+// only when asked.
 //
 // Reads derive from ctx rather than from the request being served: they are shared
 // through the loader, so one caller giving up must not cancel the read the others
 // are waiting on.
 func NewVersioner(ctx context.Context, db *gorm.DB, chainId string, memoTTL time.Duration, onError func(error)) *Versioner {
-	v := &Versioner{db: db, chainId: chainId}
-
-	byName := make(map[string]Resource, len(resources))
-	for _, r := range resources {
-		byName[r.name] = r
+	sources := distinctSources(resources)
+	tables := make(map[string]bool, len(sources))
+	for _, s := range sources {
+		tables[s.table] = true
 	}
 
-	load := ttlcache.LoaderFunc[string, versionResult](
-		func(c *ttlcache.Cache[string, versionResult], name string) *ttlcache.Item[string, versionResult] {
+	stmt, args := watermarkStatement(db, sources, chainId)
+	v := &Versioner{db: db, stmt: stmt, args: args, tables: tables}
+
+	load := ttlcache.LoaderFunc[string, marksResult](
+		func(c *ttlcache.Cache[string, marksResult], key string) *ttlcache.Item[string, marksResult] {
 			readCtx, cancel := context.WithTimeout(ctx, readTimeout)
 			defer cancel()
 
-			version, err := v.read(readCtx, byName[name])
+			marks, err := v.read(readCtx)
+			// onError is called here rather than from Version, so an outage costs one
+			// report per memo interval instead of one per request.
 			if err != nil && onError != nil {
 				onError(err)
 			}
-			return c.Set(name, versionResult{version: version, err: err}, ttlcache.DefaultTTL)
+			return c.Set(key, marksResult{marks: marks, err: err}, ttlcache.DefaultTTL)
 		},
 	)
 
-	v.versions = ttlcache.New(
-		ttlcache.WithTTL[string, versionResult](memoTTL),
+	v.marks = ttlcache.New(
+		ttlcache.WithTTL[string, marksResult](memoTTL),
 		// A burst arriving on an expired entry becomes one read, not one per request.
-		ttlcache.WithLoader[string, versionResult](ttlcache.NewSuppressedLoader(load, nil)),
+		ttlcache.WithLoader[string, marksResult](ttlcache.NewSuppressedLoader(load, nil)),
 		// Left on, an entry's expiry is pushed back on every read and a version under
 		// steady traffic would never be re-read at all.
-		ttlcache.WithDisableTouchOnHit[string, versionResult](),
+		ttlcache.WithDisableTouchOnHit[string, marksResult](),
 	)
 
 	return v
 }
 
-// Version returns a token that changes once any of the resource's tables is written.
-func (v *Versioner) Version(r Resource) (string, error) {
-	item := v.versions.Get(r.name)
-	if item == nil {
-		return "", errors.Errorf("Versioner.Version: no version resolved for %q", r.name)
+// distinctSources is the set of tables the watermark statement reads, so a table
+// several resources share costs one branch. It deduplicates on the whole source,
+// not just the table name: a table registered twice under different terms then
+// yields two branches, which a test catches, instead of one silently winning.
+func distinctSources(rs []Resource) []source {
+	seen := make(map[source]bool)
+	sources := []source{}
+
+	for _, r := range rs {
+		for _, s := range r.sources {
+			if !seen[s] {
+				seen[s] = true
+				sources = append(sources, s)
+			}
+		}
 	}
 
-	result := item.Value()
-	return result.version, result.err
+	return sources
 }
 
-func (v *Versioner) read(ctx context.Context, r Resource) (string, error) {
-	// Nothing to watch would yield a version no write could move.
-	if len(r.sources) == 0 {
-		return "", errors.Errorf("Versioner.read: resource %q has no sources", r.name)
-	}
+// watermarkStatement never varies, so it is assembled once and the request path
+// only binds chainId.
+func watermarkStatement(db *gorm.DB, sources []source, chainId string) (string, []any) {
+	var b strings.Builder
+	args := make([]any, 0, len(sources))
 
-	// Hashed for a fixed length, and so that a mark the ETL controls -- pair.id is a
-	// free-form string -- cannot collide with the separator. Not for opacity: the
-	// version never leaves the server, and reading it back means re-running the
-	// statement below.
-	h := fnv.New64a()
-
-	for _, s := range r.sources {
-		var mark struct {
-			RowCount uint64
-			MaxMark  string
+	for i, s := range sources {
+		if i > 0 {
+			b.WriteString("\nUNION ALL\n")
 		}
 
-		stmt := fmt.Sprintf(
-			"SELECT COUNT(*) AS row_count, COALESCE(MAX(%s)::text, '') AS max_mark FROM %s WHERE chain_id = ?",
-			s.mark, s.table,
+		count := "COUNT(*)"
+		if s.unbounded {
+			count = "0::bigint"
+		}
+
+		fmt.Fprintf(&b,
+			"SELECT '%s' AS source, %s AS row_count, COALESCE(MAX(%s)::text, '') AS max_mark FROM %s WHERE chain_id = ?",
+			s.table, count, db.Statement.Quote(s.mark), db.Statement.Quote(s.table),
 		)
 		if s.softDeleted {
-			stmt += " AND deleted_at IS NULL"
+			b.WriteString(" AND deleted_at IS NULL")
 		}
 
-		if err := v.db.WithContext(ctx).Raw(stmt, v.chainId).Scan(&mark).Error; err != nil {
-			return "", errors.Wrapf(err, "Versioner.read: %s", s.table)
+		args = append(args, chainId)
+	}
+
+	return b.String(), args
+}
+
+// Check reports whether every table r reads is one the watermark statement covers.
+// Routes are attached at startup, so a resource this fails is a wiring mistake worth
+// stopping the boot for: on the request path it would only show as a shorter entry.
+func (v *Versioner) Check(r Resource) error {
+	if len(r.sources) == 0 {
+		return errors.Errorf("Versioner.Check: resource %q has no sources", r.name)
+	}
+
+	for _, s := range r.sources {
+		if !v.tables[s.table] {
+			return errors.Errorf("Versioner.Check: %q reads %s, which is not a registered source", r.name, s.table)
+		}
+	}
+
+	return nil
+}
+
+// Version returns a token that changes once any of the resource's tables is written.
+func (v *Versioner) Version(r Resource) (string, error) {
+	if len(r.sources) == 0 {
+		return "", errors.Errorf("Versioner.Version: resource %q has no sources", r.name)
+	}
+
+	item := v.marks.Get(marksKey)
+	if item == nil {
+		return "", errors.New("Versioner.Version: no marks resolved")
+	}
+	result := item.Value()
+	if result.err != nil {
+		return "", result.err
+	}
+
+	// Hashed to a fixed length, so that a mark carrying the separator -- MaxMark is a
+	// text cast of whatever column the source names -- cannot break the key apart.
+	h := fnv.New64a()
+	for _, s := range r.sources {
+		m, ok := result.marks[s.table]
+		if !ok {
+			return "", errors.Errorf("Versioner.Version: %q reads %s, which is not a registered source", r.name, s.table)
 		}
 
-		// The count travels with the mark: a row leaving the table does not move MAX.
-		_, _ = h.Write(fmt.Appendf(nil, "%s:%d:%s;", s.table, mark.RowCount, mark.MaxMark))
+		_, _ = h.Write(fmt.Appendf(nil, "%s:%d:%s;", s.table, m.RowCount, m.MaxMark))
 	}
 
 	return strconv.FormatUint(h.Sum64(), 36), nil
+}
+
+func (v *Versioner) read(ctx context.Context) (map[string]mark, error) {
+	var rows []struct {
+		Source   string
+		RowCount uint64
+		MaxMark  string
+	}
+
+	if err := v.db.WithContext(ctx).Raw(v.stmt, v.args...).Scan(&rows).Error; err != nil {
+		return nil, errors.Wrap(err, "Versioner.read")
+	}
+
+	marks := make(map[string]mark, len(rows))
+	for _, r := range rows {
+		marks[r.Source] = mark{RowCount: r.RowCount, MaxMark: r.MaxMark}
+	}
+
+	return marks, nil
 }

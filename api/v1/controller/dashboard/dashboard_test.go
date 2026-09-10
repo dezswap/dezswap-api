@@ -3,8 +3,10 @@ package dashboard
 import (
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 
+	"github.com/dezswap/dezswap-api/api/cachekey"
 	ds "github.com/dezswap/dezswap-api/api/v1/service/dashboard"
 	"github.com/dezswap/dezswap-api/configs"
 	"github.com/dezswap/dezswap-api/pkg/logging"
@@ -154,5 +156,29 @@ func TestHandlers_RejectValuesThatWouldReachTheDatabase(t *testing.T) {
 		"pool detail stray symbol":       {"/pools/nope!", http.StatusBadRequest},
 	} {
 		require.Equalf(t, tc.want, status(engine, tc.path), "%s: %s", name, tc.path)
+	}
+}
+
+// An absent duration puts ds.All in the key, which is what the handler defaults to.
+// If the two drift apart, the key names a response that was never built.
+func TestDashboardCharts_KeyFallbackMatchesTheHandlerDefault(t *testing.T) {
+	require.Equal(t,
+		"duration="+string(ds.All),
+		cachekey.DashboardCharts.CanonicalQuery(url.Values{}),
+	)
+}
+
+// ToDuration folds case, so the key has to fold with it. Otherwise each spelling
+// gets its own entry, all holding the one response the handler built.
+func TestDashboardCharts_KeyFoldsCaseWithTheHandler(t *testing.T) {
+	for _, spelling := range []string{"year", "YEAR", "Year", "yEaR"} {
+		duration, ok := ds.ToDuration(spelling)
+		require.Truef(t, ok, "ToDuration(%q)", spelling)
+
+		require.Equalf(t,
+			"duration="+string(duration),
+			cachekey.DashboardCharts.CanonicalQuery(url.Values{"duration": {spelling}}),
+			"CanonicalQuery(duration=%s)", spelling,
+		)
 	}
 }

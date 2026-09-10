@@ -4,6 +4,8 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/dezswap/dezswap-api/api/cachekey"
+	"github.com/dezswap/dezswap-api/api/httpcache"
 	"github.com/dezswap/dezswap-api/api/v1/controller"
 	ds "github.com/dezswap/dezswap-api/api/v1/service/dashboard"
 
@@ -14,12 +16,15 @@ import (
 	"github.com/pkg/errors"
 )
 
-func InitDashboardController(s ds.Dashboard, route *gin.RouterGroup, logger logging.Logger) controller.DashboardController {
+// route must have no cache middleware of its own. On a hit gin-cache replies and
+// returns without calling c.Next(), so a cache on the group would answer before the
+// per-route ones in register ever ran -- which is why router.go passes a bare group.
+func InitDashboardController(s ds.Dashboard, route *gin.RouterGroup, cache httpcache.Handlers, logger logging.Logger) controller.DashboardController {
 	c := dashboardController{
 		s, logger, mapper{},
 	}
 	c.logger.Debug("InitDashboardController")
-	c.register(route)
+	c.register(route, cache)
 	return &c
 }
 
@@ -29,24 +34,25 @@ type dashboardController struct {
 	mapper
 }
 
-func (c *dashboardController) register(route *gin.RouterGroup) {
+func (c *dashboardController) register(route *gin.RouterGroup, cache httpcache.Handlers) {
+	// One watermark read backs all three: they read the same tables and differ only
+	// in the parameters their handlers take, which is what the key varies on.
+	versioned := cache.Versioned(cachekey.DashboardCharts)
 
-	route.GET("/chart/:type", c.Chart)
-	route.GET("/chart/pools/:address/:type", c.ChartByPool)
-	route.GET("/chart/tokens/:address/:type", c.ChartByToken)
+	route.GET("/chart/:type", versioned, c.Chart)
+	route.GET("/chart/pools/:address/:type", versioned, c.ChartByPool)
+	route.GET("/recent", cache.Versioned(cachekey.DashboardRecent), c.Recent)
+	route.GET("/pools", cache.Versioned(cachekey.DashboardPools), c.Pools)
 
-	route.GET("/recent", c.Recent)
+	// These reach parsed_tx or price too, and neither is a tracked source yet.
+	timed := cache.Timed()
 
-	route.GET("/statistics", c.Statistic)
-
-	route.GET("/tokens", c.Tokens)
-	route.GET("/tokens/:address", c.Token)
-
-	route.GET("/txs", c.Txs)
-
-	route.GET("/pools", c.Pools)
-	route.GET("/pools/:address", c.Pool)
-
+	route.GET("/chart/tokens/:address/:type", timed, c.ChartByToken)
+	route.GET("/statistics", timed, c.Statistic)
+	route.GET("/tokens", timed, c.Tokens)
+	route.GET("/tokens/:address", timed, c.Token)
+	route.GET("/txs", timed, c.Txs)
+	route.GET("/pools/:address", timed, c.Pool)
 }
 
 // Dashboard godoc

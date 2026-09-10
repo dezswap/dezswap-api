@@ -113,9 +113,43 @@ func TestRegisterRoutes_RemainingDataRoutesKeepTheTimedCache(t *testing.T) {
 	// them -- exactly what they had before versions existed.
 	for _, path := range []string{
 		"/v1/pools",
-		"/v1/dashboard/pools",
 		"/v1/notices",
 		"/v1/coingecko/pairs",
+	} {
+		get(engine, path)
+		require.Equalf(t, 1, seen.timed[path], "%s should take the timed cache", path)
+		require.NotContainsf(t, seen.versioned, path, "%s has no version to be keyed on", path)
+	}
+}
+
+func TestRegisterRoutes_DashboardStatsRoutesAreVersioned(t *testing.T) {
+	engine, seen := registerWithCacheSpies(t)
+
+	// One resource per set of parameters read, not one for the whole family: a route
+	// keyed on a parameter its handler ignores would split its cache for nothing.
+	for path, resource := range map[string]string{
+		"/v1/dashboard/chart/tvl":                cachekey.DashboardCharts.String(),
+		"/v1/dashboard/chart/pools/xpla1abc/tvl": cachekey.DashboardCharts.String(),
+		"/v1/dashboard/recent":                   cachekey.DashboardRecent.String(),
+		"/v1/dashboard/pools":                    cachekey.DashboardPools.String(),
+	} {
+		get(engine, path)
+		require.Equalf(t, resource, seen.versioned[path], "%s should be versioned on %s", path, resource)
+		// A stacked timed cache would answer first and cap the version at block time.
+		require.Zerof(t, seen.timed[path], "%s should not also take the timed cache", path)
+	}
+}
+
+func TestRegisterRoutes_DashboardRoutesReadingUntrackedTablesStayTimed(t *testing.T) {
+	engine, seen := registerWithCacheSpies(t)
+
+	for _, path := range []string{
+		"/v1/dashboard/txs",
+		"/v1/dashboard/statistics",
+		"/v1/dashboard/tokens",
+		"/v1/dashboard/tokens/xpla1abc",
+		"/v1/dashboard/pools/xpla1abc",
+		"/v1/dashboard/chart/tokens/xpla1abc/volume",
 	} {
 		get(engine, path)
 		require.Equalf(t, 1, seen.timed[path], "%s should take the timed cache", path)
@@ -147,10 +181,12 @@ func TestRegisterRoutes_EveryRouteServesWithoutACacheStore(t *testing.T) {
 	// The handlers themselves fail on the nil database; reaching them at all is what
 	// is under test, since a nil cache handler would abort the chain before them.
 	for _, path := range []string{
-		"/v1/tokens",          // versioned
-		"/v1/pools",           // timed
-		"/v1/coingecko/pairs", // timed, nested group
-		"/v1/health",          // uncached
+		"/v1/tokens",           // versioned
+		"/v1/pools",            // timed
+		"/v1/coingecko/pairs",  // timed, nested group
+		"/v1/dashboard/recent", // versioned, attached per route
+		"/v1/dashboard/txs",    // timed, attached per route
+		"/v1/health",           // uncached
 	} {
 		rec := httptest.NewRecorder()
 		engine.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, path, nil))
