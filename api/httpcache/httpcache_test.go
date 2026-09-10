@@ -21,7 +21,7 @@ import (
 // expectTokenWatermark queues the one read every version is composed from. Only the
 // token mark varies here; the rest are along because they share the read.
 func expectTokenWatermark(mock sqlmock.Sqlmock, rowCount int64, maxMark string) {
-	mock.ExpectQuery(`(?s)FROM "tokens".*UNION ALL.*FROM "pair_stats_30m"`).
+	mock.ExpectQuery(`(?s)FROM "tokens".*UNION ALL.*FROM "pair".*UNION ALL.*FROM "pair_stats_30m"`).
 		WithArgs("test-chain", "test-chain", "test-chain").
 		WillReturnRows(sqlmock.NewRows([]string{"source", "row_count", "max_mark"}).
 			AddRow("tokens", rowCount, maxMark).
