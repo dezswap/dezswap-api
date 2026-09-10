@@ -80,7 +80,7 @@ func (c *dashboardController) Recent(ctx *gin.Context) {
 //	@Failure		400	{object}	httputil.BadRequestError
 //	@Failure		500	{object}	httputil.InternalServerError
 //
-// @Param			duration	query	string	false	"default(empty) value is all"	Enums(year, quarter, month)
+// @Param			duration	query	string	false	"default(empty) value is all"	Enums(year, quarter, month, all)
 // @Param			address		path	string	true	"Token Address"
 // @Param			type		path	string	true	"chart type"					Enums(volume, tvl, price)
 // @Router			/dashboard/chart/tokens/{address}/{type} [get]
@@ -91,9 +91,10 @@ func (c *dashboardController) ChartByToken(ctx *gin.Context) {
 		return
 	}
 
-	duration := ds.Duration(ctx.Query("duration"))
-	if len(duration) == 0 {
-		duration = ds.All
+	duration, ok := ds.ToDuration(ctx.Query("duration"))
+	if !ok {
+		httputil.NewError(ctx, http.StatusBadRequest, errors.New("invalid duration"))
+		return
 	}
 
 	addr := ds.Addr(httputil.DecodeAddressParam(ctx.Param("address")))
@@ -142,7 +143,7 @@ func (c *dashboardController) ChartByToken(ctx *gin.Context) {
 //	@Failure		400	{object}	httputil.BadRequestError
 //	@Failure		500	{object}	httputil.InternalServerError
 //
-// @Param			duration	query	string	false	"default(empty) value is all"	Enums(year, quarter, month)
+// @Param			duration	query	string	false	"default(empty) value is all"	Enums(year, quarter, month, all)
 // @Param			address		path	string	true	"Pool Address"
 // @Param			type		path	string	true	"chart type"					Enums(volume, tvl, apr, fee)
 // @Router			/dashboard/chart/pools/{address}/{type} [get]
@@ -153,9 +154,10 @@ func (c *dashboardController) ChartByPool(ctx *gin.Context) {
 		return
 	}
 
-	duration := ds.Duration(ctx.Query("duration"))
-	if len(duration) == 0 {
-		duration = ds.All
+	duration, ok := ds.ToDuration(ctx.Query("duration"))
+	if !ok {
+		httputil.NewError(ctx, http.StatusBadRequest, errors.New("invalid duration"))
+		return
 	}
 
 	addr := ds.Addr(ctx.Param("address"))
@@ -209,7 +211,7 @@ func (c *dashboardController) ChartByPool(ctx *gin.Context) {
 //	@Failure		400	{object}	httputil.BadRequestError
 //	@Failure		500	{object}	httputil.InternalServerError
 //
-// @Param			duration	query	string	false	"default(empty) value is all"	Enums(year, quarter, month)
+// @Param			duration	query	string	false	"default(empty) value is all"	Enums(year, quarter, month, all)
 // @Param			type		path	string	true	"chart type"					Enums(volume, tvl, apr, fee)
 // @Router			/dashboard/chart/{type} [get]
 func (c *dashboardController) Chart(ctx *gin.Context) {
@@ -219,9 +221,10 @@ func (c *dashboardController) Chart(ctx *gin.Context) {
 		return
 	}
 
-	duration := ds.Duration(ctx.Query("duration"))
-	if len(duration) == 0 {
-		duration = ds.All
+	duration, ok := ds.ToDuration(ctx.Query("duration"))
+	if !ok {
+		httputil.NewError(ctx, http.StatusBadRequest, errors.New("invalid duration"))
+		return
 	}
 
 	var err error
