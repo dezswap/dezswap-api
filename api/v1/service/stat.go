@@ -83,7 +83,7 @@ func (s *statService) Get(key string) (*PairStats, error) {
 
 		return &pairStats, nil
 	default:
-		return nil, errors.New("unsupported period")
+		return nil, errors.Wrapf(ErrInvalidKey, "statService.Get: period %q", key)
 	}
 }
 
