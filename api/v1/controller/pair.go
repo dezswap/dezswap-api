@@ -5,6 +5,7 @@ import (
 	"github.com/dezswap/dezswap-api/pkg"
 	"net/http"
 
+	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/dezswap/dezswap-api/pkg/httputil"
 	"github.com/dezswap/dezswap-api/pkg/logging"
 	"github.com/gin-gonic/gin"
@@ -63,7 +64,9 @@ func (c *pairController) Pairs(ctx *gin.Context) {
 //	@Router			/pairs/{address} [get]
 func (c *pairController) Pair(ctx *gin.Context) {
 	address := ctx.Param("address")
-	if address == "" {
+	// The 404 below is not stored, so an address that reaches the service costs a
+	// query on every request asking for it.
+	if sdk.ValidateDenom(address) != nil {
 		httputil.NewError(ctx, http.StatusBadRequest, errors.New("invalid address"))
 		return
 	}
