@@ -32,6 +32,19 @@ import (
 
 const ApiVersion = "v1"
 
+// The server's own deadlines. Left to the default of none, a connection that never
+// finishes sending its request, or never reads its response, holds its slot for as
+// long as it cares to.
+const (
+	// readHeaderTimeout is what bounds a client dribbling headers a byte at a time.
+	readHeaderTimeout = 5 * time.Second
+	readTimeout       = 15 * time.Second
+	// writeTimeout has to clear the slowest handler answering on a cold cache, which
+	// is a dashboard aggregate over a month of windows.
+	writeTimeout = 60 * time.Second
+	idleTimeout  = 120 * time.Second
+)
+
 var AppVersion = "dev"
 
 type app struct {
@@ -117,7 +130,16 @@ func (app *app) run() {
 		c.JSON(http.StatusNotFound, NotFound{Code: http.StatusNotFound, Message: "Not Found"})
 	})
 
-	if err := app.engine.Run(fmt.Sprintf(":%s", app.config.Server.Port)); err != nil {
+	server := &http.Server{
+		Addr:              fmt.Sprintf(":%s", app.config.Server.Port),
+		Handler:           app.engine,
+		ReadHeaderTimeout: readHeaderTimeout,
+		ReadTimeout:       readTimeout,
+		WriteTimeout:      writeTimeout,
+		IdleTimeout:       idleTimeout,
+	}
+
+	if err := server.ListenAndServe(); err != nil {
 		panic(err)
 	}
 }
