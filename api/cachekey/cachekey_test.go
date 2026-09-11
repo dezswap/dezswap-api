@@ -69,9 +69,9 @@ func steady() map[string]mark {
 func TestCanonicalQuery(t *testing.T) {
 	// Declaring page and limit is all it should take for a paginated endpoint to be
 	// keyed correctly, and a parameter left undeclared must not reach the key.
-	paged := Resource{name: "paged", sources: []source{tokenSource}, params: []param{{name: "page"}, {name: "limit"}}}
-	defaulted := Resource{name: "defaulted", sources: []source{tokenSource}, params: []param{{name: "duration", fallback: "all"}}}
-	folded := Resource{name: "folded", sources: []source{tokenSource}, params: []param{{name: "duration", fold: true}, {name: "token"}}}
+	paged := Resource{name: "paged", sources: []source{tokenSource}, query: Query{params: []param{{name: "page"}, {name: "limit"}}}}
+	defaulted := Resource{name: "defaulted", sources: []source{tokenSource}, query: Query{params: []param{{name: "duration", fallback: "all"}}}}
+	folded := Resource{name: "folded", sources: []source{tokenSource}, query: Query{params: []param{{name: "duration", fold: true}, {name: "token"}}}}
 
 	for name, tc := range map[string]struct {
 		resource Resource
@@ -101,13 +101,25 @@ func TestCanonicalQuery(t *testing.T) {
 		// case is part of the address.
 		"a folded parameter is lowercased":     {folded, "duration=YEAR", "duration=year"},
 		"spellings collapse to one key":        {folded, "duration=yEaR", "duration=year"},
-		"an unfolded parameter keeps its case": {folded, "token=ibc/A1B2", "token=ibc/A1B2"},
+		"an unfolded parameter keeps its case": {folded, "token=ibc/A1B2", "token=ibc%2FA1B2"},
 	} {
 		q, err := url.ParseQuery(tc.query)
 		require.NoError(t, err)
 
 		require.Equalf(t, tc.want, tc.resource.CanonicalQuery(q), "%s: %q", name, tc.query)
 	}
+}
+
+func TestNoticesCanonicalQuery_DelimitersCannotBecomeParameters(t *testing.T) {
+	injected, err := url.ParseQuery("chain=dimension%26limit=1")
+	require.NoError(t, err)
+	legitimate, err := url.ParseQuery("chain=dimension&limit=1")
+	require.NoError(t, err)
+
+	require.NotEqual(t, Notices.Canonical(injected), Notices.Canonical(legitimate))
+	decoded, err := url.ParseQuery(Notices.Canonical(injected))
+	require.NoError(t, err)
+	require.Equal(t, injected, decoded)
 }
 
 // The dashboard routes share their sources, so declaring a parameter on one of

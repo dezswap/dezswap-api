@@ -18,6 +18,10 @@ import (
 	"gorm.io/gorm"
 )
 
+// testChainId is what every key below is scoped under, standing in for the chain
+// the deployment serves.
+const testChainId = "test-chain"
+
 // expectTokenWatermark queues the one read every version is composed from. Only the
 // token mark varies here; the rest are along because they share the read.
 func expectTokenWatermark(mock sqlmock.Sqlmock, rowCount int64, maxMark string) {
@@ -48,7 +52,7 @@ func TestVersioned_CollapsesCallerAddedQueryParams(t *testing.T) {
 	handled := 0
 	engine := gin.New()
 	engine.GET("/v1/tokens",
-		versioned(store, versioner, cachekey.Tokens, time.Second),
+		versioned(testChainId, store, versioner, cachekey.Tokens, time.Second),
 		func(c *gin.Context) {
 			handled++
 			c.JSON(http.StatusOK, gin.H{"tokens": []string{}})
@@ -69,6 +73,116 @@ func TestVersioned_CollapsesCallerAddedQueryParams(t *testing.T) {
 
 	require.Equal(t, 1, handled, "the handler must run once for the three requests")
 	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+// The timed half keys on the same declaration the versioned half does, so a caller
+// appending its own parameter cannot mint an entry per request here either.
+func TestTimed_CollapsesUndeclaredQueryParams(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	store := memory.NewMemoryCache(context.Background(), cache.NewByteCodec())
+
+	handled := 0
+	engine := gin.New()
+	engine.GET("/v1/pools",
+		timed(testChainId, store, cachekey.NoParams, time.Minute),
+		func(c *gin.Context) {
+			handled++
+			c.JSON(http.StatusOK, gin.H{"pools": []string{}})
+		},
+	)
+
+	// Keyed on the whole URI these were three entries, three misses, and three runs
+	// of the query behind one response.
+	for _, uri := range []string{"/v1/pools?1756771200000=", "/v1/pools?anything=2", "/v1/pools"} {
+		rec := httptest.NewRecorder()
+		engine.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, uri, nil))
+		require.Equal(t, http.StatusOK, rec.Code, uri)
+	}
+
+	require.Equal(t, 1, handled, "the handler must run once for the three requests")
+}
+
+// The other half of that claim: a parameter the route does declare still has to
+// keep the responses built from it apart.
+func TestTimed_DeclaredQueryParamsStillSeparateEntries(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	store := memory.NewMemoryCache(context.Background(), cache.NewByteCodec())
+
+	handled := 0
+	engine := gin.New()
+	engine.GET("/v1/notices",
+		timed(testChainId, store, cachekey.Notices, time.Minute),
+		func(c *gin.Context) {
+			handled++
+			c.JSON(http.StatusOK, gin.H{"chain": c.Query("chain")})
+		},
+	)
+
+	body := func(uri string) string {
+		rec := httptest.NewRecorder()
+		engine.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, uri, nil))
+		require.Equal(t, http.StatusOK, rec.Code, uri)
+		return rec.Body.String()
+	}
+
+	require.NotEqual(t, body("/v1/notices?chain=cube"), body("/v1/notices?chain=dimension"))
+	require.Equal(t, 2, handled)
+}
+
+// The Host header is the caller's to set and nothing on the way in checks it.
+// Keyed on it, a caller varying it mints an entry per request for the one response
+// -- the same hole a cache buster in the query string opens.
+func TestTimed_HostDoesNotSplitTheCache(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	store := memory.NewMemoryCache(context.Background(), cache.NewByteCodec())
+
+	handled := 0
+	engine := gin.New()
+	engine.GET("/v1/pools",
+		timed(testChainId, store, cachekey.NoParams, time.Minute),
+		func(c *gin.Context) {
+			handled++
+			c.JSON(http.StatusOK, gin.H{"pools": []string{}})
+		},
+	)
+
+	for _, host := range []string{"api.dezswap.io", "whatever.a.caller.sends", "and.another"} {
+		req := httptest.NewRequest(http.MethodGet, "/v1/pools", nil)
+		req.Host = host
+
+		rec := httptest.NewRecorder()
+		engine.ServeHTTP(rec, req)
+		require.Equal(t, http.StatusOK, rec.Code, host)
+	}
+
+	require.Equal(t, 1, handled, "the handler must run once whatever Host was sent")
+}
+
+// With Host gone from the key, the chain is what is left to keep two deployments
+// apart, and they need it if they are pointed at one store.
+func TestTimed_ChainSeparatesDeploymentsSharingAStore(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	store := memory.NewMemoryCache(context.Background(), cache.NewByteCodec())
+
+	serve := func(chainId string) string {
+		engine := gin.New()
+		engine.GET("/v1/pools",
+			timed(chainId, store, cachekey.NoParams, time.Minute),
+			func(c *gin.Context) { c.JSON(http.StatusOK, gin.H{"chain": chainId}) },
+		)
+
+		rec := httptest.NewRecorder()
+		engine.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/v1/pools", nil))
+		require.Equal(t, http.StatusOK, rec.Code)
+
+		return rec.Body.String()
+	}
+
+	require.NotEqual(t, serve("dimension_37-1"), serve("cube_47-5"))
 }
 
 // TestVersioned_AWriteServesAFreshResponse is the claim the whole package rests
@@ -93,7 +207,7 @@ func TestVersioned_AWriteServesAFreshResponse(t *testing.T) {
 	handled := 0
 	engine := gin.New()
 	engine.GET("/v1/tokens",
-		versioned(store, versioner, cachekey.Tokens, time.Second),
+		versioned(testChainId, store, versioner, cachekey.Tokens, time.Second),
 		func(c *gin.Context) {
 			handled++
 			c.JSON(http.StatusOK, gin.H{"served": handled})
@@ -163,7 +277,7 @@ func unreadableWatermark(t *testing.T, blockTime time.Duration) fallbackRoute {
 	handled := 0
 	engine := gin.New()
 	engine.GET("/v1/tokens",
-		versioned(store, versioner, cachekey.Tokens, blockTime),
+		versioned(testChainId, store, versioner, cachekey.Tokens, blockTime),
 		func(c *gin.Context) {
 			handled++
 			c.JSON(http.StatusOK, gin.H{"served": handled})
@@ -226,16 +340,16 @@ func TestNew_AlwaysYieldsUsableHandlers(t *testing.T) {
 	for name, handlers := range map[string]Handlers{
 		// The zero value is reachable from any caller, so it has to answer too.
 		"zero value":             {},
-		"no store, no versioner": New(nil, nil, time.Second),
-		"store, no versioner":    New(store, nil, time.Second),
+		"no store, no versioner": New(testChainId, nil, nil, time.Second),
+		"store, no versioner":    New(testChainId, store, nil, time.Second),
 		"nothing assembled":      NewFrom(nil, nil),
 	} {
-		require.NotNil(t, handlers.Timed(), "%s: timed handler", name)
+		require.NotNil(t, handlers.Timed(cachekey.NoParams), "%s: timed handler", name)
 		require.NotNil(t, handlers.Versioned(cachekey.Tokens), "%s: versioned handler", name)
 
 		// Serving through them has to work, not merely be non-nil.
 		engine := gin.New()
-		engine.GET("/a", handlers.Timed(), func(c *gin.Context) { c.Status(http.StatusOK) })
+		engine.GET("/a", handlers.Timed(cachekey.NoParams), func(c *gin.Context) { c.Status(http.StatusOK) })
 		engine.GET("/b", handlers.Versioned(cachekey.Tokens), func(c *gin.Context) { c.Status(http.StatusOK) })
 
 		for _, path := range []string{"/a", "/b"} {
@@ -257,7 +371,7 @@ func TestNew_VersionedRejectsAResourceTheVersionerCannotResolve(t *testing.T) {
 	require.NoError(t, err)
 
 	store := memory.NewMemoryCache(context.Background(), cache.NewByteCodec())
-	handlers := New(store, cachekey.NewVersioner(context.Background(), gormDB, "test-chain", time.Minute, nil), time.Second)
+	handlers := New(testChainId, store, cachekey.NewVersioner(context.Background(), gormDB, "test-chain", time.Minute, nil), time.Second)
 
 	require.NotPanics(t, func() { handlers.Versioned(cachekey.Tokens) })
 	// Resource fields are unexported, so the zero value is the only unresolvable one
@@ -266,5 +380,5 @@ func TestNew_VersionedRejectsAResourceTheVersionerCannotResolve(t *testing.T) {
 }
 
 func TestNew_WithoutAStoreVersionedStaysAPassThrough(t *testing.T) {
-	require.NotPanics(t, func() { New(nil, nil, time.Second).Versioned(cachekey.Resource{}) })
+	require.NotPanics(t, func() { New(testChainId, nil, nil, time.Second).Versioned(cachekey.Resource{}) })
 }

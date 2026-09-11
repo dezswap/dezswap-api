@@ -45,13 +45,13 @@ func (c *dashboardController) register(route *gin.RouterGroup, cache httpcache.H
 	route.GET("/pools", cache.Versioned(cachekey.DashboardPools), c.Pools)
 
 	// These reach parsed_tx or price too, and neither is a tracked source yet.
-	timed := cache.Timed()
+	timed := cache.Timed(cachekey.NoParams)
 
-	route.GET("/chart/tokens/:address/:type", timed, c.ChartByToken)
+	route.GET("/chart/tokens/:address/:type", cache.Timed(cachekey.DashboardTokenCharts), c.ChartByToken)
 	route.GET("/statistics", timed, c.Statistic)
 	route.GET("/tokens", timed, c.Tokens)
 	route.GET("/tokens/:address", timed, c.Token)
-	route.GET("/txs", timed, c.Txs)
+	route.GET("/txs", cache.Timed(cachekey.DashboardTxs), c.Txs)
 	route.GET("/pools/:address", timed, c.Pool)
 }
 

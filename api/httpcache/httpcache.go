@@ -19,16 +19,16 @@ const versionedTTL = 5 * time.Minute
 // fields are unexported so that a caller cannot assemble a half-filled one: a
 // route group attaches what it is given, and gin calls a nil entry in the chain.
 type Handlers struct {
-	timed     gin.HandlerFunc
+	timed     func(cachekey.Query) gin.HandlerFunc
 	versioned func(cachekey.Resource) gin.HandlerFunc
 }
 
-// Timed expires on block time and keys on the whole request URI.
-func (h Handlers) Timed() gin.HandlerFunc {
+// Timed expires on block time and keys on the parameters q declares.
+func (h Handlers) Timed(q cachekey.Query) gin.HandlerFunc {
 	if h.timed == nil {
 		return passThrough
 	}
-	return h.timed
+	return h.timed(q)
 }
 
 // Versioned keys on the version of the tables the resource reads.
@@ -41,14 +41,17 @@ func (h Handlers) Versioned(r cachekey.Resource) gin.HandlerFunc {
 
 func passThrough(c *gin.Context) { c.Next() }
 
-// New returns the handlers backed by store. A missing store, or a missing
-// versioner for the versioned half, leaves that half storing nothing.
-func New(store cache.Cache, versioner *cachekey.Versioner, blockTime time.Duration) Handlers {
+// New returns the handlers backed by store, keying everything they hold under
+// chainId. A missing store, or a missing versioner for the versioned half, leaves
+// that half storing nothing.
+func New(chainId string, store cache.Cache, versioner *cachekey.Versioner, blockTime time.Duration) Handlers {
 	if store == nil {
 		return Handlers{}
 	}
 
-	handlers := Handlers{timed: timed(store, blockTime)}
+	handlers := Handlers{
+		timed: func(q cachekey.Query) gin.HandlerFunc { return timed(chainId, store, q, blockTime) },
+	}
 	if versioner != nil {
 		handlers.versioned = func(r cachekey.Resource) gin.HandlerFunc {
 			// r has to be a resource the versioner reads a mark for, or no version can be
@@ -58,7 +61,7 @@ func New(store cache.Cache, versioner *cachekey.Versioner, blockTime time.Durati
 				panic(err)
 			}
 
-			return versioned(store, versioner, r, blockTime)
+			return versioned(chainId, store, versioner, r, blockTime)
 		}
 	}
 
@@ -66,38 +69,51 @@ func New(store cache.Cache, versioner *cachekey.Versioner, blockTime time.Durati
 }
 
 // NewFrom assembles Handlers from middleware that is already built.
-func NewFrom(timed gin.HandlerFunc, versioned func(cachekey.Resource) gin.HandlerFunc) Handlers {
+func NewFrom(timed func(cachekey.Query) gin.HandlerFunc, versioned func(cachekey.Resource) gin.HandlerFunc) Handlers {
 	return Handlers{timed: timed, versioned: versioned}
 }
 
-func timed(store cache.Cache, blockTime time.Duration) gin.HandlerFunc {
+// key is what a response is stored under: the chain it was built from, the route
+// that answered it, and the declared parameters it varies on. A parameter no route
+// declares is dropped, so a caller appending a cache buster cannot mint an entry
+// per request.
+//
+// The chain comes from config, and is what keeps two deployments sharing a store
+// from reading each other's entries. The Host header would name the deployment
+// too, but it is the caller's to set and nothing here checks it: keyed on that,
+// every spelling a caller invents is an entry of its own for the one response.
+func key(chainId string, c *gin.Context, canonicalQuery string) string {
+	k := chainId + c.Request.URL.Path
+	if canonicalQuery != "" {
+		k += "?" + canonicalQuery
+	}
+
+	return k
+}
+
+func timed(chainId string, store cache.Cache, q cachekey.Query, blockTime time.Duration) gin.HandlerFunc {
 	return gin_cache.Cache(store, blockTime,
 		gin_cache.WithCacheStrategyByRequest(func(c *gin.Context) (bool, gin_cache.Strategy) {
-			return true, gin_cache.Strategy{CacheKey: c.Request.Host + c.Request.RequestURI}
+			return true, gin_cache.Strategy{CacheKey: key(chainId, c, q.Canonical(c.Request.URL.Query()))}
 		}),
 		gin_cache.WithDiscardHeaders(gin_cache.CorsHeaders()),
 	)
 }
 
-func versioned(store cache.Cache, versioner *cachekey.Versioner, r cachekey.Resource, blockTime time.Duration) gin.HandlerFunc {
+func versioned(chainId string, store cache.Cache, versioner *cachekey.Versioner, r cachekey.Resource, blockTime time.Duration) gin.HandlerFunc {
 	return gin_cache.Cache(store, versionedTTL,
 		gin_cache.WithCacheStrategyByRequest(func(c *gin.Context) (bool, gin_cache.Strategy) {
-			// Undeclared parameters are dropped: a caller's cache buster would otherwise
-			// split the cache into one entry per request.
-			key := c.Request.Host + c.Request.URL.Path
-			if query := r.CanonicalQuery(c.Request.URL.Query()); query != "" {
-				key += "?" + query
-			}
+			cacheKey := key(chainId, c, r.CanonicalQuery(c.Request.URL.Query()))
 
 			version, err := versioner.Version(r)
 			if err != nil {
 				// Nothing to invalidate on, so fall back to a short-lived entry rather than
 				// pinning the response to a key that would never move.
-				return true, gin_cache.Strategy{CacheKey: key, CacheDuration: blockTime}
+				return true, gin_cache.Strategy{CacheKey: cacheKey, CacheDuration: blockTime}
 			}
 
 			return true, gin_cache.Strategy{
-				CacheKey:      key + cachekey.VersionSeparator + version,
+				CacheKey:      cacheKey + cachekey.VersionSeparator + version,
 				CacheDuration: versionedTTL,
 			}
 		}),

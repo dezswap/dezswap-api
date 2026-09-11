@@ -89,3 +89,71 @@ func Test_deleteExpired(t *testing.T) {
 	assert.False(hasExpired, "expired key should have been removed")
 	assert.True(hasPermanent, "permanent key should remain")
 }
+
+// Keys are built from the request, so a caller varying one writes an entry per
+// request. Bounded only by expiry, those grow the process until it is killed well
+// inside a single TTL.
+func Test_maxEntriesBoundsTheStore(t *testing.T) {
+	assert := assert.New(t)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	const maxEntries = 8
+	c := NewMemoryCacheWithLimit(ctx, cache.NewByteCodec(), maxEntries).(*memoryCacheImpl)
+
+	for i := range maxEntries * 4 {
+		assert.NoError(c.Set(fmt.Sprintf("/v1/pools?cacheBuster=%d", i), "value", time.Minute))
+	}
+
+	c.RLock()
+	defer c.RUnlock()
+
+	assert.Equal(maxEntries, len(c.store))
+	// The list is what eviction walks, so an entry left in it after its key was
+	// dropped would be evicted forever without freeing anything.
+	assert.Equal(maxEntries, c.order.Len())
+}
+
+// Eviction takes the oldest write, so a flood costs the entries written before it
+// and not the ones it wrote.
+func Test_evictionTakesTheOldestWrite(t *testing.T) {
+	assert := assert.New(t)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	c := NewMemoryCacheWithLimit(ctx, cache.NewByteCodec(), 2)
+	assert.NoError(c.Set("first", "value", time.Minute))
+	assert.NoError(c.Set("second", "value", time.Minute))
+	assert.NoError(c.Set("third", "value", time.Minute))
+
+	var value string
+	assert.ErrorIs(c.Get("first", &value), cache.ErrCacheMiss)
+	assert.NoError(c.Get("second", &value))
+	assert.NoError(c.Get("third", &value))
+}
+
+// Rewriting a key is what a route does on every miss, and must not count against
+// the bound as a new entry would.
+func Test_rewritingAKeyDoesNotGrowTheStore(t *testing.T) {
+	assert := assert.New(t)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	c := NewMemoryCacheWithLimit(ctx, cache.NewByteCodec(), 4).(*memoryCacheImpl)
+	for range 20 {
+		assert.NoError(c.Set("/v1/pools", "value", time.Minute))
+	}
+
+	var value string
+	assert.NoError(c.Get("/v1/pools", &value))
+	assert.Equal("value", value)
+
+	c.RLock()
+	defer c.RUnlock()
+
+	assert.Equal(1, len(c.store))
+	assert.Equal(1, c.order.Len())
+}

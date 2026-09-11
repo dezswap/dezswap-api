@@ -75,10 +75,7 @@ func RunServer(ctx context.Context, c configs.Config, cache cache.Cache, db *gor
 	}
 
 	if c.Api.Server.Swagger {
-		docs.SwaggerInfo.BasePath = fmt.Sprintf("/%s", ApiVersion)
-		g := app.engine.Group("")
-		g.Use(cacheHandlers.Timed())
-		g.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
+		mountSwagger(app.engine)
 	}
 
 	if err := mcpserver.Mount(app.engine, c.Api.MCP, AppVersion); err != nil {
@@ -88,6 +85,18 @@ func RunServer(ctx context.Context, c configs.Config, cache cache.Cache, db *gor
 	app.run()
 }
 
+// mountSwagger serves the spec and the UI that reads it.
+//
+// Deliberately uncached. The handler picks which asset to answer with from the
+// whole RequestURI, so /swagger/index.html?doc.json is the spec while
+// /swagger/index.html is the page -- one path, two responses. Every key this
+// service builds is the path plus what the route declares, and under one of those
+// the first of the two answered would be replayed as the other.
+func mountSwagger(engine *gin.Engine) {
+	docs.SwaggerInfo.BasePath = fmt.Sprintf("/%s", ApiVersion)
+	engine.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
+}
+
 // cacheHandlers builds the cache middleware the router hands to its groups.
 func (app *app) cacheHandlers(ctx context.Context, store cache.Cache, db *gorm.DB) httpcache.Handlers {
 	blockTime := time.Second * time.Duration(app.BlockSecond)
@@ -95,7 +104,7 @@ func (app *app) cacheHandlers(ctx context.Context, store cache.Cache, db *gorm.D
 		app.logger.Warn(err)
 	})
 
-	return httpcache.New(store, versioner, blockTime)
+	return httpcache.New(app.config.Server.ChainId, store, versioner, blockTime)
 }
 
 func (app *app) run() {
@@ -107,6 +116,7 @@ func (app *app) run() {
 	app.engine.NoRoute(func(c *gin.Context) {
 		c.JSON(http.StatusNotFound, NotFound{Code: http.StatusNotFound, Message: "Not Found"})
 	})
+
 	if err := app.engine.Run(fmt.Sprintf(":%s", app.config.Server.Port)); err != nil {
 		panic(err)
 	}

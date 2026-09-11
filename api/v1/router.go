@@ -44,8 +44,11 @@ func RegisterRoutes(rg *gin.RouterGroup, chainId string, coinGeckoApiKey string,
 	controller.InitPairController(pairService, versioned(cachekey.Pairs), networkMetadata, logger)
 
 	// Nothing follows when these tables change, so the clock is all that expires them.
+	// Every route below answers on its path alone: one that reads a query parameter
+	// has to leave this group and declare it, or the group serves the first response
+	// it stored for every value of that parameter.
 	timed := rg.Group("")
-	timed.Use(cacheHandlers.Timed())
+	timed.Use(cacheHandlers.Timed(cachekey.NoParams))
 
 	controller.InitPoolController(poolService, timed, networkMetadata, logger)
 	controller.InitStatController(statService, timed, logger)
@@ -67,7 +70,9 @@ func RegisterRoutes(rg *gin.RouterGroup, chainId string, coinGeckoApiKey string,
 	dashboard.InitDashboardController(dashboardService, rg.Group("/dashboard"), cacheHandlers, logger)
 
 	noticeService := ns.NewService(db)
-	notice.InitNoticeController(noticeService, timed.Group("/notices"), logger)
+	notices := rg.Group("/notices")
+	notices.Use(cacheHandlers.Timed(cachekey.Notices))
+	notice.InitNoticeController(noticeService, notices, logger)
 
 	// Routes costs one indexed lookup into an already aggregated table, while its
 	// from/to are caller-supplied and an unknown address still returns 200. Caching

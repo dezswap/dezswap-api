@@ -17,8 +17,11 @@ import (
 
 // seenPaths records which paths reached a given cache, keyed by path.
 type seenPaths struct {
-	timed     map[string]int
-	versioned map[string]string
+	timed map[string]int
+	// timedQuery is what the timed route's declaration kept of the query it was
+	// asked with.
+	timedQuery map[string]string
+	versioned  map[string]string
 }
 
 // registerWithCacheSpies wires the routes with stand-ins for the two caches that
@@ -28,14 +31,21 @@ func registerWithCacheSpies(t *testing.T) (*gin.Engine, *seenPaths) {
 	t.Helper()
 	gin.SetMode(gin.TestMode)
 
-	seen := &seenPaths{timed: map[string]int{}, versioned: map[string]string{}}
+	seen := &seenPaths{
+		timed:      map[string]int{},
+		timedQuery: map[string]string{},
+		versioned:  map[string]string{},
+	}
 	engine := gin.New()
 	engine.Use(gin.Recovery())
 
 	cacheHandlers := httpcache.NewFrom(
-		func(c *gin.Context) {
-			seen.timed[c.Request.URL.Path]++
-			c.Next()
+		func(q cachekey.Query) gin.HandlerFunc {
+			return func(c *gin.Context) {
+				seen.timed[c.Request.URL.Path]++
+				seen.timedQuery[c.Request.URL.Path] = q.Canonical(c.Request.URL.Query())
+				c.Next()
+			}
 		},
 		func(r cachekey.Resource) gin.HandlerFunc {
 			return func(c *gin.Context) {
@@ -122,6 +132,29 @@ func TestRegisterRoutes_RemainingDataRoutesKeepTheTimedCache(t *testing.T) {
 	}
 }
 
+// A timed route that reads a query parameter has to declare it, or the entry stored
+// for the first value asked for is replayed for every other value. A parameter no
+// route reads must not reach the key at all: keyed on it, a caller appending one
+// mints an entry per request.
+func TestRegisterRoutes_TimedRoutesDeclareTheParametersTheyRead(t *testing.T) {
+	engine, seen := registerWithCacheSpies(t)
+
+	for _, tc := range []struct {
+		path  string
+		query string
+		want  string
+	}{
+		{"/v1/notices", "?chain=cube&limit=3&asc=TRUE&1756771200000=", "chain=cube&limit=3&asc=true"},
+		{"/v1/dashboard/txs", "?pool=xpla1abc&type=swap&1756771200000=", "pool=xpla1abc&type=swap"},
+		{"/v1/dashboard/chart/tokens/xpla1abc/volume", "?duration=YEAR&1756771200000=", "duration=year"},
+		{"/v1/pools", "?1756771200000=", ""},
+		{"/v1/coingecko/pairs", "?1756771200000=", ""},
+	} {
+		get(engine, tc.path+tc.query)
+		require.Equalf(t, tc.want, seen.timedQuery[tc.path], "%s keyed on the wrong query", tc.path)
+	}
+}
+
 func TestRegisterRoutes_DashboardStatsRoutesAreVersioned(t *testing.T) {
 	engine, seen := registerWithCacheSpies(t)
 
@@ -174,7 +207,7 @@ func TestRegisterRoutes_EveryRouteServesWithoutACacheStore(t *testing.T) {
 		nil,
 		nil,
 		// What cmd/api hands over when neither redis nor the memory cache is set.
-		httpcache.New(nil, nil, time.Second),
+		httpcache.New("test-chain", nil, nil, time.Second),
 		logging.New("test", configs.LogConfig{}),
 	)
 
