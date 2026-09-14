@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
+	"github.com/dezswap/dezswap-api/api/v1/service"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gorm.io/driver/postgres"
@@ -197,4 +198,18 @@ func TestPrice(t *testing.T) {
 			assert.Equal(t, tc.want, s.price(tc.ts, tc.force))
 		})
 	}
+}
+
+// The ticker id is a path segment, so a caller can invent one. The handler answers
+// it with 400 rather than reporting it, which it can only do if the error carries
+// ErrInvalidKey through the wrapping.
+func TestTickerService_Get_UnparsableIdIsAnInvalidKey(t *testing.T) {
+	s, mock, close := setupTickerServiceWithMock(t)
+	defer close()
+
+	_, err := s.Get("wp-login.php")
+
+	require.ErrorIs(t, err, service.ErrInvalidKey)
+	// No query is queued, so an id that got as far as the database fails here.
+	require.NoError(t, mock.ExpectationsWereMet())
 }

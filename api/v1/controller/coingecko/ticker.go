@@ -78,6 +78,10 @@ func (c *tickerController) Ticker(ctx *gin.Context) {
 
 	ticker, err := c.Get(id)
 	if err != nil {
+		if errors.Is(err, service.ErrInvalidKey) {
+			httputil.NewError(ctx, http.StatusBadRequest, errors.New("invalid ticker id"))
+			return
+		}
 		c.logger.Warn(err)
 		httputil.NewError(ctx, http.StatusInternalServerError, errors.New("internal server error"))
 		return

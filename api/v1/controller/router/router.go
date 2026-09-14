@@ -5,11 +5,16 @@ import (
 	"net/http"
 	"strconv"
 
+	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/dezswap/dezswap-api/pkg/httputil"
 	"github.com/dezswap/dezswap-api/pkg/logging"
 	"github.com/gin-gonic/gin"
 	"github.com/pkg/errors"
 )
+
+// maxHopCount bounds what a caller may ask the route table for. The aggregator
+// builds nothing near this many hops, so no route it holds is put out of reach.
+const maxHopCount = 10
 
 type routerController struct {
 	rs.Router
@@ -52,11 +57,21 @@ func (c *routerController) Routes(ctx *gin.Context) {
 		return
 	}
 
+	// The route is deliberately not cached, so every address that reaches the service
+	// costs a query of its own. Turning away what could not be an address is what
+	// keeps a caller from spending one on each string it invents.
+	for _, addr := range []string{from, to} {
+		if addr != "" && sdk.ValidateDenom(addr) != nil {
+			httputil.NewError(ctx, http.StatusBadRequest, errors.New("invalid token address"))
+			return
+		}
+	}
+
 	hopCount := 0
 	if ctx.Query("hopCount") != "" {
 		var err error
 		hopCount, err = strconv.Atoi(ctx.Query("hopCount"))
-		if err != nil {
+		if err != nil || hopCount < 0 || hopCount > maxHopCount {
 			httputil.NewError(ctx, http.StatusBadRequest, errors.New("invalid hop count"))
 			return
 		}

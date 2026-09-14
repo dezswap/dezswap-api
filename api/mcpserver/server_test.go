@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -194,6 +195,45 @@ func TestMCPOriginValidation(t *testing.T) {
 
 	if rec.Code != http.StatusForbidden {
 		t.Fatalf("expected 403, got %d", rec.Code)
+	}
+}
+
+// deadlineRecorder stands in for the live connection the server hands a handler,
+// which is the only writer that carries a deadline at all.
+type deadlineRecorder struct {
+	http.ResponseWriter
+	deadline time.Time
+	set      bool
+}
+
+func (d *deadlineRecorder) SetWriteDeadline(t time.Time) error {
+	d.deadline = t
+	d.set = true
+	return nil
+}
+
+// The server answers under a write timeout, which would cut a streamed session off
+// mid-flight. A session is meant to outlive any one response, so the endpoint has to
+// clear the deadline before it starts writing.
+func TestMount_StreamedSessionRunsWithNoWriteDeadline(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	engine := gin.New()
+	if err := Mount(engine, Config{
+		Enabled:           true,
+		Path:              "/mcp",
+		IncludeOperations: []string{"get_service_version"},
+	}, "test"); err != nil {
+		t.Fatalf("Mount() error = %v", err)
+	}
+
+	recorder := &deadlineRecorder{ResponseWriter: httptest.NewRecorder()}
+	engine.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/mcp", nil))
+
+	if !recorder.set {
+		t.Fatal("the endpoint never reached the connection's write deadline")
+	}
+	if !recorder.deadline.IsZero() {
+		t.Fatalf("expected the write deadline cleared, got %v", recorder.deadline)
 	}
 }
 

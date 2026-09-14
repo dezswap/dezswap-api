@@ -103,3 +103,17 @@ func TestStatService_MapToSlice_ZeroLiquidity(t *testing.T) {
 	require.Len(t, stats, 1)
 	require.Equal(t, "0", stats[0].AprInPrice, "APR should be 0 when liquidity is 0")
 }
+
+// The period is a path segment, so a caller can invent one. The handler answers it
+// with 400 rather than reporting it, which it can only do if the error carries
+// ErrInvalidKey through the wrapping.
+func TestStatService_Get_UnsupportedPeriodIsAnInvalidKey(t *testing.T) {
+	service, mock, close := setupServiceWithMock(t)
+	defer close()
+
+	_, err := service.Get("1yr")
+
+	require.ErrorIs(t, err, ErrInvalidKey)
+	// No query is queued, so a period that got as far as the database fails here.
+	require.NoError(t, mock.ExpectationsWereMet())
+}

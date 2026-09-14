@@ -148,6 +148,10 @@ func (s *Server) Mount() {
 			return
 		}
 		s.setCORSHeaders(c)
+		// An MCP session is streamed and outlives any one response, so the server's
+		// write timeout would cut it off mid-flight. This fails only where there is no
+		// deadline to clear, which is every writer that is not a live connection.
+		_ = http.NewResponseController(c.Writer).SetWriteDeadline(time.Time{})
 		handler.ServeHTTP(c.Writer, c.Request)
 	})
 }

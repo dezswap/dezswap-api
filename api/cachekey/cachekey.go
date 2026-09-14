@@ -56,32 +56,35 @@ var (
 type param struct {
 	name     string
 	fallback string
-	fold     bool
+	// fold lowercases the value, and belongs only to a parameter its handler reads
+	// case-insensitively. Folded onto a handler that does not, two spellings the
+	// handler tells apart would share one entry, and one of them would be served
+	// the other's response.
+	fold bool
 }
 
-type Resource struct {
-	name    string
-	sources []source
-	// params are the query parameters that decide which response a request gets.
-	// One the handler reads but that is missing here would serve a single response
-	// for all of its values.
+// Query is the set of query parameters a route's responses vary on. A parameter a
+// caller sends that is not declared here never reaches the cache key: a cache
+// buster would otherwise split one response into an entry per request.
+type Query struct {
 	params []param
 }
 
-func (r Resource) String() string { return r.name }
+// NoParams declares a route whose response its path alone decides.
+var NoParams = Query{}
 
-// CanonicalQuery returns the part of q that belongs in a cache key, ordered as the
-// resource declares rather than as a caller sent.
-func (r Resource) CanonicalQuery(q url.Values) string {
-	if len(r.params) == 0 {
+// Canonical returns the part of v that belongs in a cache key, ordered as the
+// declaration is rather than as a caller sent it.
+func (q Query) Canonical(v url.Values) string {
+	if len(q.params) == 0 {
 		return ""
 	}
 
-	parts := make([]string, 0, len(r.params))
-	for _, p := range r.params {
+	parts := make([]string, 0, len(q.params))
+	for _, p := range q.params {
 		value := p.fallback
 		// Handlers read these with gin's Query, which takes the first value.
-		if values := q[p.name]; len(values) > 0 && values[0] != "" {
+		if values := v[p.name]; len(values) > 0 && values[0] != "" {
 			value = values[0]
 		}
 		if p.fold {
@@ -89,12 +92,26 @@ func (r Resource) CanonicalQuery(q url.Values) string {
 		}
 
 		if value != "" {
-			parts = append(parts, p.name+"="+value)
+			parts = append(parts, url.QueryEscape(p.name)+"="+url.QueryEscape(value))
 		}
 	}
 
 	return strings.Join(parts, "&")
 }
+
+type Resource struct {
+	name    string
+	sources []source
+	// query names the parameters that decide which response a request gets. One the
+	// handler reads but that is missing here would serve a single response for all
+	// of its values.
+	query Query
+}
+
+func (r Resource) String() string { return r.name }
+
+// CanonicalQuery returns the part of q that belongs in this resource's cache key.
+func (r Resource) CanonicalQuery(q url.Values) string { return r.query.Canonical(q) }
 
 // resources is every resource a Versioner can resolve. Pools are deliberately not
 // among them: SaveLatestPools upserts every row on each pass, so a pool version
@@ -108,6 +125,10 @@ func register(r Resource) Resource {
 	resources = append(resources, r)
 	return r
 }
+
+// ToDuration reads this parameter case-insensitively and answers an absent one with
+// All, so the spellings of a window are one entry.
+var durationQuery = Query{params: []param{{name: "duration", fallback: "all", fold: true}}}
 
 var (
 	Tokens = register(Resource{name: "tokens", sources: []source{tokenSource}})
@@ -123,13 +144,35 @@ var (
 	DashboardCharts = register(Resource{
 		name:    "dashboard_charts",
 		sources: dashboardSources,
-		params:  []param{{name: "duration", fallback: "all", fold: true}},
+		query:   durationQuery,
 	})
 	DashboardPools = register(Resource{
 		name:    "dashboard_pools",
 		sources: dashboardSources,
-		params:  []param{{name: "token"}},
+		query:   Query{params: []param{{name: "token"}}},
 	})
+)
+
+// The declarations below belong to routes that expire on a timer rather than on a
+// version, so they name parameters only: there is no table to watch behind them.
+var (
+	// Notices pages, and its page is what a caller asks for.
+	Notices = Query{params: []param{
+		{name: "chain"},
+		{name: "startTs"},
+		{name: "after"},
+		{name: "limit"},
+		// gin binds this with strconv.ParseBool, which reads the word forms whatever
+		// their case.
+		{name: "asc", fold: true},
+	}}
+	// DashboardTxs filters by pool or by token, and narrows to one action.
+	//
+	// type is not folded: the handler matches it against lowercase constants and
+	// falls back to every action, so "SWAP" and "swap" are different responses.
+	DashboardTxs = Query{params: []param{{name: "pool"}, {name: "token"}, {name: "type"}}}
+	// DashboardTokenCharts reads the same window as the versioned charts do.
+	DashboardTokenCharts = durationQuery
 )
 
 type mark struct {

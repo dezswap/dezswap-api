@@ -69,6 +69,10 @@ func (c *statController) Stat(ctx *gin.Context) {
 
 	stat, err := c.Get(period)
 	if err != nil {
+		if errors.Is(err, service2.ErrInvalidKey) {
+			httputil.NewError(ctx, http.StatusBadRequest, errors.New("invalid period"))
+			return
+		}
 		c.logger.Warn(err)
 		httputil.NewError(ctx, http.StatusInternalServerError, errors.New("internal server error"))
 		return

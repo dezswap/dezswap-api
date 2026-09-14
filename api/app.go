@@ -32,6 +32,19 @@ import (
 
 const ApiVersion = "v1"
 
+// The server's own deadlines. Left to the default of none, a connection that never
+// finishes sending its request, or never reads its response, holds its slot for as
+// long as it cares to.
+const (
+	// readHeaderTimeout is what bounds a client dribbling headers a byte at a time.
+	readHeaderTimeout = 5 * time.Second
+	readTimeout       = 15 * time.Second
+	// writeTimeout has to clear the slowest handler answering on a cold cache, which
+	// is a dashboard aggregate over a month of windows.
+	writeTimeout = 60 * time.Second
+	idleTimeout  = 120 * time.Second
+)
+
 var AppVersion = "dev"
 
 type app struct {
@@ -75,10 +88,7 @@ func RunServer(ctx context.Context, c configs.Config, cache cache.Cache, db *gor
 	}
 
 	if c.Api.Server.Swagger {
-		docs.SwaggerInfo.BasePath = fmt.Sprintf("/%s", ApiVersion)
-		g := app.engine.Group("")
-		g.Use(cacheHandlers.Timed())
-		g.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
+		mountSwagger(app.engine)
 	}
 
 	if err := mcpserver.Mount(app.engine, c.Api.MCP, AppVersion); err != nil {
@@ -88,6 +98,18 @@ func RunServer(ctx context.Context, c configs.Config, cache cache.Cache, db *gor
 	app.run()
 }
 
+// mountSwagger serves the spec and the UI that reads it.
+//
+// Deliberately uncached. The handler picks which asset to answer with from the
+// whole RequestURI, so /swagger/index.html?doc.json is the spec while
+// /swagger/index.html is the page -- one path, two responses. Every key this
+// service builds is the path plus what the route declares, and under one of those
+// the first of the two answered would be replayed as the other.
+func mountSwagger(engine *gin.Engine) {
+	docs.SwaggerInfo.BasePath = fmt.Sprintf("/%s", ApiVersion)
+	engine.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
+}
+
 // cacheHandlers builds the cache middleware the router hands to its groups.
 func (app *app) cacheHandlers(ctx context.Context, store cache.Cache, db *gorm.DB) httpcache.Handlers {
 	blockTime := time.Second * time.Duration(app.BlockSecond)
@@ -95,7 +117,7 @@ func (app *app) cacheHandlers(ctx context.Context, store cache.Cache, db *gorm.D
 		app.logger.Warn(err)
 	})
 
-	return httpcache.New(store, versioner, blockTime)
+	return httpcache.New(app.config.Server.ChainId, store, versioner, blockTime)
 }
 
 func (app *app) run() {
@@ -107,7 +129,17 @@ func (app *app) run() {
 	app.engine.NoRoute(func(c *gin.Context) {
 		c.JSON(http.StatusNotFound, NotFound{Code: http.StatusNotFound, Message: "Not Found"})
 	})
-	if err := app.engine.Run(fmt.Sprintf(":%s", app.config.Server.Port)); err != nil {
+
+	server := &http.Server{
+		Addr:              fmt.Sprintf(":%s", app.config.Server.Port),
+		Handler:           app.engine,
+		ReadHeaderTimeout: readHeaderTimeout,
+		ReadTimeout:       readTimeout,
+		WriteTimeout:      writeTimeout,
+		IdleTimeout:       idleTimeout,
+	}
+
+	if err := server.ListenAndServe(); err != nil {
 		panic(err)
 	}
 }
