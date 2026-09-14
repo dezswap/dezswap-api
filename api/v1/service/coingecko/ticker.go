@@ -57,7 +57,7 @@ func NewTickerService(chainId string, db *gorm.DB, apiKey string) service.Getter
 // Get implements Getter
 func (s *tickerService) Get(key string) (*Ticker, error) {
 	tokens := strings.Split(key, "_")
-	if len(tokens) < 2 {
+	if len(tokens) != 2 || tokens[0] == "" || tokens[1] == "" {
 		return nil, errors.Wrapf(service.ErrInvalidKey, "tickerService.Get: ticker %q", key)
 	}
 
