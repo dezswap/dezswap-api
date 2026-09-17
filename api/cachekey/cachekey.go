@@ -32,6 +32,8 @@ const (
 // into the watermark statement.
 type source struct {
 	table string
+	// hiddenDigest tracks manually edited visibility flags without timestamps.
+	hiddenDigest bool
 	// mark is the column MAX is taken over. Inserts are caught by the row count, so
 	// it only has to move on an update.
 	mark string
@@ -43,6 +45,8 @@ type source struct {
 }
 
 var (
+	// Hidden flags may be edited without any timestamp changing.
+	hiddenSource = source{table: "token_exception", mark: "contract", hiddenDigest: true}
 	// SaveTokens assigns updated_at on the insert and the conflict branch alike.
 	tokenSource = source{table: "tokens", mark: "updated_at", softDeleted: true}
 	// pair carries no timestamp of its own, but is append-only.
@@ -131,14 +135,14 @@ func register(r Resource) Resource {
 var durationQuery = Query{params: []param{{name: "duration", fallback: "all", fold: true}}}
 
 var (
-	Tokens = register(Resource{name: "tokens", sources: []source{tokenSource}})
+	Tokens = register(Resource{name: "tokens", sources: []source{tokenSource, hiddenSource}})
 	// A pair response carries columns joined in from tokens.
-	Pairs = register(Resource{name: "pairs", sources: []source{pairSource, tokenSource}})
+	Pairs = register(Resource{name: "pairs", sources: []source{pairSource, tokenSource, hiddenSource}})
 
 	// dashboardSources is shared by the three resources below, so they also share a
 	// version and the single read behind it. They stay separate resources because
 	// params differ: no two of those handlers read the same set.
-	dashboardSources = []source{pairStats30mSource, pairSource, tokenSource}
+	dashboardSources = []source{pairStats30mSource, pairSource, tokenSource, hiddenSource}
 
 	DashboardRecent = register(Resource{name: "dashboard_recent", sources: dashboardSources})
 	DashboardCharts = register(Resource{
@@ -265,6 +269,12 @@ func watermarkStatement(db *gorm.DB, sources []source, chainId string) (string, 
 	for i, s := range sources {
 		if i > 0 {
 			b.WriteString("\nUNION ALL\n")
+		}
+
+		if s.hiddenDigest {
+			fmt.Fprintf(&b, "SELECT '%s' AS source, COUNT(*) AS row_count, COALESCE(md5(string_agg(contract, ',' ORDER BY contract)), '') AS max_mark FROM %s WHERE chain_id = ? AND hidden", s.table, db.Statement.Quote(s.table))
+			args = append(args, chainId)
+			continue
 		}
 
 		count := "COUNT(*)"

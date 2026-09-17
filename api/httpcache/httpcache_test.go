@@ -26,9 +26,10 @@ const testChainId = "test-chain"
 // token mark varies here; the rest are along because they share the read.
 func expectTokenWatermark(mock sqlmock.Sqlmock, rowCount int64, maxMark string) {
 	mock.ExpectQuery(`(?s)FROM "tokens".*UNION ALL.*FROM "pair".*UNION ALL.*FROM "pair_stats_30m"`).
-		WithArgs("test-chain", "test-chain", "test-chain").
+		WithArgs("test-chain", "test-chain", "test-chain", "test-chain").
 		WillReturnRows(sqlmock.NewRows([]string{"source", "row_count", "max_mark"}).
 			AddRow("tokens", rowCount, maxMark).
+			AddRow("token_exception", 0, "").
 			AddRow("pair", 40, "pair-40").
 			AddRow("pair_stats_30m", 0, "1756771200"))
 }
@@ -265,7 +266,7 @@ func unreadableWatermark(t *testing.T, blockTime time.Duration) fallbackRoute {
 	require.NoError(t, err)
 
 	mock.ExpectQuery(`FROM "tokens"`).
-		WithArgs("test-chain", "test-chain", "test-chain").
+		WithArgs("test-chain", "test-chain", "test-chain", "test-chain").
 		WillReturnError(errors.New("connection refused"))
 	t.Cleanup(func() { require.NoError(t, mock.ExpectationsWereMet()) })
 

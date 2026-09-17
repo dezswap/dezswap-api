@@ -4,6 +4,7 @@ import (
 	"cosmossdk.io/math"
 	"github.com/dezswap/dezswap-api/api/v1/service"
 	"github.com/dezswap/dezswap-api/pkg"
+	"github.com/dezswap/dezswap-api/pkg/db/visibility"
 	"github.com/pkg/errors"
 	"gorm.io/gorm"
 	"strings"
@@ -26,7 +27,7 @@ func (s tickerService) Get(key string) (*Ticker, error) {
 		return nil, errors.New("unable to parse ticker: " + key)
 	}
 
-	if tx := s.Table("pair_stats_recent ps").Joins(
+	if tx := s.Table("pair_stats_recent ps").Where(visibility.Assets("p")).Joins(
 		"join pair p on ps.pair_id = p.id "+
 			"join tokens t0 on p.chain_id = t0.chain_id and p.asset0 = t0.address "+
 			"join tokens t1 on p.chain_id = t1.chain_id and p.asset1 = t1.address",
@@ -114,10 +115,13 @@ where p.chain_id = ? and p.asset0 = ? and p.asset1 = ?
 `
 
 	var ticker Ticker
-	if tx := s.Raw(query, s.chainId, base, quote).Find(&ticker); tx.Error != nil {
+	if tx := s.Raw(visibility.Query(query), s.chainId, base, quote).Find(&ticker); tx.Error != nil {
 		return nil, errors.Wrap(tx.Error, "TickerService.lastPrice")
 	}
 
+	if ticker.BaseAddress == "" {
+		return nil, nil
+	}
 	return &ticker, nil
 }
 
@@ -144,7 +148,7 @@ where ps.chain_id = ?
 order by ps.timestamp asc
 `
 	tickers := []Ticker{}
-	if tx := s.Raw(query, s.chainId).Find(&tickers); tx.Error != nil {
+	if tx := s.Raw(visibility.Query(query), s.chainId).Find(&tickers); tx.Error != nil {
 		return nil, errors.Wrap(tx.Error, "TickerService.GetAll")
 	}
 
@@ -235,9 +239,9 @@ where p.chain_id = ?
 	tickers := []Ticker{}
 	var tx *gorm.DB
 	if len(activePoolIds) > 0 {
-		tx = s.Raw(query+" and p.contract not in ?", s.chainId, activePoolIds).Find(&tickers)
+		tx = s.Raw(visibility.Query(query+" and p.contract not in ?"), s.chainId, activePoolIds).Find(&tickers)
 	} else {
-		tx = s.Raw(query, s.chainId).Find(&tickers)
+		tx = s.Raw(visibility.Query(query), s.chainId).Find(&tickers)
 	}
 	if tx.Error != nil {
 		return nil, errors.Wrap(tx.Error, "TickerService.inactivePools")

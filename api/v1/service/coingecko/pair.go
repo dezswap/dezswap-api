@@ -2,6 +2,7 @@ package coingecko
 
 import (
 	"github.com/dezswap/dezswap-api/api/v1/service"
+	"github.com/dezswap/dezswap-api/pkg/db/visibility"
 	"github.com/pkg/errors"
 	"gorm.io/gorm"
 )
@@ -19,7 +20,7 @@ func NewPairService(chainId string, db *gorm.DB) service.Getter[Pair] {
 func (s *pairService) Get(key string) (*Pair, error) {
 	pair := &Pair{}
 
-	if tx := s.Table("pair").Where("chain_id = ? and contract = ?", s.chainId, key).Select(
+	if tx := s.Table("pair").Where(visibility.Assets("pair")).Where("chain_id = ? and contract = ?", s.chainId, key).Select(
 		"concat(asset0, '_', asset1) ticker_id," +
 			"asset0 base," +
 			"asset1 target," +
@@ -28,6 +29,9 @@ func (s *pairService) Get(key string) (*Pair, error) {
 		return nil, errors.Wrap(tx.Error, "pairService.Get")
 	}
 
+	if pair.PoolId == "" {
+		return nil, nil
+	}
 	return pair, nil
 }
 
@@ -35,7 +39,7 @@ func (s *pairService) Get(key string) (*Pair, error) {
 func (s *pairService) GetAll() ([]Pair, error) {
 	pairs := []Pair{}
 
-	if tx := s.Table("pair").Where("chain_id = ?", s.chainId).Select(
+	if tx := s.Table("pair").Where(visibility.Assets("pair")).Where("chain_id = ?", s.chainId).Select(
 		"concat(asset0, '_', asset1) ticker_id," +
 			"asset0 base," +
 			"asset1 target," +

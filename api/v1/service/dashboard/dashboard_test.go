@@ -46,6 +46,9 @@ func SetupDB(t *testing.T) *gorm.DB {
 	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
 	require.NoError(t, err)
 	cleanupDashboardTestData(t, db)
+	require.NoError(t, db.Exec(`INSERT INTO route (id, chain_id, asset0, asset1, hop_count, route)
+    VALUES (1, ?, ?, 'axpla', 0, ARRAY[]::text[]) ON CONFLICT (id) DO UPDATE
+    SET chain_id = EXCLUDED.chain_id, deleted_at = NULL`, testChainID, testTokenAddr).Error)
 
 	row := db.Raw(`
 INSERT INTO tokens (chain_id, address, name, symbol, decimals) VALUES (?, ?, 'Abcd', 'ABCD', 18) RETURNING id
@@ -75,10 +78,12 @@ INSERT INTO pair (chain_id, contract, asset0, asset1, lp) VALUES (?, ?, 'axpla',
 func cleanupDashboardTestData(t *testing.T, db *gorm.DB) {
 	t.Helper()
 
+	require.NoError(t, db.Exec(`DELETE FROM token_exception WHERE chain_id = ?`, testChainID).Error)
 	require.NoError(t, db.Exec(`DELETE FROM parsed_tx WHERE chain_id = ?`, testChainID).Error)
 	require.NoError(t, db.Exec(`DELETE FROM pair_stats_recent WHERE pair_id IN (SELECT id FROM pair WHERE chain_id = ?)`, testChainID).Error)
 	require.NoError(t, db.Exec(`DELETE FROM pair_stats_30m WHERE pair_id IN (SELECT id FROM pair WHERE chain_id = ?)`, testChainID).Error)
 	require.NoError(t, db.Exec(`DELETE FROM price WHERE chain_id = ?`, testChainID).Error)
+	require.NoError(t, db.Exec(`DELETE FROM route WHERE chain_id = ?`, testChainID).Error)
 	require.NoError(t, db.Exec(`DELETE FROM pair WHERE chain_id = ?`, testChainID).Error)
 	require.NoError(t, db.Exec(`DELETE FROM tokens WHERE chain_id = ?`, testChainID).Error)
 }
@@ -626,4 +631,39 @@ func TestTxsOfToken_TimestampDescOrder(t *testing.T) {
 	assert.Equal(t, "token_hash_old", txs[2].Hash)
 	assert.True(t, !txs[0].Timestamp.Before(txs[1].Timestamp), "first tx should not be before second")
 	assert.True(t, !txs[1].Timestamp.Before(txs[2].Timestamp), "second tx should not be before third")
+}
+
+func TestHiddenTokenExcludedFromDashboardAndRestored(t *testing.T) {
+	db := SetupDB(t)
+	defer CleanupDB(t, db)
+	generateTokenPrice(t, db)
+	generateStats(t, db, time.Now().Add(-2*time.Hour))
+	generateParsedTxWithType(t, db, time.Now().Unix(), "swap", "hidden-swap", testPairContractAddr2, "axpla", "1000", testTokenAddr, "200")
+	d := &dashboard{DB: db, chainId: testChainID}
+	pools, err := d.Pools()
+	require.NoError(t, err)
+	require.Len(t, pools, 2)
+	before, err := d.Recent()
+	require.NoError(t, err)
+	require.NoError(t, db.Exec(`INSERT INTO token_exception (chain_id,contract,hidden,skip_parse) VALUES (?,?,true,false)`, testChainID, testTokenAddr).Error)
+	pools, err = d.Pools()
+	require.NoError(t, err)
+	require.Len(t, pools, 1)
+	require.Equal(t, testPairContractAddr1, pools[0].Address)
+	token, err := d.Token(Addr(testTokenAddr))
+	require.NoError(t, err)
+	require.Empty(t, token.Addr)
+	txs, err := d.Txs(TX_TYPE_ALL)
+	require.NoError(t, err)
+	require.Empty(t, txs)
+	hidden, err := d.Recent()
+	require.NoError(t, err)
+	require.NotEqual(t, before.Tvl, hidden.Tvl)
+	require.NoError(t, db.Exec(`UPDATE token_exception SET hidden = false WHERE chain_id = ?`, testChainID).Error)
+	pools, err = d.Pools()
+	require.NoError(t, err)
+	require.Len(t, pools, 2)
+	token, err = d.Token(Addr(testTokenAddr))
+	require.NoError(t, err)
+	require.Equal(t, Addr(testTokenAddr), token.Addr)
 }
