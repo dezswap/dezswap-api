@@ -1,6 +1,7 @@
 package service
 
 import (
+	"github.com/dezswap/dezswap-api/pkg/db/visibility"
 	"github.com/pkg/errors"
 	"gorm.io/gorm"
 )
@@ -20,7 +21,7 @@ func NewPairService(chainId string, db *gorm.DB) Getter[Pair] {
 func (s *pairService) Get(key string) (*Pair, error) {
 	pair := &Pair{}
 	// pairs := []map[string]interface{}{}
-	if err := s.Table("pair as P").Joins(
+	if err := s.Table("pair as P").Where(visibility.Assets("P")).Joins(
 		"INNER JOIN tokens AS T0 on T0.address = P.asset0 and T0.chain_id = P.chain_id",
 	).Joins(
 		"INNER JOIN tokens AS T1 on T1.address = P.asset1 and T1.chain_id = P.chain_id",
@@ -49,7 +50,7 @@ func (s *pairService) Get(key string) (*Pair, error) {
 func (s *pairService) GetAll() ([]Pair, error) {
 	pairs := []Pair{}
 	// pairs := []map[string]interface{}{}
-	if err := s.Table("pair as P").Joins(
+	if err := s.Table("pair as P").Where(visibility.Assets("P")).Joins(
 		"INNER JOIN tokens AS T0 on T0.address = P.asset0 and T0.chain_id = P.chain_id",
 	).Joins(
 		"INNER JOIN tokens AS T1 on T1.address = P.asset1 and T1.chain_id = P.chain_id",

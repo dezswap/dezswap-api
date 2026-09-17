@@ -6,6 +6,7 @@ import (
 
 	"github.com/dezswap/dezswap-api/pkg/db/aggregator"
 	"github.com/dezswap/dezswap-api/pkg/db/parser"
+	"github.com/dezswap/dezswap-api/pkg/db/visibility"
 	"github.com/dezswap/dezswap-api/pkg/dezswap"
 	"github.com/pkg/errors"
 	"gorm.io/gorm"
@@ -130,7 +131,7 @@ func (d *dashboard) Aprs(duration Duration) (Aprs, error) {
 	`, dateSeries, lastQuery, joinClause, weekAprMultiplier)
 
 	aprs := Aprs{}
-	if err := d.DB.Raw(query, d.chainId, d.chainId).Scan(&aprs).Error; err != nil {
+	if err := d.Raw(visibility.Query(query), d.chainId, d.chainId).Scan(&aprs).Error; err != nil {
 		return nil, errors.Wrap(err, "dashboard.Aprs")
 	}
 	return aprs, nil
@@ -207,7 +208,7 @@ func (d *dashboard) AprsOf(pool Addr, duration Duration) ([]Apr, error) {
 	`, dateSeries, d.chainId, d.chainId, d.chainId, weekAprMultiplier)
 
 	aprs := Aprs{}
-	if err := d.DB.Raw(query, pool, pool).Scan(&aprs).Error; err != nil {
+	if err := d.Raw(visibility.Query(query), pool, pool).Scan(&aprs).Error; err != nil {
 		return nil, errors.Wrap(err, "dashboard.AprsOf")
 	}
 	return aprs, nil
@@ -283,9 +284,9 @@ func (d *dashboard) Pools(tokens ...Addr) (Pools, error) {
 	var tx *gorm.DB
 	if len(tokens) > 0 {
 		tokensCond := " AND (p.asset0 in ? OR p.asset1 in ?)"
-		tx = d.Raw(query+tokensCond+orderBy, tokens, tokens)
+		tx = d.Raw(visibility.Query(query+tokensCond+orderBy), tokens, tokens)
 	} else {
-		tx = d.Raw(query + orderBy)
+		tx = d.Raw(visibility.Query(query + orderBy))
 	}
 	if err := tx.Scan(&pools).Error; err != nil {
 		return nil, errors.Wrap(err, "dashboard.Pools")
@@ -378,7 +379,7 @@ func (d *dashboard) Recent() (Recent, error) {
 			tvl, prev_tvl, volume, prev_volume, volume7d, prev_volume7d;
 	`, tvl(current), tvl(dayAgo), volume(dayAgo, current), volume(twoDaysAgo, dayAgo), volume(sevenDaysAgo, current), volume(eightDaysAgo, dayAgo), dezswap.SWAP_FEE, weekAprMultiplier)
 	recent := Recent{}
-	if err := d.DB.Raw(query).Scan(&recent).Error; err != nil {
+	if err := d.Raw(visibility.Query(query)).Scan(&recent).Error; err != nil {
 		return recent, errors.Wrap(err, "dashboard.Recent")
 	}
 	return recent, nil
@@ -455,7 +456,7 @@ func (d *dashboard) RecentOf(pairContractAddr Addr) (Recent, error) {
 			tvl, prev_tvl, volume, prev_volume, volume7d, prev_volume7d
 	`, tvl(current), tvl(dayAgo), volume(dayAgo, current), volume(twoDaysAgo, dayAgo), volume(sevenDaysAgo, current), volume(eightDaysAgo, dayAgo), d.chainId, dezswap.SWAP_FEE, weekAprMultiplier)
 	recent := Recent{}
-	if err := d.DB.Raw(query, pairContractAddr, pairContractAddr, pairContractAddr, pairContractAddr, pairContractAddr, pairContractAddr, pairContractAddr).Scan(&recent).Error; err != nil {
+	if err := d.Raw(visibility.Query(query), pairContractAddr, pairContractAddr, pairContractAddr, pairContractAddr, pairContractAddr, pairContractAddr, pairContractAddr).Scan(&recent).Error; err != nil {
 		return recent, errors.Wrap(err, "dashboard.RecentOf")
 	}
 	return recent, nil
@@ -492,7 +493,7 @@ func (d *dashboard) Statistic(addr ...Addr) (st Statistic, err error) {
 	`
 
 	st = Statistic{}
-	if err := d.DB.Raw(query, subDau, subTxCnts, subFees).Scan(&st).Error; err != nil {
+	if err := d.Raw(visibility.Query(query), subDau, subTxCnts, subFees).Scan(&st).Error; err != nil {
 		return nil, errors.Wrap(err, "dashboard.Statistic")
 	}
 	return st, nil
@@ -573,10 +574,10 @@ where t.chain_id = ?
 	var tx *gorm.DB
 	if len(addr) > 0 {
 		query += ` and t.address in ?`
-		tx = d.Raw(query, d.chainId, d.chainId, addr)
+		tx = d.Raw(visibility.Query(query), d.chainId, d.chainId, addr)
 	} else {
 		query += ` and t.symbol != 'uLP' order by t.id`
-		tx = d.Raw(query, d.chainId, d.chainId)
+		tx = d.Raw(visibility.Query(query), d.chainId, d.chainId)
 	}
 
 	if err := tx.Find(&tokens).Error; err != nil {
@@ -693,7 +694,7 @@ FROM (
 
 	args = append(args, d.chainId, d.chainId, d.chainId, d.chainId)
 	var stats []tokenStat
-	if err := d.Raw(query, args...).Find(&stats).Error; err != nil {
+	if err := d.Raw(visibility.Query(query), args...).Find(&stats).Error; err != nil {
 		return nil, err
 	}
 
@@ -867,7 +868,7 @@ order by eow2
 `
 	}
 	var chart TokenChart
-	if tx := d.Raw(query, d.chainId, addr).Find(&chart); tx.Error != nil {
+	if tx := d.Raw(visibility.Query(query), d.chainId, addr).Find(&chart); tx.Error != nil {
 		return TokenChart{}, errors.Wrap(tx.Error, "dashboard.TokenVolumes")
 	}
 
@@ -958,7 +959,7 @@ order by eow2
 `
 	}
 	var chart TokenChart
-	if tx := d.Raw(query, d.chainId, addr).Find(&chart); tx.Error != nil {
+	if tx := d.Raw(visibility.Query(query), d.chainId, addr).Find(&chart); tx.Error != nil {
 		return TokenChart{}, errors.Wrap(tx.Error, "dashboard.TokenTvls")
 	}
 
@@ -1040,7 +1041,7 @@ from (select p.height, eow2, p.price
 `
 
 	var chart TokenChart
-	if tx := d.Raw(query+whereClause+orderByClause, d.chainId, addr, addr, d.chainId, addr).Find(&chart); tx.Error != nil {
+	if tx := d.Raw(visibility.Query(query+whereClause+orderByClause), d.chainId, addr, addr, d.chainId, addr).Find(&chart); tx.Error != nil {
 		return TokenChart{}, errors.Wrap(tx.Error, "dashboard.TokenPrices")
 	}
 
@@ -1100,7 +1101,7 @@ func (d *dashboard) Tvls(duration Duration) (Tvls, error) {
 	`, dateSeries, lastQuery, joinClause)
 
 	tvls := Tvls{}
-	if err := d.DB.Raw(query, d.chainId).Scan(&tvls).Error; err != nil {
+	if err := d.Raw(visibility.Query(query), d.chainId).Scan(&tvls).Error; err != nil {
 		return nil, errors.Wrap(err, "dashboard.Tvls")
 	}
 	return tvls, nil
@@ -1148,7 +1149,7 @@ func (d *dashboard) TvlsOf(addr Addr, duration Duration) ([]Tvl, error) {
 	`, dateSeries)
 
 	tvls := Tvls{}
-	if err := d.DB.Raw(query, d.chainId, addr).Scan(&tvls).Error; err != nil {
+	if err := d.Raw(visibility.Query(query), d.chainId, addr).Scan(&tvls).Error; err != nil {
 		return nil, errors.Wrap(err, "dashboard.TvlsOf")
 	}
 	return tvls, nil
@@ -1157,7 +1158,7 @@ func (d *dashboard) TvlsOf(addr Addr, duration Duration) ([]Tvl, error) {
 // Txs implements Dashboard.
 func (d *dashboard) Txs(txType TxType, addr ...Addr) (Txs, error) {
 	m := parser.ParsedTx{}
-	subQuery := d.DB.Model(&m).Where("chain_id = ? AND type != 'transfer'", d.chainId).Order("timestamp DESC").Limit(100)
+	subQuery := d.DB.Model(&m).Where(visibility.Assets("parsed_tx")).Where("chain_id = ? AND type != 'transfer'", d.chainId).Order("timestamp DESC").Limit(100)
 	if txType != TX_TYPE_ALL {
 		subQuery = subQuery.Where("type = ?", string(txType))
 	}
@@ -1189,12 +1190,12 @@ func (d *dashboard) Txs(txType TxType, addr ...Addr) (Txs, error) {
 					END
 			END), 0)::text AS total_value,
 		TO_TIMESTAMP(pt."timestamp") AT TIME ZONE 'UTC' as timestamp`,
-	).Table("(?) AS pt", subQuery).Joins(`
+	).Table("(?) AS pt", subQuery).Joins(fmt.Sprintf(`
 		JOIN tokens AS t0 ON pt.asset0 = t0.address AND pt.chain_id = t0.chain_id
 		JOIN tokens AS t1 ON pt.asset1 = t1.address AND pt.chain_id = t1.chain_id
-		LEFT JOIN LATERAL (SELECT price FROM price p WHERE p.token_id = t0.id AND p.tx_id <= pt.id ORDER BY p.tx_id DESC LIMIT 1) pr0 ON TRUE
-		LEFT JOIN LATERAL (SELECT price FROM price p WHERE p.token_id = t1.id AND p.tx_id <= pt.id ORDER BY p.tx_id DESC LIMIT 1) pr1 ON TRUE
-	`,
+		LEFT JOIN LATERAL (SELECT price FROM price p WHERE %s AND p.token_id = t0.id AND p.tx_id <= pt.id ORDER BY p.tx_id DESC LIMIT 1) pr0 ON TRUE
+		LEFT JOIN LATERAL (SELECT price FROM price p WHERE %s AND p.token_id = t1.id AND p.tx_id <= pt.id ORDER BY p.tx_id DESC LIMIT 1) pr1 ON TRUE
+	`, visibility.Price("p"), visibility.Price("p")),
 	).Order(`pt. "timestamp" DESC`)
 
 	txs := Txs{}
@@ -1207,7 +1208,7 @@ func (d *dashboard) Txs(txType TxType, addr ...Addr) (Txs, error) {
 // TxsOfToken implements Dashboard.
 func (d *dashboard) TxsOfToken(txType TxType, tokenAddrs ...Addr) (Txs, error) {
 	m := parser.ParsedTx{}
-	subQuery := d.DB.Model(&m).Where("chain_id = ? AND type != 'transfer'", d.chainId).Order("timestamp DESC").Limit(100)
+	subQuery := d.DB.Model(&m).Where(visibility.Assets("parsed_tx")).Where("chain_id = ? AND type != 'transfer'", d.chainId).Order("timestamp DESC").Limit(100)
 	if txType != TX_TYPE_ALL {
 		subQuery = subQuery.Where("type = ?", string(txType))
 	}
@@ -1239,12 +1240,12 @@ func (d *dashboard) TxsOfToken(txType TxType, tokenAddrs ...Addr) (Txs, error) {
 					END
 			END), 0)::text AS total_value,
 		TO_TIMESTAMP(pt."timestamp") AT TIME ZONE 'UTC' as timestamp`,
-	).Table("(?) AS pt", subQuery).Joins(`
+	).Table("(?) AS pt", subQuery).Joins(fmt.Sprintf(`
 		JOIN tokens AS t0 ON pt.asset0 = t0.address AND pt.chain_id = t0.chain_id
 		JOIN tokens AS t1 ON pt.asset1 = t1.address AND pt.chain_id = t1.chain_id
-		LEFT JOIN LATERAL (SELECT price FROM price p WHERE p.token_id = t0.id AND p.tx_id <= pt.id ORDER BY p.tx_id DESC LIMIT 1) pr0 ON TRUE
-		LEFT JOIN LATERAL (SELECT price FROM price p WHERE p.token_id = t1.id AND p.tx_id <= pt.id ORDER BY p.tx_id DESC LIMIT 1) pr1 ON TRUE
-	`,
+		LEFT JOIN LATERAL (SELECT price FROM price p WHERE %s AND p.token_id = t0.id AND p.tx_id <= pt.id ORDER BY p.tx_id DESC LIMIT 1) pr0 ON TRUE
+		LEFT JOIN LATERAL (SELECT price FROM price p WHERE %s AND p.token_id = t1.id AND p.tx_id <= pt.id ORDER BY p.tx_id DESC LIMIT 1) pr1 ON TRUE
+	`, visibility.Price("p"), visibility.Price("p")),
 	).Order(`pt. "timestamp" DESC`)
 
 	txs := Txs{}
@@ -1278,7 +1279,7 @@ order by ds.timestamp
 `, intervalAgo, truncBy, truncBy, intervalAgo)
 
 	volumes := Volumes{}
-	if err := d.DB.Raw(query, d.chainId).Scan(&volumes).Error; err != nil {
+	if err := d.Raw(visibility.Query(query), d.chainId).Scan(&volumes).Error; err != nil {
 		return nil, errors.Wrap(err, "dashboard.Volumes")
 	}
 	return volumes, nil
@@ -1310,7 +1311,7 @@ order by ds.timestamp
 `, intervalAgo, truncBy, truncBy, intervalAgo)
 
 	volumes := Volumes{}
-	if err := d.DB.Raw(query, d.chainId, addr).Scan(&volumes).Error; err != nil {
+	if err := d.Raw(visibility.Query(query), d.chainId, addr).Scan(&volumes).Error; err != nil {
 		return nil, errors.Wrap(err, "dashboard.VolumesOf")
 	}
 	return volumes, nil
@@ -1340,7 +1341,7 @@ order by ds.timestamp
 `, intervalAgo, truncBy, dezswap.SWAP_FEE, truncBy, intervalAgo)
 
 	fees := Fees{}
-	if err := d.DB.Raw(query, d.chainId).Scan(&fees).Error; err != nil {
+	if err := d.Raw(visibility.Query(query), d.chainId).Scan(&fees).Error; err != nil {
 		return nil, errors.Wrap(err, "dashboard.Fees")
 	}
 	return fees, nil
@@ -1372,7 +1373,7 @@ order by ds.timestamp
 `, intervalAgo, truncBy, dezswap.SWAP_FEE, truncBy, intervalAgo)
 
 	fees := Fees{}
-	if err := d.DB.Raw(query, d.chainId, addr).Scan(&fees).Error; err != nil {
+	if err := d.Raw(visibility.Query(query), d.chainId, addr).Scan(&fees).Error; err != nil {
 		return nil, errors.Wrap(err, "dashboard.FeesOf")
 	}
 	return fees, nil

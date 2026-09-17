@@ -119,3 +119,26 @@ CREATE TABLE pair_stats_recent (
     created_at           DOUBLE PRECISION NOT NULL DEFAULT date_part('epoch'::text, now()),
     modified_at          DOUBLE PRECISION NOT NULL DEFAULT date_part('epoch'::text, now())
 );
+
+-- Shared ETL schema required by API visibility queries (ETL owns production migrations).
+CREATE TABLE token_exception (
+    id BIGSERIAL PRIMARY KEY,
+    chain_id TEXT NOT NULL,
+    contract TEXT NOT NULL,
+    skip_parse BOOLEAN NOT NULL DEFAULT TRUE,
+    hidden BOOLEAN NOT NULL DEFAULT FALSE,
+    UNIQUE (chain_id, contract)
+);
+CREATE INDEX token_exception_chain_id_hidden_idx ON token_exception (chain_id, hidden);
+
+CREATE TABLE route (
+    id BIGSERIAL PRIMARY KEY,
+    chain_id TEXT NOT NULL,
+    asset0 TEXT NOT NULL,
+    asset1 TEXT NOT NULL,
+    hop_count INTEGER NOT NULL,
+    route TEXT[] NOT NULL,
+    created_at DOUBLE PRECISION NOT NULL DEFAULT EXTRACT(EPOCH FROM NOW()),
+    modified_at DOUBLE PRECISION NOT NULL DEFAULT EXTRACT(EPOCH FROM NOW()),
+    deleted_at DOUBLE PRECISION
+);

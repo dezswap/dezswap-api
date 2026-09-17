@@ -47,13 +47,13 @@ func expire(v *Versioner) {
 // the fan-out to one.
 func expectMarks(mock sqlmock.Sqlmock, marks map[string]mark) {
 	rows := sqlmock.NewRows([]string{"source", "row_count", "max_mark"})
-	for _, table := range []string{"tokens", "pair", "pair_stats_30m"} {
+	for _, table := range []string{"tokens", "token_exception", "pair", "pair_stats_30m"} {
 		m := marks[table]
 		rows.AddRow(table, m.RowCount, m.MaxMark)
 	}
 
 	mock.ExpectQuery(`(?s)FROM "tokens".*UNION ALL.*FROM "pair" .*UNION ALL.*FROM "pair_stats_30m"`).
-		WithArgs(testChainId, testChainId, testChainId).
+		WithArgs(testChainId, testChainId, testChainId, testChainId).
 		WillReturnRows(rows)
 }
 
@@ -522,5 +522,28 @@ func TestVersion_RecoversOnceTheWatermarkIsReadable(t *testing.T) {
 
 	require.NoError(t, err)
 	require.NotEmpty(t, version)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestVersion_HiddenListChangeInvalidatesAllResources(t *testing.T) {
+	v, mock, _, close := setupVersioner(t, testMemoTTL)
+	defer close()
+	expectMarks(mock, steady())
+	before := map[string]string{}
+	for _, r := range resources {
+		version, err := v.Version(r)
+		require.NoError(t, err)
+		before[r.name] = version
+	}
+	expire(v)
+	changed := steady()
+	// The count stays the same when one hidden token replaces another.
+	changed["token_exception"] = mark{MaxMark: "different-hidden-contracts"}
+	expectMarks(mock, changed)
+	for _, r := range resources {
+		version, err := v.Version(r)
+		require.NoError(t, err)
+		require.NotEqual(t, before[r.name], version, r.name)
+	}
 	require.NoError(t, mock.ExpectationsWereMet())
 }

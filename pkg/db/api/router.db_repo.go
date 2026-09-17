@@ -3,6 +3,7 @@ package api
 import (
 	rs "github.com/dezswap/dezswap-api/api/v1/service/router"
 	"github.com/dezswap/dezswap-api/pkg/db/aggregator"
+	"github.com/dezswap/dezswap-api/pkg/db/visibility"
 
 	"gorm.io/gorm"
 )
@@ -22,7 +23,7 @@ func NewRouterDbRepo(chainId string, db *gorm.DB) rs.Router {
 // RoutesOfToken implements Router.
 func (r *routerDbRepoImpl) RoutesOfToken(addr string, hopCount int, reverse bool) ([]rs.Route, error) {
 	models := []aggregator.Route{}
-	query := r.db.Model(&aggregator.Route{}).Where("chain_id = ?", r.chainId).Order("hop_count ASC")
+	query := r.db.Model(&aggregator.Route{}).Where(visibility.Route("route")).Where("chain_id = ?", r.chainId).Order("hop_count ASC")
 
 	if !reverse {
 		query = query.Select("asset1, hop_count, route").Where("asset0 = ? AND hop_count <= ?", addr, hopCount).Order("asset1 ASC")
@@ -40,7 +41,7 @@ func (r *routerDbRepoImpl) RoutesOfToken(addr string, hopCount int, reverse bool
 // Routes implements Router.
 func (r *routerDbRepoImpl) Routes(from string, to string, hopCount int) ([]rs.Route, error) {
 	models := []aggregator.Route{}
-	query := r.db.Model(&aggregator.Route{}).
+	query := r.db.Model(&aggregator.Route{}).Where(visibility.Route("route")).
 		Where("chain_id = ? AND asset0 = ? AND asset1 = ? AND hop_count <= ?", r.chainId, from, to, hopCount).
 		Order("hop_count ASC").Order("asset1 ASC")
 

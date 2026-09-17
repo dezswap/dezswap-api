@@ -5,6 +5,7 @@ import (
 
 	"cosmossdk.io/math"
 	"github.com/dezswap/dezswap-api/pkg"
+	"github.com/dezswap/dezswap-api/pkg/db/visibility"
 
 	"github.com/dezswap/dezswap-api/pkg/db"
 	"github.com/pkg/errors"
@@ -159,7 +160,7 @@ where ps.chain_id = ?
   and ps.timestamp >= ?
 `
 	stats := []db.PairStat{}
-	if tx := s.Raw(query, s.chainId, minTimestamp).Find(&stats); tx.Error != nil {
+	if tx := s.Raw(visibility.Query(query), s.chainId, minTimestamp).Find(&stats); tx.Error != nil {
 		return errors.Wrap(tx.Error, "statService.sumRecentPairStatsSince")
 	}
 	for _, stat := range stats {
@@ -189,7 +190,7 @@ order by ps.timestamp desc
 `
 
 	stats := []db.PairStat{}
-	if tx := s.Raw(query, s.chainId, period).Find(&stats); tx.Error != nil {
+	if tx := s.Raw(visibility.Query(query), s.chainId, period).Find(&stats); tx.Error != nil {
 		return nil, errors.Wrap(tx.Error, "StatService.pairStats30m")
 	}
 

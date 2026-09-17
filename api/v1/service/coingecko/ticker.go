@@ -3,6 +3,7 @@ package coingecko
 import (
 	"context"
 	"encoding/json"
+	"github.com/dezswap/dezswap-api/pkg/db/visibility"
 	"math"
 	"net/http"
 	"net/url"
@@ -83,6 +84,10 @@ func (s *tickerService) Get(key string) (*Ticker, error) {
 		}
 	}
 
+	if ticker.PoolId == "" {
+		return nil, nil
+	}
+
 	if p := s.price(ticker.Timestamp, false); p == 0 {
 		if _, err, _ = s.sfGroup.Do(priceTokenId, func() (any, error) {
 			return nil, s.cachePriceInUsd(priceTokenId)
@@ -135,7 +140,7 @@ from pair_stats_30m ps
 	join tokens t1 on p.chain_id = t1.chain_id and p.asset1 = t1.address
 where p.chain_id = ? and p.asset0 = ? and p.asset1 = ?
 `
-	if tx := s.Raw(query, s.chainId, base, target).Find(&ticker); tx.Error != nil {
+	if tx := s.Raw(visibility.Query(query), s.chainId, base, target).Find(&ticker); tx.Error != nil {
 		return errors.Wrap(tx.Error, "TickerService.liquidity")
 	}
 
@@ -229,11 +234,11 @@ where ps.chain_id = ?
 		for i, v := range bindings {
 			b[i+1] = v
 		}
-		if tx := s.Raw(query+cond, b...).Find(&tickers); tx.Error != nil {
+		if tx := s.Raw(visibility.Query(query+cond), b...).Find(&tickers); tx.Error != nil {
 			return nil, errors.Wrap(tx.Error, "tickerService.tickers")
 		}
 	} else {
-		if tx := s.Raw(query, s.chainId).Find(&tickers); tx.Error != nil {
+		if tx := s.Raw(visibility.Query(query), s.chainId).Find(&tickers); tx.Error != nil {
 			return nil, errors.Wrap(tx.Error, "tickerService.tickers")
 		}
 	}
@@ -303,9 +308,9 @@ where p.chain_id = ?
 	var tickers []Ticker
 	var tx *gorm.DB
 	if cond != "" {
-		tx = s.Raw(query+cond, s.chainId, arg).Find(&tickers)
+		tx = s.Raw(visibility.Query(query+cond), s.chainId, arg).Find(&tickers)
 	} else {
-		tx = s.Raw(query, s.chainId).Find(&tickers)
+		tx = s.Raw(visibility.Query(query), s.chainId).Find(&tickers)
 	}
 	if tx.Error != nil {
 		return nil, errors.Wrap(tx.Error, "TickerService.queryInactivePools")
